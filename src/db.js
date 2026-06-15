@@ -19,6 +19,11 @@ db.version(2).stores({
   expenses: '++id, day, createdAt, category',
 });
 
+db.version(3).stores({
+  employees:  '++id, name, status, createdAt',
+  empRecords: '++id, employeeId, type, day, createdAt',
+});
+
 // ---------- helpers ----------
 export const nowISO = () => new Date().toISOString();
 export const dayOf = (iso) => (iso || nowISO()).slice(0, 10); // YYYY-MM-DD

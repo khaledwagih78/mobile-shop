@@ -15,6 +15,8 @@ import Import from './pages/Import';
 import Insights from './pages/Insights';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
+import Employees from './pages/Employees';
+import EmployeeDetail from './pages/EmployeeDetail';
 import { can } from './utils';
 
 function Guard({ action, children }) {
@@ -45,6 +47,8 @@ function Shell() {
         <Route path="import" element={<Guard action="import"><Import /></Guard>} />
         <Route path="backup" element={<Guard action="backup"><Backup /></Guard>} />
         <Route path="users" element={<Guard action="users"><Users /></Guard>} />
+        <Route path="employees" element={<Guard action="employees"><Employees /></Guard>} />
+        <Route path="employees/:id" element={<Guard action="employees"><EmployeeDetail /></Guard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
