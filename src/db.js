@@ -15,6 +15,10 @@ db.version(1).stores({
   syncQueue: '++id, synced, createdAt',
 });
 
+db.version(2).stores({
+  expenses: '++id, day, createdAt, category',
+});
+
 // ---------- helpers ----------
 export const nowISO = () => new Date().toISOString();
 export const dayOf = (iso) => (iso || nowISO()).slice(0, 10); // YYYY-MM-DD
