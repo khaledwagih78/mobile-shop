@@ -2,14 +2,26 @@ import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, loadDemoData } from '../db';
 import { exportBackup, importBackup } from '../backup';
+import { syncAll, useSyncStatus } from '../sync';
 import { fmtDate } from '../utils';
 import { Toast } from '../components/UI';
+
+function relTime(iso) {
+  if (!iso) return null;
+  const m = Math.floor((Date.now() - new Date(iso)) / 60_000);
+  if (m < 1) return 'الآن';
+  if (m < 60) return `منذ ${m} دقيقة`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `منذ ${h} ساعة`;
+  return `منذ ${Math.floor(h / 24)} يوم`;
+}
 
 export default function Backup() {
   const fileRef = useRef(null);
   const [pw, setPw] = useState('');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
+  const sync    = useSyncStatus();
   const pending = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
   const itemsCount = useLiveQuery(() => db.items.count(), [], 0);
   const invCount = useLiveQuery(() => db.invoices.count(), [], 0);
@@ -65,14 +77,30 @@ export default function Backup() {
         </div>
       </div>
 
-      <div className="section-title">☁️ المزامنة السحابية</div>
+      <div className="section-title">☁️ المزامنة السحابية (Supabase)</div>
       <div className="card">
-        <p>
-          <span className="badge amber">المرحلة الثانية</span>{' '}
-          البرنامج يسجّل كل عملية محلياً ويحتفظ بقائمة انتظار للمزامنة.
-          عند تفعيل الربط السحابي (Supabase) سيتم رفع <b>{pending}</b> عملية معلّقة تلقائياً أول ما يتوفر الإنترنت.
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            {sync.state === 'syncing' && <span className="badge amber">⏳ جاري المزامنة...</span>}
+            {sync.state === 'ok'      && <span className="badge green">✅ مزامن — {relTime(sync.at)}</span>}
+            {sync.state === 'error'   && <span className="badge red">⚠️ خطأ في المزامنة</span>}
+            {sync.state === 'offline' && <span className="badge gray">📵 غير متصل بالإنترنت</span>}
+            {sync.state === 'idle'    && <span className="badge gray">☁️ في انتظار المزامنة</span>}
+            {sync.error && (
+              <p className="muted" style={{ fontSize: 12, marginTop: 4, direction: 'ltr' }}>{sync.error}</p>
+            )}
+          </div>
+          <button
+            className="btn"
+            onClick={syncAll}
+            disabled={sync.state === 'syncing' || !navigator.onLine}
+          >🔄 زامن الآن</button>
+        </div>
+        <p className="muted" style={{ marginTop: 10 }}>
+          {pending > 0
+            ? `${pending} عملية محلية بانتظار الرفع — تتزامن تلقائياً كل 30 ثانية وعند عودة الإنترنت.`
+            : 'كل البيانات مزامنة مع السحابة. يمكنك فتح التطبيق من أي جهاز وستجد نفس البيانات.'}
         </p>
-        <p className="muted">حالياً: كل البيانات محفوظة بأمان داخل الجهاز وتعمل بدون إنترنت بالكامل.</p>
       </div>
 
       {itemsCount === 0 && (

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO } from '../db';
+import { db, nowISO, queueSync } from '../db';
 import { money, fmt } from '../utils';
 import { Modal } from '../components/UI';
 
@@ -39,16 +39,22 @@ export default function Employees() {
     };
     if (form.id) {
       await db.employees.update(form.id, doc);
+      await queueSync('employees', 'update', { ...doc, id: form.id });
     } else {
-      await db.employees.add({ ...doc, createdAt: nowISO() });
+      const id = await db.employees.add({ ...doc, createdAt: nowISO() });
+      await queueSync('employees', 'add', { ...doc, id });
     }
     setForm(null);
   };
 
   const remove = async (emp) => {
     if (!confirm(`حذف الموظف "${emp.name}"؟ سيتم حذف كل سجلاته أيضاً.`)) return;
+    // Queue individual empRecord deletes so server removes them too
+    const recs = await db.empRecords.where('employeeId').equals(emp.id).toArray();
+    for (const r of recs) await queueSync('empRecords', 'delete', { id: r.id });
     await db.empRecords.where('employeeId').equals(emp.id).delete();
     await db.employees.delete(emp.id);
+    await queueSync('employees', 'delete', { id: emp.id });
   };
 
   return (

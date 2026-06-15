@@ -203,8 +203,10 @@ export default function Expenses() {
     };
     if (recForm.id) {
       await db.recurringExpenses.update(recForm.id, doc);
+      await queueSync('recurringExpenses', 'update', { ...doc, id: recForm.id });
     } else {
-      await db.recurringExpenses.add({ ...doc, createdAt: nowISO() });
+      const id = await db.recurringExpenses.add({ ...doc, createdAt: nowISO() });
+      await queueSync('recurringExpenses', 'add', { ...doc, id });
       setTimeout(applyRecurring, 200);
     }
     setRecForm(null);
@@ -213,12 +215,14 @@ export default function Expenses() {
   const toggleRec = async (rec) => {
     const next = rec.status === 'active' ? 'paused' : 'active';
     await db.recurringExpenses.update(rec.id, { status: next });
+    await queueSync('recurringExpenses', 'update', { ...rec, status: next });
     if (next === 'active') setTimeout(applyRecurring, 200);
   };
 
   const removeRec = async (rec) => {
     if (!confirm(`حذف "${rec.name}"؟ السجلات المدفوعة مسبقاً ستبقى كما هي.`)) return;
     await db.recurringExpenses.delete(rec.id);
+    await queueSync('recurringExpenses', 'delete', { id: rec.id });
   };
 
   const canSave = form && form.day && Number(form.amount) > 0;

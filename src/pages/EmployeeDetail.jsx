@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, today } from '../db';
+import { db, nowISO, today, queueSync } from '../db';
 import { money, fmt, monthOf } from '../utils';
 import { Modal } from '../components/UI';
 
@@ -64,31 +64,37 @@ export default function EmployeeDetail() {
   // ---- save a new record ----
   const saveRecord = async () => {
     const base = { employeeId: empId, type: form.type, day: form.day, note: form.note || '', createdAt: nowISO() };
+    let rec;
     if (form.type in FIN_TYPES) {
-      await db.empRecords.add({ ...base, amount: Number(form.amount) || 0 });
+      rec = { ...base, amount: Number(form.amount) || 0 };
     } else if (form.type === 'leave') {
-      await db.empRecords.add({ ...base, leaveType: form.leaveType, days: Number(form.days) || 1, amount: 0 });
+      rec = { ...base, leaveType: form.leaveType, days: Number(form.days) || 1, amount: 0 };
     } else {
-      await db.empRecords.add({ ...base, attendanceStatus: form.attendanceStatus, amount: 0 });
+      rec = { ...base, attendanceStatus: form.attendanceStatus, amount: 0 };
     }
+    const id = await db.empRecords.add(rec);
+    await queueSync('empRecords', 'add', { ...rec, id });
     setForm(null);
   };
 
   const removeRecord = async (rec) => {
     if (!confirm('حذف هذا السجل؟')) return;
     await db.empRecords.delete(rec.id);
+    await queueSync('empRecords', 'delete', { id: rec.id });
   };
 
   // ---- save employee edits ----
   const saveEmp = async () => {
-    await db.employees.update(empId, {
+    const doc = {
       name:       editEmp.name.trim(),
       phone:      editEmp.phone,
       jobTitle:   editEmp.jobTitle,
       hireDate:   editEmp.hireDate,
       baseSalary: Number(editEmp.baseSalary) || 0,
       status:     editEmp.status,
-    });
+    };
+    await db.employees.update(empId, doc);
+    await queueSync('employees', 'update', { ...doc, id: empId });
     setEditEmp(null);
   };
 

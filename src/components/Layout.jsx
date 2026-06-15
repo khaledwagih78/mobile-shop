@@ -3,6 +3,17 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getSetting } from '../db';
 import { useAuth } from '../auth';
 import { can, ROLES } from '../utils';
+import { useSyncStatus } from '../sync';
+
+function relTime(iso) {
+  if (!iso) return null;
+  const m = Math.floor((Date.now() - new Date(iso)) / 60_000);
+  if (m < 1) return 'الآن';
+  if (m < 60) return `${m}د`;
+  return `${Math.floor(m / 60)}س`;
+}
+
+const SYNC_ICO = { syncing: '⏳', ok: '☁️', error: '⚠️', offline: '📵', idle: '☁️' };
 
 const MENU = [
   { to: '/', ico: '📊', label: 'الرئيسية', action: null },
@@ -26,7 +37,8 @@ const MOBILE = ['/', '/pos', '/items', '/customers', '/invoices'];
 
 export default function Layout() {
   const { user, logout } = useAuth();
-  const pending = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
+  const syncStatus = useSyncStatus();
+  const pending    = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
   const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
   const visible = MENU.filter((m) => !m.action || can(user.role, m.action));
   const mobileItems = visible.filter((m) => MOBILE.includes(m.to)).slice(0, 5);
@@ -48,11 +60,15 @@ export default function Layout() {
         <div className="sidebar-user">
           <b>{user.name}</b>
           <span style={{ opacity: 0.75 }}>{ROLES[user.role]}</span>
-          {pending > 0 && (
-            <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>
-              ⏳ {pending} عملية بانتظار المزامنة
-            </div>
-          )}
+          <div style={{ fontSize: 11, marginTop: 4, opacity: 0.75 }}>
+            {SYNC_ICO[syncStatus.state] || '☁️'}{' '}
+            {syncStatus.state === 'syncing' && 'جاري المزامنة...'}
+            {syncStatus.state === 'ok'      && `مزامن ${relTime(syncStatus.at) || ''}`}
+            {syncStatus.state === 'error'   && 'خطأ في المزامنة'}
+            {syncStatus.state === 'offline' && 'بدون إنترنت'}
+            {syncStatus.state === 'idle'    && 'Supabase'}
+            {pending > 0 && syncStatus.state !== 'syncing' && ` · ${pending} معلّق`}
+          </div>
           <button onClick={logout}>تسجيل الخروج</button>
         </div>
       </aside>
