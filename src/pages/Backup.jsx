@@ -1,0 +1,121 @@
+import { useRef, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, loadDemoData } from '../db';
+import { exportBackup, importBackup } from '../backup';
+import { syncAll, useSyncStatus } from '../sync';
+import { fmtDate } from '../utils';
+import { Toast } from '../components/UI';
+
+function relTime(iso) {
+  if (!iso) return null;
+  const m = Math.floor((Date.now() - new Date(iso)) / 60_000);
+  if (m < 1) return 'الآن';
+  if (m < 60) return `منذ ${m} دقيقة`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `منذ ${h} ساعة`;
+  return `منذ ${Math.floor(h / 24)} يوم`;
+}
+
+export default function Backup() {
+  const fileRef = useRef(null);
+  const [pw, setPw] = useState('');
+  const [toast, setToast] = useState('');
+  const [busy, setBusy] = useState(false);
+  const sync    = useSyncStatus();
+  const pending = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
+  const itemsCount = useLiveQuery(() => db.items.count(), [], 0);
+  const invCount = useLiveQuery(() => db.invoices.count(), [], 0);
+
+  const show = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
+
+  const doExport = async () => {
+    setBusy(true);
+    try {
+      await exportBackup(pw.trim() || null);
+      show('✅ تم تنزيل النسخة الاحتياطية');
+    } catch (e) { show('❌ ' + e.message); }
+    setBusy(false);
+  };
+
+  const doImport = async (file) => {
+    if (!file) return;
+    if (!confirm('⚠️ الاسترجاع سيستبدل كل البيانات الحالية بالنسخة المختارة. متأكد؟')) return;
+    setBusy(true);
+    try {
+      const date = await importBackup(file, pw.trim() || null);
+      show(`✅ تم استرجاع نسخة بتاريخ ${fmtDate(date)} — أعد تسجيل الدخول`);
+      setTimeout(() => location.reload(), 2000);
+    } catch (e) { show('❌ ' + e.message); }
+    setBusy(false);
+    fileRef.current.value = '';
+  };
+
+  return (
+    <>
+      <div className="page-head"><h1>🛡️ النسخ الاحتياطي</h1></div>
+
+      <div className="grid-2">
+        <div className="card">
+          <h3 style={{ marginBottom: 10 }}>📤 نسخ احتياطي الآن</h3>
+          <p className="muted">يتم تنزيل ملف يحتوي كل بياناتك ({itemsCount} صنف، {invCount} فاتورة). احفظه على Google Drive أو أرسله لنفسك على Gmail / واتساب.</p>
+          <div className="field">
+            <label>كلمة سر التشفير (اختياري — موصى به)</label>
+            <input className="input" type="password" value={pw} onChange={(e) => setPw(e.target.value)}
+              placeholder="اتركها فارغة لنسخة بدون تشفير" />
+          </div>
+          <button className="btn big block" onClick={doExport} disabled={busy}>💾 نسخ احتياطي الآن</button>
+        </div>
+
+        <div className="card">
+          <h3 style={{ marginBottom: 10 }}>📥 استرجاع البيانات</h3>
+          <p className="muted">اختر ملف نسخة احتياطية لاسترجاعه أو لنقل البيانات لجهاز جديد. إن كانت النسخة مشفّرة أدخل كلمة السر في الخانة المجاورة أولاً.</p>
+          <input ref={fileRef} type="file" accept=".json,.kerp" style={{ display: 'none' }}
+            onChange={(e) => doImport(e.target.files[0])} />
+          <button className="btn ghost big block" onClick={() => fileRef.current.click()} disabled={busy}>
+            📂 اختيار ملف واسترجاع
+          </button>
+        </div>
+      </div>
+
+      <div className="section-title">☁️ المزامنة السحابية (Supabase)</div>
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            {sync.state === 'syncing' && <span className="badge amber">⏳ جاري المزامنة...</span>}
+            {sync.state === 'ok'      && <span className="badge green">✅ مزامن — {relTime(sync.at)}</span>}
+            {sync.state === 'error'   && <span className="badge red">⚠️ خطأ في المزامنة</span>}
+            {sync.state === 'offline' && <span className="badge gray">📵 غير متصل بالإنترنت</span>}
+            {sync.state === 'idle'    && <span className="badge gray">☁️ في انتظار المزامنة</span>}
+            {sync.error && (
+              <pre className="muted" style={{ fontSize: 11, marginTop: 6, direction: 'ltr', whiteSpace: 'pre-wrap', maxWidth: 500, background: '#fee', padding: 8, borderRadius: 6, border: '1px solid #fcc' }}>{sync.error}</pre>
+            )}
+          </div>
+          <button
+            className="btn"
+            onClick={syncAll}
+            disabled={sync.state === 'syncing' || !navigator.onLine}
+          >🔄 زامن الآن</button>
+        </div>
+        <p className="muted" style={{ marginTop: 10 }}>
+          {pending > 0
+            ? `${pending} عملية محلية بانتظار الرفع — تتزامن تلقائياً كل 30 ثانية وعند عودة الإنترنت.`
+            : 'كل البيانات مزامنة مع السحابة. يمكنك فتح التطبيق من أي جهاز وستجد نفس البيانات.'}
+        </p>
+      </div>
+
+      {itemsCount === 0 && (
+        <>
+          <div className="section-title">🧪 بيانات تجريبية</div>
+          <div className="card">
+            <p className="muted">للتجربة السريعة: حمّل أصناف وعملاء تجريبيين (يمكن حذفهم لاحقاً).</p>
+            <button className="btn ghost" onClick={async () => { await loadDemoData(); show('✅ تم تحميل البيانات التجريبية'); }}>
+              تحميل بيانات تجريبية
+            </button>
+          </div>
+        </>
+      )}
+
+      <Toast msg={toast} />
+    </>
+  );
+}
