@@ -53,9 +53,13 @@ export async function setSetting(key, value) {
   await db.settings.put({ key, value });
 }
 
-// queue every write for future cloud sync (Supabase - phase 2)
+// queue every write for cloud sync, then kick off a debounced push/pull
+// so changes reach the cloud immediately whenever the internet is available.
 export async function queueSync(table, op, payload) {
   await db.syncQueue.add({ table, op, payload, synced: 0, createdAt: nowISO() });
+  // Lazy import avoids a static circular dependency (sync.js imports db.js).
+  // triggerSync is debounced and is a no-op while offline.
+  import('./sync').then((m) => m.triggerSync()).catch(() => {});
 }
 
 // ---------- audit log ----------
