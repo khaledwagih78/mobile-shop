@@ -120,6 +120,16 @@ async function pullAll() {
 
 let _syncing = false;
 
+// Never let a hung network request leave the UI stuck on "syncing" forever.
+// If push+pull don't finish within the timeout, reject so we surface an error
+// and release the lock, allowing the next interval/online/write to retry.
+const SYNC_TIMEOUT_MS = 20_000;
+function withTimeout(promise, ms, message) {
+  let t;
+  const timer = new Promise((_, reject) => { t = setTimeout(() => reject(new Error(message)), ms); });
+  return Promise.race([promise, timer]).finally(() => clearTimeout(t));
+}
+
 export async function syncAll() {
   if (_syncing) return;
   if (!navigator.onLine) {
@@ -131,9 +141,15 @@ export async function syncAll() {
   setState({ state: 'syncing', at: _status.at, error: null });
 
   try {
-    const pushErrors = await pushAll();
-    const pullErrors = await pullAll();
-    const allErrors = [...pushErrors, ...pullErrors];
+    const allErrors = await withTimeout(
+      (async () => {
+        const pushErrors = await pushAll();
+        const pullErrors = await pullAll();
+        return [...pushErrors, ...pullErrors];
+      })(),
+      SYNC_TIMEOUT_MS,
+      'انتهت مهلة المزامنة — تأكد من الإنترنت وأن مشروع Supabase غير متوقف (Paused)',
+    );
 
     if (allErrors.length) {
       const summary = allErrors.slice(0, 3).join('\n');
