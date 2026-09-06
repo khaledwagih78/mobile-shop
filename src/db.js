@@ -40,6 +40,49 @@ db.version(6).stores({
   deliveries: '++id, invoiceId, status, driverId, createdAt',
 });
 
+// ---------- globally-unique IDs for multi-device offline sync ----------
+// Auto-increment ids restart at 1 on every device, so two devices that create
+// records while offline would generate the SAME id and clobber each other on
+// the next cloud sync. To prevent that, each device claims its own random block
+// of the integer id space and stamps every new record with an id from that
+// block, guaranteeing global uniqueness without any schema migration.
+// Existing small ids (1..N) sit below every device block, so old data stays valid.
+const ID_BLOCK = 2 ** 40; // ~1.1e12 ids reserved per device (well within 2^53)
+
+function deviceBlock() {
+  let d = 0;
+  try { d = Number(localStorage.getItem('kerp_device_block')); } catch { /* no localStorage */ }
+  if (!Number.isInteger(d) || d < 1 || d > 4095) {
+    d = 1 + Math.floor(Math.random() * 4095); // 12-bit device id, 1..4095
+    try { localStorage.setItem('kerp_device_block', String(d)); } catch { /* ignore */ }
+  }
+  return d;
+}
+
+export function nextId() {
+  const base = deviceBlock() * ID_BLOCK;
+  let seq = 0;
+  try { seq = Number(localStorage.getItem('kerp_id_seq')) || 0; } catch { /* ignore */ }
+  seq += 1;
+  try { localStorage.setItem('kerp_id_seq', String(seq)); } catch { /* ignore */ }
+  return base + seq;
+}
+
+// Stamp a globally-unique id on every new record in the synced tables.
+// Records arriving from the cloud already carry an id, so they pass through
+// untouched (the hook only fills a missing id). 'settings' (keyed by `key`)
+// and 'syncQueue' (device-local, never synced) are intentionally excluded.
+const ID_TABLES = [
+  'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
+  'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users',
+  'lines', 'transactions', 'deliveries', 'auditLog',
+];
+for (const t of ID_TABLES) {
+  db[t].hook('creating', (primKey, obj) => {
+    if (obj.id == null) obj.id = nextId();
+  });
+}
+
 // ---------- helpers ----------
 export const nowISO = () => new Date().toISOString();
 export const dayOf = (iso) => (iso || nowISO()).slice(0, 10); // YYYY-MM-DD
@@ -53,9 +96,13 @@ export async function setSetting(key, value) {
   await db.settings.put({ key, value });
 }
 
-// queue every write for future cloud sync (Supabase - phase 2)
+// queue every write for cloud sync, then kick off a debounced push/pull
+// so changes reach the cloud immediately whenever the internet is available.
 export async function queueSync(table, op, payload) {
   await db.syncQueue.add({ table, op, payload, synced: 0, createdAt: nowISO() });
+  // Lazy import avoids a static circular dependency (sync.js imports db.js).
+  // triggerSync is debounced and is a no-op while offline.
+  import('./sync').then((m) => m.triggerSync()).catch(() => {});
 }
 
 // ---------- audit log ----------
@@ -92,13 +139,18 @@ export function checkLowStock(items) {
   }
 }
 
-// sequential invoice numbers: S-00001 / P-00001
+// sequential invoice numbers, tagged per device: S<dev>-00001 / P<dev>-00001.
+// A per-device sequence (localStorage) plus the device tag keeps numbers unique
+// and stable even when several devices issue invoices offline at the same time.
 export async function nextInvoiceNumber(type) {
-  const key = type === 'sale' ? 'seq_sale' : 'seq_purchase';
-  const cur = (await getSetting(key, 0)) + 1;
-  await setSetting(key, cur);
+  const dev = deviceBlock();
+  const key = `kerp_inv_seq_${type}`;
+  let cur = 0;
+  try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+  cur += 1;
+  try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
   const prefix = type === 'sale' ? 'S' : 'P';
-  return `${prefix}-${String(cur).padStart(5, '0')}`;
+  return `${prefix}${dev}-${String(cur).padStart(5, '0')}`;
 }
 
 // ---------- first run: seed admin user ----------
