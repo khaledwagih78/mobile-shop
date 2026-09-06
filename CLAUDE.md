@@ -102,6 +102,22 @@ Core tables: `items`, `customers`, `suppliers`, `invoices`, `payments`,
 Only **indexed** fields are declared in `stores()`; full objects carry many more
 un-indexed fields (e.g. `costPrice`, `salePrice`, `stock`, `balance`, `points`).
 
+**Globally-unique record IDs (multi-device safety).** Tables are declared `++id`,
+but relying on auto-increment breaks multi-device sync: every device restarts ids
+at 1, so two devices creating records offline generate the same id and clobber
+each other on the next upsert. To prevent this, `db.js` registers a Dexie
+`creating` hook on every synced table (`ID_TABLES`) that stamps each **new** record
+with a globally-unique id from `nextId()` — a per-device random block (12-bit
+`kerp_device_block` in `localStorage`) × `2**40` plus a per-device sequence
+(`kerp_id_seq`). Records pulled from the cloud already have an id and pass through
+untouched. Consequences to keep in mind:
+- **Never** hand-assign integer ids on `add()`; let the hook do it (pass an
+  explicit id only when re-inserting a record that already has one, e.g. sync).
+- Invoice numbers are likewise device-tagged (`S<dev>-00001`) via
+  `nextInvoiceNumber` so they stay unique across devices.
+- `settings` (keyed by `key`) and `syncQueue` (device-local) are excluded.
+- Ids stay within `2**53`, so they remain valid JS numbers and Postgres `bigint`.
+
 ### Core business operations (all in `src/db.js`)
 
 - `saveInvoice(inv)` — transactional: assigns a sequential number
