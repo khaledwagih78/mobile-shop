@@ -351,6 +351,44 @@ export async function cancelInvoice(invoiceId, userName) {
   );
 }
 
+// Restore a cancelled invoice: re-apply its original stock & balance effect.
+export async function restoreInvoice(invoiceId, userName) {
+  return db.transaction(
+    'rw',
+    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.syncQueue],
+    async () => {
+      const inv = await db.invoices.get(invoiceId);
+      if (!inv || inv.status !== 'cancelled') return;
+      const b = inv.branchId || DEFAULT_BRANCH_ID;
+      for (const line of inv.lines) {
+        const item = await db.items.get(line.itemId);
+        if (!item) continue;
+        const stocks = { ...(item.stocks || {}) };
+        // original effect: sale removes stock, purchase adds it
+        stocks[b] = Number(stocks[b] || 0) + (inv.type === 'sale' ? -line.qty : line.qty);
+        await db.items.update(line.itemId, { stocks });
+        await db.stockMoves.add({
+          itemId: line.itemId, itemName: line.name, qty: line.qty, branchId: b,
+          direction: inv.type === 'sale' ? 'out' : 'in',
+          refType: inv.type, refId: invoiceId, refNumber: inv.number, createdAt: nowISO(),
+        });
+      }
+      if (inv.remaining > 0 && inv.partyId) {
+        if (inv.type === 'sale') {
+          const c = await db.customers.get(inv.partyId);
+          if (c) await db.customers.update(inv.partyId, { balance: (c.balance || 0) + inv.remaining });
+        } else {
+          const s = await db.suppliers.get(inv.partyId);
+          if (s) await db.suppliers.update(inv.partyId, { balance: (s.balance || 0) + inv.remaining });
+        }
+      }
+      await db.invoices.update(invoiceId, { status: 'active', cancelledAt: null, cancelledBy: null, restoredAt: nowISO(), restoredBy: userName });
+      await logAudit('restore', 'invoice', invoiceId, { userName, extra: { number: inv.number, type: inv.type, total: inv.total } });
+      await queueSync('invoices', 'restore', { id: invoiceId });
+    }
+  );
+}
+
 // Record a payment from customer (in) or to supplier (out)
 export async function recordPayment({ partyType, partyId, partyName, amount, note, userName, branchId }) {
   return db.transaction('rw', [db.payments, db.customers, db.suppliers, db.syncQueue], async () => {

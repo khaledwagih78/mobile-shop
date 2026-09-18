@@ -7,6 +7,7 @@ export default function Settings() {
   const [usdRate, setUsdRate] = useState('');
   const [margin, setMargin] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [opPassword, setOpPassword] = useState('');
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -15,6 +16,7 @@ export default function Settings() {
       setUsdRate(await getSetting('usdRate', '') || '');
       setMargin(await getSetting('defaultMargin', '') || '');
       setApiKey(await getSetting('aiKey', '') || '');
+      setOpPassword(await getSetting('opPassword', '') || '');
     })();
   }, []);
 
@@ -23,6 +25,7 @@ export default function Settings() {
     await setSetting('usdRate', Number(usdRate) || 0);
     await setSetting('defaultMargin', Number(margin) || 0);
     await setSetting('aiKey', apiKey.trim());
+    await setSetting('opPassword', opPassword.trim());
     setToast('✅ تم حفظ الإعدادات');
     setTimeout(() => setToast(''), 2500);
   };
@@ -78,6 +81,20 @@ export default function Settings() {
         </div>
 
         <button className="btn big" onClick={save}>💾 حفظ الإعدادات</button>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🔒 كلمة سر الحذف والإلغاء (اختياري)</label>
+          <input className="input lg" type="password" value={opPassword} onChange={(e) => setOpPassword(e.target.value)}
+            placeholder="اتركها فارغة لتعطيلها" />
+          <p className="muted" style={{ marginTop: 6 }}>
+            لو حطّيت كلمة سر هنا، أي <b>إلغاء فاتورة</b> أو <b>استرجاع</b> هيطلب كلمة السر دي قبل التنفيذ —
+            حماية إضافية عشان محدش يلغي فاتورة بالغلط أو بدون إذن. الفواتير الملغاة <b>بتفضل محفوظة</b>
+            وتقدر ترجّعها في أي وقت من صفحة الفاتورة. (اضغط 💾 حفظ الإعدادات بعد التغيير)
+          </p>
+          <button className="btn" onClick={save}>💾 حفظ كلمة السر</button>
+        </div>
       </div>
 
       <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>

@@ -1,14 +1,17 @@
+import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, cancelInvoice, getSetting } from '../db';
+import { db, cancelInvoice, restoreInvoice, getSetting } from '../db';
 import { money, fmt, fmtDate, can, waLink } from '../utils';
 import { useAuth } from '../auth';
+import PasswordGate from '../components/PasswordGate';
 
 export default function InvoiceView() {
   const { id } = useParams();
   const nav = useNavigate();
   const [sp] = useSearchParams();
   const { user } = useAuth();
+  const [gate, setGate] = useState(null); // { title, message, onConfirm }
   const inv = useLiveQuery(() => db.invoices.get(Number(id)), [id]);
   const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
   const party = useLiveQuery(
@@ -34,9 +37,20 @@ export default function InvoiceView() {
     return t;
   };
 
-  const doCancel = async () => {
-    if (!confirm(`إلغاء الفاتورة ${inv.number}؟ سيتم عكس حركة المخزون والأرصدة.`)) return;
-    await cancelInvoice(inv.id, user.name);
+  const doCancel = () => {
+    setGate({
+      title: `إلغاء الفاتورة ${inv.number}`,
+      message: 'سيتم عكس حركة المخزون والأرصدة. الفاتورة تفضل محفوظة وتقدر ترجّعها في أي وقت.',
+      onConfirm: () => cancelInvoice(inv.id, user.name),
+    });
+  };
+
+  const doRestore = () => {
+    setGate({
+      title: `استرجاع الفاتورة ${inv.number}`,
+      message: 'هيتم إرجاع الفاتورة وتطبيق حركة المخزون والأرصدة من جديد.',
+      onConfirm: () => restoreInvoice(inv.id, user.name),
+    });
   };
 
   const exportPDF = () => {
@@ -107,6 +121,9 @@ export default function InvoiceView() {
           </a>
           {inv.status === 'active' && can(user.role, 'cancelInvoice') && (
             <button className="btn danger" onClick={doCancel}>إلغاء الفاتورة</button>
+          )}
+          {inv.status === 'cancelled' && can(user.role, 'cancelInvoice') && (
+            <button className="btn" style={{ background: 'var(--green, #27ae60)' }} onClick={doRestore}>♻️ استرجاع الفاتورة</button>
           )}
         </div>
       </div>
@@ -185,6 +202,13 @@ export default function InvoiceView() {
           <div className="ph" style={{ marginTop: 8 }}>شكراً لتعاملكم معنا</div>
         </div>
       </div>
+
+      {gate && (
+        <PasswordGate
+          title={gate.title} message={gate.message}
+          onConfirm={gate.onConfirm} onClose={() => setGate(null)}
+        />
+      )}
     </>
   );
 }
