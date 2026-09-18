@@ -37,18 +37,44 @@ export default function Voice() {
   const [answer, setAnswer] = useState(null); // { title, lines[] }
   const [listening, setListening] = useState(false);
   const [log, setLog] = useState([]); // {q, a}
+  // Voice OUTPUT is off by default — the user asks; the app only speaks the
+  // answer if they explicitly turn it on. Choice + language persist locally.
+  const [speakOn, setSpeakOn] = useState(() => { try { return localStorage.getItem('kerp_voice_speak') === '1'; } catch { return false; } });
+  const [voiceLang, setVoiceLang] = useState(() => { try { return localStorage.getItem('kerp_voice_lang') || 'ar-EG'; } catch { return 'ar-EG'; } });
+  const [voices, setVoices] = useState([]);
   const recRef = useRef(null);
   const branchName = branches.find((b) => b.id === activeBranch)?.name || 'الفرع';
 
   const supported = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
   const ttsOk = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
-  const speak = (s) => {
-    if (!ttsOk || !s) return;
+  useEffect(() => {
+    if (!ttsOk) return;
+    const load = () => setVoices(window.speechSynthesis.getVoices() || []);
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => { try { window.speechSynthesis.onvoiceschanged = null; } catch { /* ignore */ } };
+  }, [ttsOk]);
+
+  const toggleSpeak = () => setSpeakOn((v) => {
+    const n = !v;
+    try { localStorage.setItem('kerp_voice_speak', n ? '1' : '0'); } catch { /* ignore */ }
+    if (!n) { try { window.speechSynthesis.cancel(); } catch { /* ignore */ } }
+    return n;
+  });
+  const changeLang = (l) => { setVoiceLang(l); try { localStorage.setItem('kerp_voice_lang', l); } catch { /* ignore */ } };
+  const pickVoice = (lang) => voices.find((v) => v.lang === lang) || voices.find((v) => (v.lang || '').startsWith(lang.slice(0, 2))) || null;
+
+  // force = true when the user taps "اسمع تاني" (ignores the on/off toggle)
+  const speak = (s, force = false) => {
+    if (!ttsOk || !s || (!force && !speakOn)) return;
     try {
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(s);
-      u.lang = 'ar-EG'; u.rate = 0.95;
+      u.lang = voiceLang;
+      const v = pickVoice(voiceLang);
+      if (v) u.voice = v;
+      u.rate = 0.95;
       window.speechSynthesis.speak(u);
     } catch { /* ignore */ }
   };
@@ -114,6 +140,23 @@ export default function Voice() {
             placeholder="أو اكتب سؤالك هنا... مثال: مبيعات النهارده كام" />
           <button className="btn" onClick={submit}>تحليل</button>
         </div>
+
+        {ttsOk && (
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer', fontSize: 14 }}>
+              <input type="checkbox" checked={speakOn} onChange={toggleSpeak} />
+              🔊 ينطق الإجابة صوتياً
+            </label>
+            {speakOn && (
+              <select className="input" style={{ maxWidth: 180 }} value={voiceLang} onChange={(e) => changeLang(e.target.value)}>
+                <option value="ar-EG">🇪🇬 عربي مصري</option>
+                <option value="ar-SA">🇸🇦 عربي فصحى</option>
+                <option value="ar">عربي (عام)</option>
+                <option value="en-US">🇬🇧 English</option>
+              </select>
+            )}
+          </div>
+        )}
       </div>
 
       {answer && (
@@ -122,7 +165,7 @@ export default function Voice() {
           {answer.lines.map((ln, i) => (
             <div key={i} style={{ fontSize: i === 0 ? 26 : 15, fontWeight: i === 0 ? 800 : 500, marginTop: i === 0 ? 0 : 6, color: i === 0 ? 'var(--primary, #0F4C5C)' : 'inherit' }}>{ln}</div>
           ))}
-          {ttsOk && <button className="btn ghost sm" style={{ marginTop: 12 }} onClick={() => speak(answer.speak)}>🔊 اسمع تاني</button>}
+          {ttsOk && <button className="btn ghost sm" style={{ marginTop: 12 }} onClick={() => speak(answer.speak, true)}>🔊 اسمع الإجابة</button>}
         </div>
       )}
 
