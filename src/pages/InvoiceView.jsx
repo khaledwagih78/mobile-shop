@@ -14,6 +14,11 @@ export default function InvoiceView() {
   const [gate, setGate] = useState(null); // { title, message, onConfirm }
   const inv = useLiveQuery(() => db.invoices.get(Number(id)), [id]);
   const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
+  const logo = useLiveQuery(() => getSetting('bizLogo', ''), [], '');
+  const address = useLiveQuery(() => getSetting('bizAddress', ''), [], '');
+  const shopPhone = useLiveQuery(() => getSetting('bizPhone', ''), [], '');
+  const returnPolicy = useLiveQuery(() => getSetting('returnPolicy', ''), [], '');
+  const warranty = useLiveQuery(() => getSetting('warranty', ''), [], '');
   const party = useLiveQuery(
     () => (inv?.partyId ? (inv.type === 'sale' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
     [inv?.partyId, inv?.type]
@@ -76,7 +81,10 @@ export default function InvoiceView() {
       </style>
     </head><body>
       <div class="header">
+        ${logo ? `<img src="${logo}" style="max-height:70px;margin-bottom:6px"/><br/>` : ''}
         <h1>${bizName}</h1>
+        ${address ? `<p>${address}</p>` : ''}
+        ${shopPhone ? `<p>📞 ${shopPhone}</p>` : ''}
         <p>فاتورة ${isSale ? 'بيع' : 'شراء'} رقم: ${inv.number}</p>
       </div>
       <div class="info">
@@ -103,7 +111,11 @@ export default function InvoiceView() {
         ${isSale ? `<div class="row" style="color:#27ae60"><span>الربح</span><span>${money(inv.profit)}</span></div>` : ''}
         <div class="row grand"><span>الصافي</span><span>${money(inv.total)}</span></div>
       </div>
-      <div class="footer">شكراً لتعاملكم معنا — ${bizName}</div>
+      <div class="footer">
+        ${returnPolicy ? `<div style="margin-bottom:3px">↩️ ${returnPolicy}</div>` : ''}
+        ${warranty ? `<div style="margin-bottom:3px">🛡️ ${warranty}</div>` : ''}
+        <div style="margin-top:6px">شكراً لتعاملكم معنا — ${bizName}</div>
+      </div>
       <script>window.onload = () => { window.print(); }</script>
     </body></html>`);
     win.document.close();
@@ -179,7 +191,13 @@ export default function InvoiceView() {
       {/* print layout (80mm receipt friendly) */}
       <div className="print-area">
         <div className="invoice-print" dir="rtl">
+          {logo && <img src={logo} alt="" style={{ maxHeight: 56, display: 'block', margin: '0 auto 6px' }} />}
           <h2>{bizName}</h2>
+          {(address || shopPhone) && (
+            <div className="ph" style={{ marginTop: 0 }}>
+              {address}{address && shopPhone ? ' · ' : ''}{shopPhone ? `📞 ${shopPhone}` : ''}
+            </div>
+          )}
           <div className="ph">
             فاتورة {isSale ? 'بيع' : 'شراء'} رقم {inv.number}<br />
             {fmtDate(inv.createdAt)}<br />
@@ -199,6 +217,12 @@ export default function InvoiceView() {
             المدفوع: {money(inv.paid)}
             {inv.remaining > 0 && <><br />المتبقي: {money(inv.remaining)}</>}
           </div>
+          {(returnPolicy || warranty) && (
+            <div className="ph" style={{ marginTop: 8, fontSize: 11 }}>
+              {returnPolicy && <div>↩️ {returnPolicy}</div>}
+              {warranty && <div>🛡️ {warranty}</div>}
+            </div>
+          )}
           <div className="ph" style={{ marginTop: 8 }}>شكراً لتعاملكم معنا</div>
         </div>
       </div>

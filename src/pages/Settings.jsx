@@ -9,6 +9,7 @@ export default function Settings() {
   const [apiKey, setApiKey] = useState('');
   const [opPassword, setOpPassword] = useState('');
   const [email, setEmail] = useState({ to: '', serviceId: '', templateId: '', publicKey: '' });
+  const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -24,8 +25,34 @@ export default function Settings() {
         templateId: await getSetting('emailTemplateId', '') || '',
         publicKey: await getSetting('emailPublicKey', '') || '',
       });
+      setShop({
+        logo: await getSetting('bizLogo', '') || '',
+        address: await getSetting('bizAddress', '') || '',
+        phone: await getSetting('bizPhone', '') || '',
+        returnPolicy: await getSetting('returnPolicy', '') || '',
+        warranty: await getSetting('warranty', '') || '',
+      });
     })();
   }, []);
+
+  const saveShop = async () => {
+    await setSetting('bizLogo', shop.logo);
+    await setSetting('bizAddress', shop.address.trim());
+    await setSetting('bizPhone', shop.phone.trim());
+    await setSetting('returnPolicy', shop.returnPolicy.trim());
+    await setSetting('warranty', shop.warranty.trim());
+    setToast('✅ تم حفظ بيانات المحل');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const onLogo = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (f.size > 500 * 1024) { setToast('⚠️ اللوجو كبير — اختر صورة أصغر من 500 ك.ب'); setTimeout(() => setToast(''), 3000); return; }
+    const r = new FileReader();
+    r.onload = () => setShop((s) => ({ ...s, logo: r.result }));
+    r.readAsDataURL(f);
+  };
 
   const saveEmail = async () => {
     await setSetting('emailTo', email.to.trim());
@@ -107,6 +134,34 @@ export default function Settings() {
         </div>
 
         <button className="btn big" onClick={save}>💾 حفظ الإعدادات</button>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🧾 بيانات المحل في الفاتورة المطبوعة</label>
+          <p className="muted" style={{ marginTop: 4 }}>كل الخانات دي اختيارية — اللي تسيبه فاضي مش هيظهر في الفاتورة.</p>
+        </div>
+        <div className="field">
+          <label>لوجو المحل</label>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            {shop.logo
+              ? <img src={shop.logo} alt="logo" style={{ height: 60, borderRadius: 6, border: '1px solid var(--line,#ddd)' }} />
+              : <span className="muted">لا يوجد لوجو</span>}
+            <input type="file" accept="image/*" onChange={onLogo} />
+            {shop.logo && <button className="btn ghost sm" onClick={() => setShop({ ...shop, logo: '' })}>حذف اللوجو</button>}
+          </div>
+        </div>
+        <div className="row">
+          <div className="field"><label>عنوان المحل</label>
+            <input className="input" value={shop.address} onChange={(e) => setShop({ ...shop, address: e.target.value })} placeholder="المنيا - شارع الحسيني" /></div>
+          <div className="field"><label>هاتف المحل</label>
+            <input className="input" inputMode="tel" value={shop.phone} onChange={(e) => setShop({ ...shop, phone: e.target.value })} placeholder="01000000000" /></div>
+        </div>
+        <div className="field"><label>مدة/سياسة الاسترجاع</label>
+          <input className="input" value={shop.returnPolicy} onChange={(e) => setShop({ ...shop, returnPolicy: e.target.value })} placeholder="مثال: الاسترجاع خلال 14 يوم بشرط وجود الفاتورة والمنتج بحالته" /></div>
+        <div className="field"><label>الضمان</label>
+          <input className="input" value={shop.warranty} onChange={(e) => setShop({ ...shop, warranty: e.target.value })} placeholder="مثال: ضمان 6 شهور على العيوب الصناعية" /></div>
+        <button className="btn" onClick={saveShop}>💾 حفظ بيانات المحل</button>
       </div>
 
       <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
