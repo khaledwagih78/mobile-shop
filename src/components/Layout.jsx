@@ -36,6 +36,7 @@ const MENU = [
   { to: '/branches', ico: '🏢', label: 'الفروع', action: 'branches' },
   { to: '/users', ico: '🔑', label: 'المستخدمين', action: 'users' },
   { to: '/settings', ico: '⚙️', label: 'الإعدادات', action: 'settings' },
+  { to: '/requests', ico: '📝', label: 'الطلبات والاقتراحات', action: 'requests' },
 ];
 
 const MOBILE = ['/', '/pos', '/items', '/customers', '/invoices'];

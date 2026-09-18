@@ -74,6 +74,11 @@ db.version(7).stores({
   await tx.table('employees').toCollection().modify((e) => { if (e.branchId == null) e.branchId = B; });
 });
 
+// ---------- feature requests / suggestions (any industry) ----------
+db.version(8).stores({
+  requests: '++id, status, category, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -110,7 +115,7 @@ export function nextId() {
 const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
-  'lines', 'transactions', 'deliveries', 'auditLog',
+  'lines', 'transactions', 'deliveries', 'auditLog', 'requests',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
