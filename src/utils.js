@@ -33,6 +33,12 @@ export const waLink = (phone, text) => {
 };
 export const marginPct = (cost, sale) => (cost > 0 ? Math.round(((sale - cost) / cost) * 100) : 0);
 
+// Normalize Arabic text for forgiving search (drop tashkeel, unify alef/ya/ta).
+export const normAr = (s) => (s || '')
+  .replace(/[ً-ْٰ]/g, '')
+  .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ـ/g, '')
+  .replace(/\s+/g, ' ').trim().toLowerCase();
+
 export const ROLES = {
   admin: 'مدير النظام',
   sales: 'موظف مبيعات',

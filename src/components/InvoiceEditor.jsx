@@ -2,9 +2,10 @@ import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, saveInvoice, nowISO, stockOf } from '../db';
-import { money, fmt } from '../utils';
+import { money, fmt, normAr } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
+import MicButton from './MicButton';
 
 export default function InvoiceEditor({ type }) {
   const isSale = type === 'sale';
@@ -21,6 +22,8 @@ export default function InvoiceEditor({ type }) {
   const [q, setQ] = useState('');
   const [lines, setLines] = useState([]);
   const [partyId, setPartyId] = useState('');
+  const [partyQ, setPartyQ] = useState('');
+  const [partyOpen, setPartyOpen] = useState(false);
   const [discount, setDiscount] = useState('');
   const [paid, setPaid] = useState('');
   const [paidTouched, setPaidTouched] = useState(false);
@@ -31,16 +34,27 @@ export default function InvoiceEditor({ type }) {
   const [scanning, setScanning] = useState(false);
 
   const results = useMemo(() => {
-    const t = q.trim().toLowerCase();
+    const t = normAr(q);
     if (!t) return [];
+    const raw = q.trim();
     return items
       .filter((it) =>
-        (it.name || '').toLowerCase().includes(t) ||
-        (it.code || '').toLowerCase().includes(t) ||
-        (it.barcode || '') === t
+        normAr(it.name).includes(t) ||
+        normAr(it.code).includes(t) ||
+        (it.brand && normAr(it.brand).includes(t)) ||
+        (it.barcode || '') === raw
       )
       .slice(0, 12);
   }, [q, items]);
+
+  const selectedParty = parties.find((p) => p.id === Number(partyId));
+  const partyResults = useMemo(() => {
+    const t = normAr(partyQ);
+    const list = t
+      ? parties.filter((p) => normAr(p.name).includes(t) || (p.phone || '').includes(partyQ.trim()))
+      : parties;
+    return list.slice(0, 8);
+  }, [partyQ, parties]);
 
   const addItem = (it) => {
     setLines((ls) => {
@@ -161,6 +175,7 @@ export default function InvoiceEditor({ type }) {
               {navigator.mediaDevices && (
                 <button className="btn" onClick={() => setScanning(true)} title="مسح باركود بالكاميرا">📷</button>
               )}
+              <MicButton size={44} title="ابحث عن منتج بصوتك" onResult={(t) => { setQ(t); searchRef.current?.focus(); }} />
             </div>
             {results.length > 0 && (
               <div className="search-drop">
@@ -225,15 +240,38 @@ export default function InvoiceEditor({ type }) {
         <div className="card">
           <div className="field">
             <label>{isSale ? 'العميل' : 'المورد'}</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <select className="input" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-                <option value="">{isSale ? 'عميل نقدي' : 'اختر المورد'}</option>
-                {parties.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}{p.points ? ` ⭐${p.points}` : ''}</option>
-                ))}
-              </select>
-              <button className="btn ghost sm" onClick={() => setShowNewParty(true)}>＋ جديد</button>
-            </div>
+            {selectedParty ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div className="input" style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <b>{selectedParty.name}</b>
+                  <span className="muted" style={{ fontSize: 12 }}>{selectedParty.phone || ''}{selectedParty.points ? ` · ⭐${selectedParty.points}` : ''}</span>
+                </div>
+                <button className="btn ghost sm" title="تغيير" onClick={() => { setPartyId(''); setPartyQ(''); setPartyOpen(false); }}>✕</button>
+              </div>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="input" style={{ flex: 1 }} value={partyQ}
+                    placeholder={isSale ? '🔍 ابحث عن عميل (أو اتركه نقدي)' : '🔍 ابحث عن مورد'}
+                    onChange={(e) => { setPartyQ(e.target.value); setPartyOpen(true); }}
+                    onFocus={() => setPartyOpen(true)}
+                  />
+                  <MicButton title={isSale ? 'ابحث عن عميل بصوتك' : 'ابحث عن مورد بصوتك'} onResult={(t) => { setPartyQ(t); setPartyOpen(true); }} />
+                  <button className="btn ghost sm" onClick={() => setShowNewParty(true)}>＋ جديد</button>
+                </div>
+                {partyOpen && partyResults.length > 0 && (
+                  <div className="search-drop">
+                    {partyResults.map((p) => (
+                      <div key={p.id} className="search-item" onClick={() => { setPartyId(String(p.id)); setPartyOpen(false); }}>
+                        <b>{p.name}</b>
+                        <span className="meta">{p.phone || '—'}{p.points ? ` · ⭐${p.points}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {isSale && partyId && (() => {

@@ -27,6 +27,17 @@ export default function Settings() {
     setTimeout(() => setToast(''), 2500);
   };
 
+  const checkUpdate = async () => {
+    setToast('🔄 جاري التحقق من التحديثات...');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.update()));
+      }
+    } catch { /* ignore */ }
+    setTimeout(() => window.location.reload(), 900);
+  };
+
   return (
     <>
       <div className="page-head"><h1>⚙️ الإعدادات</h1></div>
@@ -67,6 +78,18 @@ export default function Settings() {
         </div>
 
         <button className="btn big" onClick={save}>💾 حفظ الإعدادات</button>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🔄 تحديثات التطبيق</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            التطبيق بيتحدّث <b>تلقائياً</b>: كل ما نضيف مميزات أو خصائص جديدة، بتوصل لجهازك
+            لوحدها أول ما تفتح التطبيق وأنت متصل بالإنترنت — من غير ما تعيد تثبيت أي حاجة.
+            لو حابب تجيب آخر نسخة دلوقتي حالاً، اضغط الزر ده.
+          </p>
+          <button className="btn" onClick={checkUpdate}>🔄 تحديث التطبيق الآن</button>
+        </div>
       </div>
 
       <Toast msg={toast} />
