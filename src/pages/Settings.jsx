@@ -8,6 +8,7 @@ export default function Settings() {
   const [margin, setMargin] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [opPassword, setOpPassword] = useState('');
+  const [email, setEmail] = useState({ to: '', serviceId: '', templateId: '', publicKey: '' });
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -17,8 +18,32 @@ export default function Settings() {
       setMargin(await getSetting('defaultMargin', '') || '');
       setApiKey(await getSetting('aiKey', '') || '');
       setOpPassword(await getSetting('opPassword', '') || '');
+      setEmail({
+        to: await getSetting('emailTo', '') || '',
+        serviceId: await getSetting('emailServiceId', '') || '',
+        templateId: await getSetting('emailTemplateId', '') || '',
+        publicKey: await getSetting('emailPublicKey', '') || '',
+      });
     })();
   }, []);
+
+  const saveEmail = async () => {
+    await setSetting('emailTo', email.to.trim());
+    await setSetting('emailServiceId', email.serviceId.trim());
+    await setSetting('emailTemplateId', email.templateId.trim());
+    await setSetting('emailPublicKey', email.publicKey.trim());
+  };
+
+  const testEmail = async () => {
+    await saveEmail();
+    if (!email.to.trim() || !email.serviceId.trim() || !email.templateId.trim() || !email.publicKey.trim()) {
+      setToast('⚠️ املأ كل خانات الإيميل الأربعة أولاً'); setTimeout(() => setToast(''), 3000); return;
+    }
+    const m = await import('../notify');
+    await m.notifyEvent({ action: 'test', title: '📧 اختبار تنبيه', body: 'ده إيميل تجريبي من تطبيقك للتأكد إن تنبيهات الحذف/الإلغاء شغّالة ✅' });
+    setToast('📧 تم إرسال إيميل تجريبي — راجع بريدك');
+    setTimeout(() => setToast(''), 3500);
+  };
 
   const save = async () => {
     await setSetting('bizName', bizName.trim() || 'خالد لقطع غيار المحمول');
@@ -26,6 +51,7 @@ export default function Settings() {
     await setSetting('defaultMargin', Number(margin) || 0);
     await setSetting('aiKey', apiKey.trim());
     await setSetting('opPassword', opPassword.trim());
+    await saveEmail();
     setToast('✅ تم حفظ الإعدادات');
     setTimeout(() => setToast(''), 2500);
   };
@@ -94,6 +120,38 @@ export default function Settings() {
             وتقدر ترجّعها في أي وقت من صفحة الفاتورة. (اضغط 💾 حفظ الإعدادات بعد التغيير)
           </p>
           <button className="btn" onClick={save}>💾 حفظ كلمة السر</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>📧 تنبيه بالإيميل عند الحذف / الإلغاء</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            يبعت لك إيميل تلقائي أول ما حد يلغي أو يسترجع فاتورة. بيشتغل عن طريق خدمة
+            <b> EmailJS </b> المجانية (بتبعت من غير سيرفر). الخطوات مرة واحدة:
+          </p>
+          <ol className="muted" style={{ paddingRight: 18, lineHeight: 1.9, margin: '4px 0 10px' }}>
+            <li>اعمل حساب مجاني على <b>emailjs.com</b> ووصّل إيميلك (Gmail مثلاً).</li>
+            <li>أنشئ <b>Email Service</b> وخد الـ <b>Service ID</b>.</li>
+            <li>أنشئ <b>Email Template</b> فيه المتغيرات: <code>{'{{subject}}'}</code> و<code>{'{{message}}'}</code> و<code>{'{{to_email}}'}</code>، وخد الـ <b>Template ID</b>.</li>
+            <li>من Account خد الـ <b>Public Key</b>.</li>
+            <li>الصقهم تحت + إيميل الاستقبال، واضغط "اختبار".</li>
+          </ol>
+          <div className="field"><label>إيميل الاستقبال</label>
+            <input className="input" type="email" value={email.to} onChange={(e) => setEmail({ ...email, to: e.target.value })} placeholder="you@gmail.com" /></div>
+          <div className="row">
+            <div className="field"><label>Service ID</label>
+              <input className="input" value={email.serviceId} onChange={(e) => setEmail({ ...email, serviceId: e.target.value })} placeholder="service_xxx" /></div>
+            <div className="field"><label>Template ID</label>
+              <input className="input" value={email.templateId} onChange={(e) => setEmail({ ...email, templateId: e.target.value })} placeholder="template_xxx" /></div>
+          </div>
+          <div className="field"><label>Public Key</label>
+            <input className="input" value={email.publicKey} onChange={(e) => setEmail({ ...email, publicKey: e.target.value })} placeholder="xxxxxxxxxxxxx" /></div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={save}>💾 حفظ</button>
+            <button className="btn ghost" onClick={testEmail}>📧 إرسال إيميل تجريبي</button>
+          </div>
+          <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>ملاحظة: الإرسال بيحتاج إنترنت. سيب الخانات فاضية لتعطيل التنبيهات.</p>
         </div>
       </div>
 

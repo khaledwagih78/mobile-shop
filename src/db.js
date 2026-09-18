@@ -302,7 +302,8 @@ export async function saveInvoice(inv) {
 
 // Cancel an invoice: reverse stock and balances (admin only - enforced in UI)
 export async function cancelInvoice(invoiceId, userName) {
-  return db.transaction(
+  const snapshot = await db.invoices.get(invoiceId);
+  const result = await db.transaction(
     'rw',
     [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.syncQueue],
     async () => {
@@ -349,11 +350,20 @@ export async function cancelInvoice(invoiceId, userName) {
       await queueSync('invoices', 'cancel', { id: invoiceId });
     }
   );
+  if (snapshot && snapshot.status !== 'cancelled') {
+    import('./notify').then((m) => m.notifyEvent({
+      action: 'cancel',
+      title: `⛔ إلغاء فاتورة ${snapshot.number}`,
+      body: `تم إلغاء فاتورة ${snapshot.type === 'sale' ? 'بيع' : 'شراء'} رقم ${snapshot.number} بإجمالي ${snapshot.total} ج.م — بواسطة ${userName || '—'}.`,
+    })).catch(() => {});
+  }
+  return result;
 }
 
 // Restore a cancelled invoice: re-apply its original stock & balance effect.
 export async function restoreInvoice(invoiceId, userName) {
-  return db.transaction(
+  const snapshot = await db.invoices.get(invoiceId);
+  const result = await db.transaction(
     'rw',
     [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.syncQueue],
     async () => {
@@ -387,6 +397,14 @@ export async function restoreInvoice(invoiceId, userName) {
       await queueSync('invoices', 'restore', { id: invoiceId });
     }
   );
+  if (snapshot && snapshot.status === 'cancelled') {
+    import('./notify').then((m) => m.notifyEvent({
+      action: 'restore',
+      title: `♻️ استرجاع فاتورة ${snapshot.number}`,
+      body: `تم استرجاع فاتورة ${snapshot.type === 'sale' ? 'بيع' : 'شراء'} رقم ${snapshot.number} بإجمالي ${snapshot.total} ج.م — بواسطة ${userName || '—'}.`,
+    })).catch(() => {});
+  }
+  return result;
 }
 
 // Record a payment from customer (in) or to supplier (out)
