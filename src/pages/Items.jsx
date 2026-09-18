@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, queueSync, getSetting } from '../db';
+import { db, nowISO, queueSync, getSetting, stockOf } from '../db';
 import { money, fmt, fmtDate, can, marginPct } from '../utils';
 import { useAuth } from '../auth';
 import { Modal } from '../components/UI';
@@ -8,8 +8,10 @@ import { Modal } from '../components/UI';
 const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '' };
 
 export default function Items() {
-  const { user } = useAuth();
+  const { user, activeBranch, branches } = useAuth();
   const items = useLiveQuery(() => db.items.orderBy('name').toArray(), [], []);
+  const st = (it) => stockOf(it, activeBranch); // qty at the active branch
+  const branchName = branches.find((b) => b.id === activeBranch)?.name || 'الفرع';
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
   const [brandFilter, setBrandFilter] = useState('');
@@ -69,20 +71,20 @@ export default function Items() {
       (it.barcode || '').includes(t) ||
       (it.brand || '').toLowerCase().includes(t)
     );
-    if (filter === 'low') l = l.filter((it) => (it.stock || 0) <= (it.minStock || 0));
+    if (filter === 'low') l = l.filter((it) => st(it) <= (it.minStock || 0));
     if (brandFilter) l = l.filter((it) => it.brand === brandFilter);
     if (catFilter) l = l.filter((it) => it.category === catFilter);
     if (priceFrom) l = l.filter((it) => (it.salePrice || 0) >= Number(priceFrom));
     if (priceTo) l = l.filter((it) => (it.salePrice || 0) <= Number(priceTo));
 
     l.sort((a, b) => {
-      const va = a[sortField] || '';
-      const vb = b[sortField] || '';
+      const va = sortField === 'stock' ? st(a) : (a[sortField] || '');
+      const vb = sortField === 'stock' ? st(b) : (b[sortField] || '');
       if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va;
       return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'ar') : String(vb).localeCompare(String(va), 'ar');
     });
     return l;
-  }, [items, q, filter, brandFilter, catFilter, priceFrom, priceTo, sortField, sortDir]);
+  }, [items, q, filter, brandFilter, catFilter, priceFrom, priceTo, sortField, sortDir, activeBranch]);
 
   const toggleSort = (field) => {
     if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
@@ -91,27 +93,32 @@ export default function Items() {
   const sortIcon = (field) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
   const saveItem = async () => {
-    const doc = {
-      ...form,
+    const stockVal = Number(form.stock) || 0;
+    const { stock, ...fields } = form;
+    const base = {
+      ...fields,
       costUSD: Number(form.costUSD) || 0,
       costPrice: Number(form.costPrice) || 0,
       salePrice: Number(form.salePrice) || 0,
       wholesalePrice: Number(form.wholesalePrice) || 0,
       wholesaleMinQty: Number(form.wholesaleMinQty) || 0,
       minStock: Number(form.minStock) || 0,
-      stock: Number(form.stock) || 0,
     };
     if (form.id) {
+      const existing = await db.items.get(form.id);
+      const stocks = { ...(existing?.stocks || {}), [activeBranch]: stockVal };
+      const doc = { ...base, stocks };
       await db.items.update(form.id, doc);
       await queueSync('items', 'update', doc);
     } else {
+      const doc = { ...base, stocks: { [activeBranch]: stockVal } };
       const id = await db.items.add({ ...doc, createdAt: nowISO() });
       await queueSync('items', 'add', { ...doc, id });
     }
     setForm(null);
   };
 
-  const lowCount = items.filter((it) => (it.stock || 0) <= (it.minStock || 0)).length;
+  const lowCount = items.filter((it) => st(it) <= (it.minStock || 0)).length;
 
   return (
     <>
@@ -158,13 +165,13 @@ export default function Items() {
                 <th className="clickable" onClick={() => toggleSort('salePrice')}>بيع{sortIcon('salePrice')}</th>
                 <th>جملة</th>
                 <th>ربح %</th>
-                <th className="clickable" onClick={() => toggleSort('stock')}>الرصيد{sortIcon('stock')}</th>
+                <th className="clickable" onClick={() => toggleSort('stock')}>رصيد {branchName}{sortIcon('stock')}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {list.map((it) => {
-                const low = (it.stock || 0) <= (it.minStock || 0);
+                const low = st(it) <= (it.minStock || 0);
                 return (
                   <tr key={it.id}>
                     <td className="num muted">{it.code}</td>
@@ -178,11 +185,11 @@ export default function Items() {
                       {it.costPrice > 0 ? marginPct(it.costPrice, it.salePrice) + '%' : '—'}
                     </td>
                     <td>
-                      <span className={`badge ${low ? 'red' : 'green'}`}>{fmt(it.stock)}</span>
+                      <span className={`badge ${low ? 'red' : 'green'}`}>{fmt(st(it))}</span>
                     </td>
                     <td style={{ display: 'flex', gap: 6 }}>
                       <button className="btn ghost sm" onClick={() => setMovesFor(it)}>حركة</button>
-                      {editable && <button className="btn ghost sm" onClick={() => setForm({ ...it })}>تعديل</button>}
+                      {editable && <button className="btn ghost sm" onClick={() => setForm({ ...it, stock: st(it) })}>تعديل</button>}
                     </td>
                   </tr>
                 );
@@ -226,7 +233,7 @@ export default function Items() {
                 placeholder="مثال: 10" /></div>
           </div>
           <div className="row">
-            <div className="field"><label>الرصيد الحالي</label>
+            <div className="field"><label>الرصيد في {branchName}</label>
               <input className="input" type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} /></div>
             <div className="field"><label>الحد الأدنى للتنبيه</label>
               <input className="input" type="number" min="0" value={form.minStock} onChange={(e) => setForm({ ...form, minStock: e.target.value })} /></div>
@@ -235,17 +242,18 @@ export default function Items() {
         </Modal>
       )}
 
-      {movesFor && <MovesModal item={movesFor} onClose={() => setMovesFor(null)} />}
+      {movesFor && <MovesModal item={movesFor} branchId={activeBranch} branchName={branchName} onClose={() => setMovesFor(null)} />}
     </>
   );
 }
 
-function MovesModal({ item, onClose }) {
+function MovesModal({ item, branchId, branchName, onClose }) {
   const moves = useLiveQuery(
-    () => db.stockMoves.where('itemId').equals(item.id).sortBy('createdAt').then((a) => a.reverse()),
-    [item.id], []
+    () => db.stockMoves.where('itemId').equals(item.id).sortBy('createdAt')
+      .then((a) => a.reverse().filter((m) => (m.branchId || 1) === branchId)),
+    [item.id, branchId], []
   );
-  let bal = item.stock || 0;
+  let bal = stockOf(item, branchId);
   const rows = moves.map((m) => {
     const row = { ...m, balance: bal };
     bal += m.direction === 'in' ? -m.qty : m.qty;
@@ -253,7 +261,7 @@ function MovesModal({ item, onClose }) {
   });
   return (
     <Modal title={`حركة الصنف: ${item.name}`} onClose={onClose}>
-      <p className="muted">الرصيد الحالي: <b>{fmt(item.stock)}</b> · التكلفة: {money(item.costPrice)}</p>
+      <p className="muted">رصيد {branchName}: <b>{fmt(stockOf(item, branchId))}</b> · التكلفة: {money(item.costPrice)}</p>
       {rows.length === 0 ? (
         <div className="empty">لا توجد حركة بعد</div>
       ) : (

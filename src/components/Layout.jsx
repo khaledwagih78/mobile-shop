@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSetting } from '../db';
+import { db, getSetting, stockOf } from '../db';
 import { useAuth } from '../auth';
 import { can, ROLES } from '../utils';
 import { useSyncStatus } from '../sync';
@@ -22,6 +22,7 @@ const MENU = [
   { to: '/purchase', ico: '📥', label: 'فاتورة شراء', action: 'purchase' },
   { to: '/invoices', ico: '🗂️', label: 'الفواتير', action: 'invoices' },
   { to: '/items', ico: '📦', label: 'المخزون', action: 'items' },
+  { to: '/transfer', ico: '🔄', label: 'تحويل بضاعة', action: 'transfer' },
   { to: '/customers', ico: '👥', label: 'العملاء', action: 'customers' },
   { to: '/suppliers', ico: '🚚', label: 'الموردين', action: 'suppliers' },
   { to: '/deliveries', ico: '🚗', label: 'التوصيل', action: 'pos' },
@@ -31,6 +32,7 @@ const MENU = [
   { to: '/audit', ico: '📋', label: 'سجل النشاطات', action: 'reports' },
   { to: '/import', ico: '📑', label: 'استيراد Excel', action: 'import' },
   { to: '/backup', ico: '🛡️', label: 'النسخ الاحتياطي', action: 'backup' },
+  { to: '/branches', ico: '🏢', label: 'الفروع', action: 'branches' },
   { to: '/users', ico: '🔑', label: 'المستخدمين', action: 'users' },
   { to: '/settings', ico: '⚙️', label: 'الإعدادات', action: 'settings' },
 ];
@@ -38,16 +40,18 @@ const MENU = [
 const MOBILE = ['/', '/pos', '/items', '/customers', '/invoices'];
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, branches, activeBranch, setActiveBranch } = useAuth();
   const syncStatus = useSyncStatus();
   const pending    = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
   const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
   const lowStockCount = useLiveQuery(async () => {
     const items = await db.items.toArray();
-    return items.filter((it) => (it.stock || 0) > 0 && (it.stock || 0) <= (it.minStock || 0)).length;
-  }, [], 0);
+    return items.filter((it) => stockOf(it, activeBranch) > 0 && stockOf(it, activeBranch) <= (it.minStock || 0)).length;
+  }, [activeBranch], 0);
   const visible = MENU.filter((m) => !m.action || can(user.role, m.action));
   const mobileItems = visible.filter((m) => MOBILE.includes(m.to)).slice(0, 5);
+  const isAdmin = user.role === 'admin';
+  const curBranch = branches.find((b) => b.id === activeBranch);
 
   return (
     <div className="shell">
@@ -56,6 +60,23 @@ export default function Layout() {
           {bizName}
           <small>نظام المبيعات والمخزون</small>
         </div>
+
+        <div className="branch-switch" style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.12)' }}>
+          <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>🏢 الفرع الحالي</div>
+          {isAdmin && branches.length > 1 ? (
+            <select
+              className="input"
+              value={activeBranch}
+              onChange={(e) => setActiveBranch(Number(e.target.value))}
+              style={{ width: '100%', padding: '6px 8px', fontSize: 13 }}
+            >
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          ) : (
+            <b style={{ fontSize: 14 }}>{curBranch ? curBranch.name : 'الفرع الرئيسي'}</b>
+          )}
+        </div>
+
         <nav className="nav">
           {visible.map((m) => (
             <NavLink key={m.to} to={m.to} end={m.to === '/'}>

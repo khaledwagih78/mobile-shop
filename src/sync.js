@@ -5,7 +5,7 @@ import { db, nowISO } from './db';
 const SYNC_TABLES = [
   'items', 'customers', 'suppliers', 'invoices',
   'payments', 'stockMoves', 'expenses', 'recurringExpenses',
-  'employees', 'empRecords', 'users',
+  'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'profiles',
   'auditLog', 'deliveries',
 ];

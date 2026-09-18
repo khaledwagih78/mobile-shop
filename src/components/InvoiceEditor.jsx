@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, saveInvoice, nowISO } from '../db';
+import { db, saveInvoice, nowISO, stockOf } from '../db';
 import { money, fmt } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
@@ -9,7 +9,7 @@ import { Modal, Toast } from './UI';
 export default function InvoiceEditor({ type }) {
   const isSale = type === 'sale';
   const nav = useNavigate();
-  const { user } = useAuth();
+  const { user, activeBranch } = useAuth();
   const searchRef = useRef(null);
 
   const items = useLiveQuery(() => db.items.toArray(), [], []);
@@ -55,7 +55,7 @@ export default function InvoiceEditor({ type }) {
           qty: 1,
           price: isSale ? it.salePrice || 0 : it.costPrice || 0,
           cost: it.costPrice || 0,
-          stock: it.stock || 0,
+          stock: stockOf(it, activeBranch),
           wholesalePrice: it.wholesalePrice || 0,
           wholesaleMinQty: it.wholesaleMinQty || 0,
         },
@@ -101,6 +101,7 @@ export default function InvoiceEditor({ type }) {
     const party = parties.find((p) => p.id === Number(partyId));
     const { id } = await saveInvoice({
       type,
+      branchId: activeBranch,
       partyId: party ? party.id : null,
       partyName: party ? party.name : null,
       lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0 })),
@@ -171,7 +172,7 @@ export default function InvoiceEditor({ type }) {
                     </div>
                     <div style={{ textAlign: 'left' }}>
                       <b className="num">{money(isSale ? it.salePrice : it.costPrice)}</b>
-                      <div className="meta">رصيد: {fmt(it.stock)}</div>
+                      <div className="meta">رصيد: {fmt(stockOf(it, activeBranch))}</div>
                     </div>
                   </div>
                 ))}

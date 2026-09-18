@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSetting, dayOf } from '../db';
+import { db, getSetting, dayOf, totalStock } from '../db';
 import { money, fmt } from '../utils';
 
 const daysAgo = (n) => dayOf(new Date(Date.now() - n * 86400000).toISOString());
@@ -149,6 +149,8 @@ function InsightCard({ title, rows, empty, tone }) {
 }
 
 function analyze(invoices, items, customers) {
+  // Company-wide insights: use each item's total stock across all branches.
+  items = items.map((it) => ({ ...it, stock: totalStock(it) }));
   const d7 = daysAgo(7), d14 = daysAgo(14), d30 = daysAgo(30);
   const sales = invoices.filter((i) => i.type === 'sale' && i.status === 'active');
   const s7 = sales.filter((i) => i.day >= d7);

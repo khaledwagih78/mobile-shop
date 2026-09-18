@@ -102,8 +102,7 @@ Core tables: `items`, `customers`, `suppliers`, `invoices`, `payments`,
 Only **indexed** fields are declared in `stores()`; full objects carry many more
 un-indexed fields (e.g. `costPrice`, `salePrice`, `stock`, `balance`, `points`).
 
-**Globally-unique record IDs (multi-device safety).** Tables are declared `++id`,
-but relying on auto-increment breaks multi-device sync: every device restarts ids
+**Globally-unique record IDs (multi-device safety).** Tables are declared `++id`,but relying on auto-increment breaks multi-device sync: every device restarts ids
 at 1, so two devices creating records offline generate the same id and clobber
 each other on the next upsert. To prevent this, `db.js` registers a Dexie
 `creating` hook on every synced table (`ID_TABLES`) that stamps each **new** record
@@ -117,6 +116,19 @@ untouched. Consequences to keep in mind:
   `nextInvoiceNumber` so they stay unique across devices.
 - `settings` (keyed by `key`) and `syncQueue` (device-local) are excluded.
 - Ids stay within `2**53`, so they remain valid JS numbers and Postgres `bigint`.
+
+**Multi-branch.** The shop can have several branches (`branches` table; the default
+branch has the FIXED id `DEFAULT_BRANCH_ID = 1` so every device agrees on it). Item
+master data (code/name/prices) is shared, but **quantity is per-branch**: each item
+carries a `stocks` map `{ [branchId]: qty }`. Read it with `stockOf(item, branchId)`
+(or `totalStock(item)` across all branches) — never `item.stock` (removed; the v7
+migration moves the old value into `stocks`). Invoices, payments, expenses and stock
+moves carry a `branchId`. Users have a `branchId` (null = admin, sees all); the
+active branch lives in the auth context (`useAuth().activeBranch`/`setActiveBranch`,
+persisted in `localStorage.kerp_active_branch`) and admins switch it from the sidebar.
+`saveInvoice`/`cancelInvoice` take `inv.branchId`; `transferStock({fromBranch,
+toBranch, lines})` moves quantities between branches. When adding a branch-scoped
+feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 
 ### Core business operations (all in `src/db.js`)
 

@@ -40,6 +40,41 @@ db.version(6).stores({
   deliveries: '++id, invoiceId, status, driverId, createdAt',
 });
 
+// ---------- multi-branch support ----------
+// A single shop becomes many branches. Each item keeps ONE master record
+// (code/name/prices) but its quantity is stored per branch in `item.stocks`
+// ({ [branchId]: qty }). Sales, purchases, payments, expenses and stock moves
+// each carry a `branchId`. Users may be pinned to one branch (admins see all).
+db.version(7).stores({
+  branches:   '++id, name, status, createdAt',
+  invoices:   '++id, number, type, partyId, branchId, day, createdAt, status',
+  payments:   '++id, partyType, partyId, branchId, day, createdAt',
+  stockMoves: '++id, itemId, branchId, refType, refId, createdAt',
+  expenses:   '++id, day, createdAt, category, recurringId, branchId',
+  users:      '++id, name, role, branchId',
+  employees:  '++id, name, status, createdAt, branchId',
+}).upgrade(async (tx) => {
+  const B = DEFAULT_BRANCH_ID; // fixed id, identical on every device
+  const iso = new Date().toISOString();
+  if (!(await tx.table('branches').get(B))) {
+    await tx.table('branches').add({ id: B, name: 'الفرع الرئيسي', status: 'active', createdAt: iso });
+  }
+  // move each item's single `stock` into a per-branch stocks map
+  await tx.table('items').toCollection().modify((it) => {
+    if (!it.stocks) it.stocks = { [B]: Number(it.stock || 0) };
+  });
+  // tag existing transactional records with the default branch
+  for (const t of ['invoices', 'payments', 'stockMoves', 'expenses']) {
+    await tx.table(t).toCollection().modify((r) => { if (r.branchId == null) r.branchId = B; });
+  }
+  // admins keep null (= all branches); others default to the main branch
+  await tx.table('users').toCollection().modify((u) => {
+    if (u.branchId === undefined) u.branchId = u.role === 'admin' ? null : B;
+  });
+  await tx.table('employees').toCollection().modify((e) => { if (e.branchId == null) e.branchId = B; });
+});
+
+
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
 // records while offline would generate the SAME id and clobber each other on
@@ -74,7 +109,7 @@ export function nextId() {
 // and 'syncQueue' (device-local, never synced) are intentionally excluded.
 const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
-  'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users',
+  'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog',
 ];
 for (const t of ID_TABLES) {
@@ -87,6 +122,28 @@ for (const t of ID_TABLES) {
 export const nowISO = () => new Date().toISOString();
 export const dayOf = (iso) => (iso || nowISO()).slice(0, 10); // YYYY-MM-DD
 export const today = () => dayOf(nowISO());
+
+// ---------- branches ----------
+// The default branch has a FIXED id so every device agrees on it after sync.
+export const DEFAULT_BRANCH_ID = 1;
+// Quantity of an item at a given branch (stocks is a { branchId: qty } map).
+export const stockOf = (item, branchId) =>
+  Number((item && item.stocks && item.stocks[branchId]) || 0);
+// Total quantity across all branches (for global views).
+export const totalStock = (item) =>
+  Object.values((item && item.stocks) || {}).reduce((s, q) => s + Number(q || 0), 0);
+export async function ensureDefaultBranch() {
+  if (await db.branches.get(DEFAULT_BRANCH_ID)) return;
+  try {
+    await db.branches.add({
+      id: DEFAULT_BRANCH_ID, name: 'الفرع الرئيسي', status: 'active', createdAt: nowISO(),
+    });
+  } catch (e) {
+    // A concurrent caller (e.g. StrictMode double-mount) may have created it
+    // between the check and the add — that's fine, ignore the key collision.
+    if (e.name !== 'ConstraintError') throw e;
+  }
+}
 
 export async function getSetting(key, fallback = null) {
   const row = await db.settings.get(key);
@@ -128,9 +185,9 @@ export async function requestNotificationPermission() {
   _notifGranted = res === 'granted';
   return _notifGranted;
 }
-export function checkLowStock(items) {
+export function checkLowStock(items, branchId = DEFAULT_BRANCH_ID) {
   if (!_notifGranted) return;
-  const low = items.filter((it) => (it.stock || 0) > 0 && (it.stock || 0) <= (it.minStock || 0));
+  const low = items.filter((it) => stockOf(it, branchId) > 0 && stockOf(it, branchId) <= (it.minStock || 0));
   if (low.length > 0) {
     new Notification('⚠️ تنبيه مخزون', {
       body: `${low.length} أصناف وصلت للحد الأدنى`,
@@ -153,14 +210,16 @@ export async function nextInvoiceNumber(type) {
   return `${prefix}${dev}-${String(cur).padStart(5, '0')}`;
 }
 
-// ---------- first run: seed admin user ----------
+// ---------- first run: seed admin user + default branch ----------
 export async function ensureSeed() {
+  await ensureDefaultBranch();
   const count = await db.users.count();
   if (count === 0) {
     await db.users.add({
       name: 'المدير',
       pin: '1234',
       role: 'admin',
+      branchId: null, // admin sees all branches
       createdAt: nowISO(),
     });
   }
@@ -172,29 +231,32 @@ export async function ensureSeed() {
 export async function saveInvoice(inv) {
   return db.transaction(
     'rw',
-    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.settings, db.syncQueue],
+    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.settings, db.auditLog, db.syncQueue],
     async () => {
       const number = await nextInvoiceNumber(inv.type);
       const createdAt = nowISO();
-      const doc = { ...inv, number, createdAt, day: dayOf(createdAt), status: 'active' };
+      const b = inv.branchId || DEFAULT_BRANCH_ID;
+      const doc = { ...inv, number, createdAt, day: dayOf(createdAt), status: 'active', branchId: b };
       const id = await db.invoices.add(doc);
 
       for (const line of inv.lines) {
         const item = await db.items.get(line.itemId);
         if (!item) continue;
+        const stocks = { ...(item.stocks || {}) };
+        const cur = Number(stocks[b] || 0);
         if (inv.type === 'sale') {
-          await db.items.update(line.itemId, { stock: (item.stock || 0) - line.qty });
+          stocks[b] = cur - line.qty;
+          await db.items.update(line.itemId, { stocks });
         } else {
-          // purchase: increase stock and update cost price (last purchase cost)
-          await db.items.update(line.itemId, {
-            stock: (item.stock || 0) + line.qty,
-            costPrice: line.price,
-          });
+          // purchase: increase this branch's stock and update cost price
+          stocks[b] = cur + line.qty;
+          await db.items.update(line.itemId, { stocks, costPrice: line.price });
         }
         await db.stockMoves.add({
           itemId: line.itemId,
           itemName: line.name,
           qty: line.qty,
+          branchId: b,
           direction: inv.type === 'sale' ? 'out' : 'in',
           refType: inv.type,
           refId: id,
@@ -242,19 +304,23 @@ export async function saveInvoice(inv) {
 export async function cancelInvoice(invoiceId, userName) {
   return db.transaction(
     'rw',
-    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.syncQueue],
+    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.syncQueue],
     async () => {
       const inv = await db.invoices.get(invoiceId);
       if (!inv || inv.status === 'cancelled') return;
+      const b = inv.branchId || DEFAULT_BRANCH_ID;
       for (const line of inv.lines) {
         const item = await db.items.get(line.itemId);
         if (!item) continue;
+        const stocks = { ...(item.stocks || {}) };
         const delta = inv.type === 'sale' ? line.qty : -line.qty;
-        await db.items.update(line.itemId, { stock: (item.stock || 0) + delta });
+        stocks[b] = Number(stocks[b] || 0) + delta;
+        await db.items.update(line.itemId, { stocks });
         await db.stockMoves.add({
           itemId: line.itemId,
           itemName: line.name,
           qty: line.qty,
+          branchId: b,
           direction: inv.type === 'sale' ? 'in' : 'out',
           refType: 'cancel',
           refId: invoiceId,
@@ -286,10 +352,10 @@ export async function cancelInvoice(invoiceId, userName) {
 }
 
 // Record a payment from customer (in) or to supplier (out)
-export async function recordPayment({ partyType, partyId, partyName, amount, note, userName }) {
+export async function recordPayment({ partyType, partyId, partyName, amount, note, userName, branchId }) {
   return db.transaction('rw', [db.payments, db.customers, db.suppliers, db.syncQueue], async () => {
     const createdAt = nowISO();
-    const doc = { partyType, partyId, partyName, amount, note, userName, createdAt, day: dayOf(createdAt) };
+    const doc = { partyType, partyId, partyName, amount, note, userName, branchId: branchId || DEFAULT_BRANCH_ID, createdAt, day: dayOf(createdAt) };
     const id = await db.payments.add(doc);
     if (partyType === 'customer') {
       const c = await db.customers.get(partyId);
@@ -300,6 +366,33 @@ export async function recordPayment({ partyType, partyId, partyName, amount, not
     }
     await queueSync('payments', 'add', { ...doc, id });
     return id;
+  });
+}
+
+// Transfer stock quantities from one branch to another (atomic).
+// `lines` = [{ itemId, name, qty }]. Records two stock moves per item.
+export async function transferStock({ fromBranch, toBranch, lines, userName }) {
+  if (fromBranch === toBranch) throw new Error('اختر فرعين مختلفين');
+  return db.transaction('rw', [db.items, db.stockMoves, db.auditLog, db.syncQueue], async () => {
+    const createdAt = nowISO();
+    const ref = `TRF-${deviceBlock()}-${String(Date.now()).slice(-6)}`;
+    let count = 0;
+    for (const line of lines) {
+      const qty = Number(line.qty || 0);
+      if (qty <= 0) continue;
+      const item = await db.items.get(line.itemId);
+      if (!item) continue;
+      const stocks = { ...(item.stocks || {}) };
+      stocks[fromBranch] = Number(stocks[fromBranch] || 0) - qty;
+      stocks[toBranch] = Number(stocks[toBranch] || 0) + qty;
+      await db.items.update(line.itemId, { stocks });
+      await db.stockMoves.add({ itemId: line.itemId, itemName: line.name || item.name, qty, branchId: fromBranch, direction: 'out', refType: 'transfer', refNumber: ref, createdAt });
+      await db.stockMoves.add({ itemId: line.itemId, itemName: line.name || item.name, qty, branchId: toBranch, direction: 'in', refType: 'transfer', refNumber: ref, createdAt });
+      count++;
+    }
+    await logAudit('transfer', 'stock', ref, { userName, extra: { ref, fromBranch, toBranch, count } });
+    await queueSync('items', 'transfer', { ref, fromBranch, toBranch, count });
+    return { ref, count };
   });
 }
 
@@ -324,8 +417,12 @@ export async function loadDemoData() {
     { name: 'شركة التوحيد لقطع الغيار', phone: '01099887766', balance: 0 },
     { name: 'مكتب الصين للاستيراد', phone: '01155443322', balance: 0 },
   ];
-  await db.transaction('rw', [db.items, db.customers, db.suppliers], async () => {
-    for (const it of items) await db.items.add({ ...it, createdAt: nowISO() });
+  await db.transaction('rw', [db.items, db.customers, db.suppliers, db.branches], async () => {
+    await ensureDefaultBranch();
+    for (const it of items) {
+      const { stock, ...rest } = it;
+      await db.items.add({ ...rest, stocks: { [DEFAULT_BRANCH_ID]: stock }, createdAt: nowISO() });
+    }
     for (const c of customers) await db.customers.add({ ...c, createdAt: nowISO() });
     for (const s of suppliers) await db.suppliers.add({ ...s, createdAt: nowISO() });
   });
