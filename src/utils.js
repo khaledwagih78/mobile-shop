@@ -42,7 +42,7 @@ export const ROLES = {
 // permissions per role
 export const can = (role, action) => {
   const map = {
-    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer'],
+    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice'],
     sales: ['pos', 'customers', 'invoices'],
     store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer'],
   };

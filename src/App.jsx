@@ -21,6 +21,7 @@ import AuditLog from './pages/AuditLog';
 import Deliveries from './pages/Deliveries';
 import Branches from './pages/Branches';
 import Transfer from './pages/Transfer';
+import Voice from './pages/Voice';
 import { can } from './utils';
 
 function Guard({ action, children }) {
@@ -57,6 +58,7 @@ function Shell() {
         <Route path="deliveries" element={<Guard action="pos"><Deliveries /></Guard>} />
         <Route path="branches" element={<Guard action="branches"><Branches /></Guard>} />
         <Route path="transfer" element={<Guard action="transfer"><Transfer /></Guard>} />
+        <Route path="voice" element={<Guard action="voice"><Voice /></Guard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

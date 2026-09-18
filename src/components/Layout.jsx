@@ -18,6 +18,7 @@ const SYNC_ICO = { syncing: '⏳', ok: '☁️', error: '⚠️', offline: '📵
 const MENU = [
   { to: '/', ico: '📊', label: 'الرئيسية', action: null },
   { to: '/insights', ico: '🤖', label: 'المساعد الذكي', action: 'insights' },
+  { to: '/voice', ico: '🎤', label: 'تحليل بالصوت', action: 'voice' },
   { to: '/pos', ico: '🧾', label: 'بيع جديد', action: 'pos' },
   { to: '/purchase', ico: '📥', label: 'فاتورة شراء', action: 'purchase' },
   { to: '/invoices', ico: '🗂️', label: 'الفواتير', action: 'invoices' },
