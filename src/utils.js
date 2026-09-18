@@ -33,7 +33,15 @@ export const waLink = (phone, text) => {
 };
 export const marginPct = (cost, sale) => (cost > 0 ? Math.round(((sale - cost) / cost) * 100) : 0);
 
-// Normalize Arabic text for forgiving search (drop tashkeel, unify alef/ya/ta).
+// Generate a unique 13-digit numeric barcode (valid EAN-13 checksum; '2' = in-store).
+export const genBarcode = () => {
+  let d = '2' + Date.now().toString().slice(-9);
+  while (d.length < 12) d += Math.floor(Math.random() * 10);
+  d = d.slice(0, 12);
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += (+d[i]) * (i % 2 === 0 ? 1 : 3);
+  return d + ((10 - (sum % 10)) % 10);
+};
 export const normAr = (s) => (s || '')
   .replace(/[ً-ْٰ]/g, '')
   .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ـ/g, '')

@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, nowISO, queueSync, getSetting, stockOf } from '../db';
-import { money, fmt, fmtDate, can, marginPct } from '../utils';
+import { money, fmt, fmtDate, can, marginPct, genBarcode } from '../utils';
 import { useAuth } from '../auth';
 import { Modal } from '../components/UI';
+import { Barcode, barcodeSVG } from '../components/Barcode';
 
 const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '' };
 
@@ -22,6 +23,8 @@ export default function Items() {
   const [sortDir, setSortDir] = useState('asc');
   const [form, setForm] = useState(null);
   const [movesFor, setMovesFor] = useState(null);
+  const [labelFor, setLabelFor] = useState(null);
+  const [showPricer, setShowPricer] = useState(false);
   const editable = can(user.role, 'editItem');
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
   const defMargin = useLiveQuery(() => getSetting('defaultMargin', 0), [], 0);
@@ -126,6 +129,7 @@ export default function Items() {
         <h1>📦 المخزون <span className="muted" style={{ fontSize: 14 }}>({items.length} صنف — {list.length} ظاهر)</span></h1>
         {editable && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn ghost" onClick={() => setShowPricer(true)}>💹 تعديل الأسعار %</button>
             <button className="btn ghost" onClick={reprice}>💱 إعادة التسعير بالدولار</button>
             <button className="btn" onClick={() => setForm({ ...EMPTY })}>＋ صنف جديد</button>
           </div>
@@ -188,6 +192,7 @@ export default function Items() {
                       <span className={`badge ${low ? 'red' : 'green'}`}>{fmt(st(it))}</span>
                     </td>
                     <td style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn ghost sm" title="باركود" onClick={() => setLabelFor(it)}>🏷️</button>
                       <button className="btn ghost sm" onClick={() => setMovesFor(it)}>حركة</button>
                       {editable && <button className="btn ghost sm" onClick={() => setForm({ ...it, stock: st(it) })}>تعديل</button>}
                     </td>
@@ -205,7 +210,11 @@ export default function Items() {
             <div className="field"><label>كود الصنف</label>
               <input className="input" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></div>
             <div className="field"><label>الباركود</label>
-              <input className="input" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} /></div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="input" style={{ flex: 1 }} value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="امسح أو ولّد باركود" />
+                <button className="btn ghost sm" type="button" title="توليد باركود جديد" onClick={() => setForm({ ...form, barcode: genBarcode() })}>🏷️ توليد</button>
+              </div>
+            </div>
           </div>
           <div className="field"><label>اسم الصنف *</label>
             <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
@@ -243,6 +252,8 @@ export default function Items() {
       )}
 
       {movesFor && <MovesModal item={movesFor} branchId={activeBranch} branchName={branchName} onClose={() => setMovesFor(null)} />}
+      {labelFor && <BarcodeModal item={labelFor} onClose={() => setLabelFor(null)} />}
+      {showPricer && <PriceModal list={list} onClose={() => setShowPricer(false)} />}
     </>
   );
 }
@@ -281,6 +292,89 @@ function MovesModal({ item, branchId, branchName, onClose }) {
             </tbody>
           </table>
         </div>
+      )}
+    </Modal>
+  );
+}
+
+function BarcodeModal({ item, onClose }) {
+  const value = item.barcode || item.code;
+  const print = () => {
+    if (!value) return;
+    const svg = barcodeSVG(value);
+    const w = window.open('', '_blank', 'width=420,height=340');
+    if (!w) { alert('اسمح بالنوافذ المنبثقة لطباعة الملصق'); return; }
+    w.document.write(
+      '<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>باركود</title></head>' +
+      '<body style="text-align:center;font-family:sans-serif;margin:14px">' +
+      '<div style="font-weight:bold;font-size:15px">' + item.name + '</div>' +
+      '<div style="font-size:14px;margin:2px 0">' + money(item.salePrice) + '</div>' +
+      svg +
+      '<scr' + 'ipt>window.onload=function(){window.print();}</scr' + 'ipt>' +
+      '</body></html>'
+    );
+    w.document.close();
+  };
+  return (
+    <Modal title={`باركود: ${item.name}`} onClose={onClose}>
+      {value ? (
+        <div style={{ textAlign: 'center' }}>
+          <Barcode value={value} height={70} />
+          <div className="muted" style={{ marginTop: 4 }}>سعر البيع: {money(item.salePrice)}</div>
+          <button className="btn block" style={{ marginTop: 12 }} onClick={print}>🖨️ طباعة الملصق</button>
+        </div>
+      ) : (
+        <div className="empty">لا يوجد باركود لهذا الصنف — افتح "تعديل" واضغط "🏷️ توليد".</div>
+      )}
+    </Modal>
+  );
+}
+
+function PriceModal({ list, onClose }) {
+  const [dir, setDir] = useState('up');
+  const [pct, setPct] = useState('');
+  const [target, setTarget] = useState('sale');
+  const [done, setDone] = useState(0);
+
+  const apply = async () => {
+    const p = Number(pct);
+    if (!p || p <= 0) return;
+    if (!confirm(`تأكيد: ${dir === 'up' ? 'زيادة' : 'خفض'} الأسعار بنسبة ${p}% على ${list.length} صنف؟`)) return;
+    const factor = dir === 'up' ? 1 + p / 100 : 1 - p / 100;
+    let n = 0;
+    for (const it of list) {
+      const patch = {};
+      if ((target === 'sale' || target === 'both') && (it.salePrice || 0) > 0) patch.salePrice = Math.max(0, Math.round(it.salePrice * factor));
+      if ((target === 'wholesale' || target === 'both') && (it.wholesalePrice || 0) > 0) patch.wholesalePrice = Math.max(0, Math.round(it.wholesalePrice * factor));
+      if (Object.keys(patch).length) { await db.items.update(it.id, patch); await queueSync('items', 'update', { id: it.id, ...patch }); n++; }
+    }
+    setDone(n);
+  };
+
+  return (
+    <Modal title="💹 تعديل الأسعار بنسبة" onClose={onClose}>
+      {done > 0 ? (
+        <div className="empty">✅ تم تعديل أسعار {done} صنف.<div style={{ marginTop: 12 }}><button className="btn" onClick={onClose}>تمام</button></div></div>
+      ) : (
+        <>
+          <p className="muted">هيتم التعديل على <b>{list.length}</b> صنف (حسب الفلتر الحالي في الصفحة). فلتر بالماركة أو النوع أولاً لو عايز تخصّص.</p>
+          <div className="row">
+            <div className="field"><label>النوع</label>
+              <select className="input" value={dir} onChange={(e) => setDir(e.target.value)}>
+                <option value="up">🔺 زيادة</option>
+                <option value="down">🔻 خفض</option>
+              </select></div>
+            <div className="field"><label>النسبة %</label>
+              <input className="input" type="number" min="0" value={pct} onChange={(e) => setPct(e.target.value)} placeholder="مثال: 10" /></div>
+          </div>
+          <div className="field"><label>يطبّق على</label>
+            <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
+              <option value="sale">سعر البيع</option>
+              <option value="wholesale">سعر الجملة</option>
+              <option value="both">البيع والجملة معاً</option>
+            </select></div>
+          <button className="btn block" onClick={apply} disabled={!Number(pct)}>تطبيق التعديل على {list.length} صنف</button>
+        </>
       )}
     </Modal>
   );
