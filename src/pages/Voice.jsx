@@ -36,17 +36,29 @@ export default function Voice() {
   const [text, setText] = useState('');
   const [answer, setAnswer] = useState(null); // { title, lines[] }
   const [listening, setListening] = useState(false);
+  const [micMsg, setMicMsg] = useState('');
   const [log, setLog] = useState([]); // {q, a}
   // Voice OUTPUT is off by default — the user asks; the app only speaks the
-  // answer if they explicitly turn it on. Choice + language persist locally.
+  // answer if they explicitly turn it on. Choice + voice persist locally.
   const [speakOn, setSpeakOn] = useState(() => { try { return localStorage.getItem('kerp_voice_speak') === '1'; } catch { return false; } });
-  const [voiceLang, setVoiceLang] = useState(() => { try { return localStorage.getItem('kerp_voice_lang') || 'ar-EG'; } catch { return 'ar-EG'; } });
+  const [voiceURI, setVoiceURI] = useState(() => { try { return localStorage.getItem('kerp_voice_uri') || ''; } catch { return ''; } });
   const [voices, setVoices] = useState([]);
   const recRef = useRef(null);
   const branchName = branches.find((b) => b.id === activeBranch)?.name || 'الفرع';
 
   const supported = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
   const ttsOk = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  // Real installed voices, Arabic first — so changing the choice actually changes the sound.
+  const sortedVoices = useMemo(() => {
+    const ar = voices.filter((v) => (v.lang || '').toLowerCase().startsWith('ar'));
+    const rest = voices.filter((v) => !(v.lang || '').toLowerCase().startsWith('ar'));
+    return [...ar, ...rest];
+  }, [voices]);
+  const selectedVoice = useMemo(
+    () => voices.find((v) => v.voiceURI === voiceURI) || sortedVoices[0] || null,
+    [voices, voiceURI, sortedVoices]
+  );
 
   useEffect(() => {
     if (!ttsOk) return;
@@ -62,18 +74,16 @@ export default function Voice() {
     if (!n) { try { window.speechSynthesis.cancel(); } catch { /* ignore */ } }
     return n;
   });
-  const changeLang = (l) => { setVoiceLang(l); try { localStorage.setItem('kerp_voice_lang', l); } catch { /* ignore */ } };
-  const pickVoice = (lang) => voices.find((v) => v.lang === lang) || voices.find((v) => (v.lang || '').startsWith(lang.slice(0, 2))) || null;
+  const changeVoice = (uri) => { setVoiceURI(uri); try { localStorage.setItem('kerp_voice_uri', uri); } catch { /* ignore */ } };
 
-  // force = true when the user taps "اسمع تاني" (ignores the on/off toggle)
+  // force = true when the user taps the play button (ignores the on/off toggle)
   const speak = (s, force = false) => {
     if (!ttsOk || !s || (!force && !speakOn)) return;
     try {
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(s);
-      u.lang = voiceLang;
-      const v = pickVoice(voiceLang);
-      if (v) u.voice = v;
+      if (selectedVoice) { u.voice = selectedVoice; u.lang = selectedVoice.lang; }
+      else u.lang = 'ar-EG';
       u.rate = 0.95;
       window.speechSynthesis.speak(u);
     } catch { /* ignore */ }
@@ -87,22 +97,32 @@ export default function Voice() {
   };
 
   const startListening = () => {
-    if (!supported) return;
+    setMicMsg('');
+    if (!supported) { setMicMsg('المتصفح لا يدعم الإدخال الصوتي — اكتب سؤالك.'); return; }
     try {
       const R = window.SpeechRecognition || window.webkitSpeechRecognition;
       const rec = new R();
       rec.lang = 'ar-EG'; rec.interimResults = false; rec.maxAlternatives = 1;
-      rec.onstart = () => setListening(true);
+      rec.onstart = () => { setListening(true); setMicMsg(''); };
       rec.onend = () => setListening(false);
-      rec.onerror = () => setListening(false);
-      rec.onresult = (e) => {
-        const said = e.results[0][0].transcript;
-        setText(said);
-        run(said);
+      rec.onerror = (e) => {
+        setListening(false);
+        const c = e && e.error;
+        setMicMsg(
+          c === 'not-allowed' || c === 'service-not-allowed'
+            ? 'المتصفح مانع الميكروفون — اسمح بالوصول للميكروفون من إعدادات الموقع، أو اكتب سؤالك.'
+            : c === 'no-speech' ? 'مسمعتش صوت — جرّب تاني.'
+            : c === 'network' ? 'التعرّف على الصوت محتاج إنترنت — أو اكتب سؤالك.'
+            : 'تعذّر تشغيل الميكروفون هنا — جرّب على موبايلك أو اكتب سؤالك.'
+        );
       };
+      rec.onresult = (e) => { setMicMsg(''); const said = e.results[0][0].transcript; setText(said); run(said); };
       recRef.current = rec;
       rec.start();
-    } catch { setListening(false); }
+    } catch {
+      setListening(false);
+      setMicMsg('الميكروفون غير متاح هنا — استخدم النسخة على موبايلك أو اكتب سؤالك.');
+    }
   };
   const stopListening = () => { try { recRef.current?.stop(); } catch { /* ignore */ } };
 
@@ -131,6 +151,7 @@ export default function Voice() {
         <div style={{ marginTop: 12, fontWeight: 700 }}>
           {listening ? 'بتكلم... قول سؤالك' : supported ? 'اضغط وقول سؤالك' : 'المتصفح لا يدعم الصوت — اكتب سؤالك'}
         </div>
+        {micMsg && <div style={{ marginTop: 6, color: 'var(--amber, #b8860b)', fontSize: 13 }}>⚠️ {micMsg}</div>}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 14, maxWidth: 520, marginInline: 'auto' }}>
           <input
@@ -148,12 +169,17 @@ export default function Voice() {
               🔊 ينطق الإجابة صوتياً
             </label>
             {speakOn && (
-              <select className="input" style={{ maxWidth: 180 }} value={voiceLang} onChange={(e) => changeLang(e.target.value)}>
-                <option value="ar-EG">🇪🇬 عربي مصري</option>
-                <option value="ar-SA">🇸🇦 عربي فصحى</option>
-                <option value="ar">عربي (عام)</option>
-                <option value="en-US">🇬🇧 English</option>
-              </select>
+              sortedVoices.length ? (
+                <select className="input" style={{ maxWidth: 240 }} value={selectedVoice ? selectedVoice.voiceURI : ''} onChange={(e) => changeVoice(e.target.value)}>
+                  {sortedVoices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>
+                      {(v.lang || '').toLowerCase().startsWith('ar') ? '🗣️ ' : ''}{v.name} — {v.lang}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="muted" style={{ fontSize: 13 }}>مفيش أصوات مثبتة في المتصفح — الصوت قد لا يعمل هنا</span>
+              )
             )}
           </div>
         )}
