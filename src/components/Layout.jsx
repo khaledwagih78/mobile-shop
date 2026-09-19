@@ -4,6 +4,7 @@ import { db, getSetting, stockOf } from '../db';
 import { useAuth } from '../auth';
 import { can, ROLES } from '../utils';
 import { useSyncStatus } from '../sync';
+import { getSector } from '../sectors';
 
 function relTime(iso) {
   if (!iso) return null;
@@ -26,6 +27,7 @@ const MENU = [
   { to: '/purchase-return', ico: '↪️', label: 'مرتجع شراء', action: 'returns' },
   { to: '/invoices', ico: '🗂️', label: 'الفواتير', action: 'invoices' },
   { to: '/items', ico: '📦', label: 'المخزون', action: 'items' },
+  { to: '/production', ico: '🏭', label: 'التصنيع', action: 'production', mod: 'production' },
   { to: '/transfer', ico: '🔄', label: 'تحويل بضاعة', action: 'transfer' },
   { to: '/customers', ico: '👥', label: 'العملاء', action: 'customers' },
   { to: '/suppliers', ico: '🚚', label: 'الموردين', action: 'suppliers' },
@@ -38,6 +40,7 @@ const MENU = [
   { to: '/backup', ico: '🛡️', label: 'النسخ الاحتياطي', action: 'backup' },
   { to: '/branches', ico: '🏢', label: 'الفروع', action: 'branches' },
   { to: '/users', ico: '🔑', label: 'المستخدمين', action: 'users' },
+  { to: '/sector', ico: '🧭', label: 'مجال النشاط', action: 'sector' },
   { to: '/settings', ico: '⚙️', label: 'الإعدادات', action: 'settings' },
   { to: '/custom-fields', ico: '🧩', label: 'الحقول المخصّصة', action: 'settings' },
   { to: '/requests', ico: '📝', label: 'الطلبات والاقتراحات', action: 'requests' },
@@ -50,11 +53,17 @@ export default function Layout() {
   const syncStatus = useSyncStatus();
   const pending    = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
   const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
+  const sectorId = useLiveQuery(() => getSetting('bizSector', 'general'), [], 'general');
+  const sector = getSector(sectorId);
   const lowStockCount = useLiveQuery(async () => {
     const items = await db.items.toArray();
     return items.filter((it) => stockOf(it, activeBranch) > 0 && stockOf(it, activeBranch) <= (it.minStock || 0)).length;
   }, [activeBranch], 0);
-  const visible = MENU.filter((m) => !m.action || can(user.role, m.action));
+  const visible = MENU
+    // permission + sector gating: items with a `mod` show only when the chosen sector reveals it
+    .filter((m) => (!m.action || can(user.role, m.action)) && (!m.mod || (sector.mods || []).includes(m.mod)))
+    // apply sector-specific labels (e.g. المخزون -> "المواد والمنتجات")
+    .map((m) => (sector.relabel && sector.relabel[m.to]) ? { ...m, label: sector.relabel[m.to] } : m);
   const mobileItems = visible.filter((m) => MOBILE.includes(m.to)).slice(0, 5);
   const isAdmin = user.role === 'admin';
   const curBranch = branches.find((b) => b.id === activeBranch);

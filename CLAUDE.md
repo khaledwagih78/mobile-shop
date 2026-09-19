@@ -96,8 +96,9 @@ The schema is **versioned** — `db.version(N).stores({...})`. Versions 1–6 ex
 
 Core tables: `items`, `customers`, `suppliers`, `invoices`, `payments`,
 `stockMoves`, `expenses`, `recurringExpenses`, `employees`, `empRecords`, `users`,
-`settings` (key/value), `syncQueue`, `auditLog`, `deliveries`. (`lines`,
-`transactions`, `profiles` also exist from v5.)
+`settings` (key/value), `syncQueue`, `auditLog`, `deliveries`, `branches` (v7),
+`requests` (v8), `productions` (v9). (`lines`, `transactions`, `profiles` also
+exist from v5.) Schema is at **v9**.
 
 Only **indexed** fields are declared in `stores()`; full objects carry many more
 un-indexed fields (e.g. `costPrice`, `salePrice`, `stock`, `balance`, `points`).
@@ -171,6 +172,36 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   directly from the browser (`https://api.anthropic.com/v1/messages`, model
   `claude-sonnet-4-20250514`) using a user-supplied key stored in settings
   (`aiKey`). This is an opt-in feature; no key ships in the repo.
+
+### Business sectors (`src/sectors.js`, `src/pages/Sector.jsx`)
+
+- The shop picks a **sector** (`bizSector` setting, default `general`) from a
+  card picker. `sectors.js` is config-only: each sector lists `mods` (module keys
+  it reveals) and a `relabel` map (`{ [route]: 'اسم مخصّص' }`).
+- `Layout.jsx` gates the menu: an item with a `mod` key shows **only** when the
+  chosen sector's `mods` include it (otherwise hidden), and applies the sector's
+  `relabel` overrides to generic items. Switching sector never deletes data — it
+  only changes visibility and labels. To add a sector-specific feature: give its
+  `MENU` entry a `mod`, add that key to the relevant sector(s), and guard its
+  route/permission as usual.
+
+### Manufacturing / production (`src/pages/Production.jsx`)
+
+- Revealed by the `factory` and `restaurant` sectors (`mod: 'production'`).
+  `recordProduction({branchId, productId, qty, components, laborCost, otherCost,
+  saveRecipe, ...})` (in `db.js`) is transactional: it consumes each raw
+  `component`'s per-branch stock, adds `qty` to the finished product's stock,
+  computes the unit cost (materials + labor + other) and writes it to the
+  product's `costPrice`, records `stockMoves` (out for materials, in for product),
+  a `productions` row, an audit entry, and queues sync. `saveRecipe` stores the
+  components on the product as `item.bom` so the form prefills next time.
+
+### WhatsApp auto-send (opt-in)
+
+- Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
+  customer with a phone appends `&send=1` to the invoice URL; `InvoiceView`'s
+  mount effect opens `wa.me` with the invoice text if online, or shows a
+  "ready to send" banner (with a one-tap send button) when offline.
 
 ## Conventions
 

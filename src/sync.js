@@ -7,7 +7,7 @@ const SYNC_TABLES = [
   'payments', 'stockMoves', 'expenses', 'recurringExpenses',
   'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'profiles',
-  'auditLog', 'deliveries', 'requests',
+  'auditLog', 'deliveries', 'requests', 'productions',
 ];
 
 let _status = { state: 'idle', at: null, error: null };

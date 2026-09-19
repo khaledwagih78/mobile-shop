@@ -79,6 +79,13 @@ db.version(8).stores({
   requests: '++id, status, category, createdAt',
 });
 
+// ---------- manufacturing / production (factory & restaurant sectors) ----------
+// A production run consumes raw-material items and yields a finished product,
+// adjusting per-branch stock for both and recording the computed unit cost.
+db.version(9).stores({
+  productions: '++id, number, productId, branchId, day, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -115,7 +122,7 @@ export function nextId() {
 const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
-  'lines', 'transactions', 'deliveries', 'auditLog', 'requests',
+  'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -546,6 +553,70 @@ export async function transferStock({ fromBranch, toBranch, lines, userName }) {
     await logAudit('transfer', 'stock', ref, { userName, extra: { ref, fromBranch, toBranch, count } });
     await queueSync('items', 'transfer', { ref, fromBranch, toBranch, count });
     return { ref, count };
+  });
+}
+
+// ---------- manufacturing / production ----------
+// Consume raw-material `components` and produce `qty` of a finished `productId`,
+// all within one branch. Adjusts per-branch stock for every item involved,
+// writes stock moves, computes the finished unit cost (materials + labor + other)
+// and stores it on the product, and records the run. `components` = [{ itemId, qty }].
+export async function recordProduction({ branchId, productId, productName, qty, components, laborCost, otherCost, saveRecipe, userId, userName }) {
+  const q = Number(qty || 0);
+  if (!productId || q <= 0) throw new Error('اختر المنتج النهائي والكمية');
+  const comps = (components || []).filter((c) => c.itemId && Number(c.qty) > 0);
+  if (comps.length === 0) throw new Error('أضف مادة خام واحدة على الأقل');
+  return db.transaction('rw', [db.items, db.stockMoves, db.productions, db.auditLog, db.syncQueue], async () => {
+    const b = branchId || DEFAULT_BRANCH_ID;
+    const createdAt = nowISO();
+    const dev = deviceBlock();
+    const key = 'kerp_prod_seq';
+    let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+    cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
+    const number = `MFG${dev}-${String(cur).padStart(5, '0')}`;
+
+    let materialsCost = 0;
+    for (const c of comps) {
+      const cq = Number(c.qty || 0);
+      const item = await db.items.get(c.itemId);
+      if (!item) continue;
+      const stocks = { ...(item.stocks || {}) };
+      stocks[b] = Number(stocks[b] || 0) - cq;
+      await db.items.update(c.itemId, { stocks });
+      materialsCost += cq * Number(item.costPrice || 0);
+      await db.stockMoves.add({
+        itemId: c.itemId, itemName: item.name, qty: cq, branchId: b,
+        direction: 'out', refType: 'production', refId: number, refNumber: number, createdAt,
+      });
+    }
+
+    const totalCost = materialsCost + Number(laborCost || 0) + Number(otherCost || 0);
+    const unitCost = Math.round((totalCost / q) * 100) / 100;
+
+    const product = await db.items.get(productId);
+    if (product) {
+      const stocks = { ...(product.stocks || {}) };
+      stocks[b] = Number(stocks[b] || 0) + q;
+      const patch = { stocks, costPrice: unitCost };
+      // optionally remember the recipe on the product for next time
+      if (saveRecipe) patch.bom = comps.map((c) => ({ itemId: c.itemId, qty: Number(c.qty) || 0 }));
+      await db.items.update(productId, patch);
+      await db.stockMoves.add({
+        itemId: productId, itemName: product.name, qty: q, branchId: b,
+        direction: 'in', refType: 'production', refId: number, refNumber: number, createdAt,
+      });
+    }
+
+    const doc = {
+      number, branchId: b, productId, productName: productName || (product && product.name) || '',
+      qty: q, components: comps.map((c) => ({ itemId: c.itemId, name: c.name, qty: Number(c.qty) || 0 })),
+      laborCost: Number(laborCost || 0), otherCost: Number(otherCost || 0),
+      materialsCost, totalCost, unitCost, userId, userName, createdAt, day: dayOf(createdAt),
+    };
+    const id = await db.productions.add(doc);
+    await logAudit('production', 'production', id, { userId, userName, extra: { number, productName: doc.productName, qty: q } });
+    await queueSync('productions', 'add', { ...doc, id });
+    return { id, number, unitCost };
   });
 }
 

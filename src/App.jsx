@@ -24,6 +24,8 @@ import Transfer from './pages/Transfer';
 import Voice from './pages/Voice';
 import Requests from './pages/Requests';
 import CustomFields from './pages/CustomFields';
+import Sector from './pages/Sector';
+import Production from './pages/Production';
 import { can } from './utils';
 
 function Guard({ action, children }) {
@@ -66,6 +68,8 @@ function Shell() {
         <Route path="voice" element={<Guard action="voice"><Voice /></Guard>} />
         <Route path="requests" element={<Guard action="requests"><Requests /></Guard>} />
         <Route path="custom-fields" element={<Guard action="settings"><CustomFields /></Guard>} />
+        <Route path="sector" element={<Guard action="sector"><Sector /></Guard>} />
+        <Route path="production" element={<Guard action="production"><Production /></Guard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
