@@ -153,7 +153,9 @@ export default function InvoiceEditor({ type }) {
       userName: user.name,
     };
     const res = isQuote ? await saveQuote(payload) : isReturn ? await saveReturn(payload) : await saveInvoice(payload);
-    nav(`/invoices/${res.id}?new=1`);
+    // Signal auto WhatsApp send for sale/quote invoices addressed to a customer with a phone
+    const wantSend = (type === 'sale' || type === 'quote') && party && (party.phone || '').trim();
+    nav(`/invoices/${res.id}?new=1${wantSend ? '&send=1' : ''}`);
   };
 
   const saveNewParty = async () => {

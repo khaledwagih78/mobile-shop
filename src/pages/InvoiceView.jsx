@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, cancelInvoice, restoreInvoice, convertQuote, getSetting } from '../db';
@@ -6,41 +6,64 @@ import { money, fmt, fmtDate, can, waLink } from '../utils';
 import { useAuth } from '../auth';
 import PasswordGate from '../components/PasswordGate';
 
+// Build the WhatsApp message text for an invoice (no hooks — safe to call anywhere).
+function buildWaText(inv, bizName) {
+  const isSale = inv.type === 'sale' || inv.type === 'quote';
+  const head = inv.type === 'quote' ? 'عرض سعر' : isSale ? 'بيع' : 'شراء';
+  let t = `*${bizName}*\nفاتورة ${head} رقم: ${inv.number}\n`;
+  t += `التاريخ: ${fmtDate(inv.createdAt)}\n`;
+  if (inv.partyName) t += `${isSale ? 'العميل' : 'المورد'}: ${inv.partyName}\n`;
+  t += `------------------\n`;
+  inv.lines.forEach((l) => { t += `${l.name} × ${fmt(l.qty)} = ${fmt(l.qty * l.price)}\n`; });
+  t += `------------------\n`;
+  if (inv.discount > 0) t += `الخصم: ${money(inv.discount)}\n`;
+  t += `*الإجمالي: ${money(inv.total)}*\n`;
+  if (inv.remaining > 0) t += `المتبقي: ${money(inv.remaining)}\n`;
+  t += `شكراً لتعاملكم معنا 🌹`;
+  return t;
+}
+
 export default function InvoiceView() {
   const { id } = useParams();
   const nav = useNavigate();
   const [sp] = useSearchParams();
   const { user } = useAuth();
   const [gate, setGate] = useState(null); // { title, message, onConfirm }
+  const [waPending, setWaPending] = useState(false); // offline: invoice queued for WhatsApp send
+  const sentRef = useRef(false);
   const inv = useLiveQuery(() => db.invoices.get(Number(id)), [id]);
   const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
+  const waAutoSend = useLiveQuery(() => getSetting('waAutoSend', false), [], false);
   const logo = useLiveQuery(() => getSetting('bizLogo', ''), [], '');
   const address = useLiveQuery(() => getSetting('bizAddress', ''), [], '');
   const shopPhone = useLiveQuery(() => getSetting('bizPhone', ''), [], '');
   const returnPolicy = useLiveQuery(() => getSetting('returnPolicy', ''), [], '');
   const warranty = useLiveQuery(() => getSetting('warranty', ''), [], '');
   const party = useLiveQuery(
-    () => (inv?.partyId ? (inv.type === 'sale' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
+    () => (inv?.partyId ? (inv.type === 'sale' || inv.type === 'quote' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
     [inv?.partyId, inv?.type]
   );
+
+  // Auto-send to WhatsApp when arriving with ?send=1 from a freshly-saved sale/quote.
+  useEffect(() => {
+    if (sentRef.current) return;
+    if (sp.get('send') !== '1' || waAutoSend !== true) return;
+    if (!inv || party === undefined) return; // still loading
+    const phone = (party && party.phone || '').trim();
+    if (!phone) return;
+    sentRef.current = true;
+    if (navigator.onLine) {
+      window.open(waLink(phone, buildWaText(inv, bizName)), '_blank');
+    } else {
+      setWaPending(true); // no internet — keep it ready to send from the button
+    }
+  }, [inv, party, waAutoSend, bizName, sp]);
 
   if (!inv) return <div className="card empty">جاري التحميل...</div>;
 
   const isSale = inv.type === 'sale';
 
-  const waText = () => {
-    let t = `*${bizName}*\nفاتورة ${isSale ? 'بيع' : 'شراء'} رقم: ${inv.number}\n`;
-    t += `التاريخ: ${fmtDate(inv.createdAt)}\n`;
-    if (inv.partyName) t += `${isSale ? 'العميل' : 'المورد'}: ${inv.partyName}\n`;
-    t += `------------------\n`;
-    inv.lines.forEach((l) => { t += `${l.name} × ${fmt(l.qty)} = ${fmt(l.qty * l.price)}\n`; });
-    t += `------------------\n`;
-    if (inv.discount > 0) t += `الخصم: ${money(inv.discount)}\n`;
-    t += `*الإجمالي: ${money(inv.total)}*\n`;
-    if (inv.remaining > 0) t += `المتبقي: ${money(inv.remaining)}\n`;
-    t += `شكراً لتعاملكم معنا 🌹`;
-    return t;
-  };
+  const waText = () => buildWaText(inv, bizName);
 
   const doCancel = () => {
     setGate({
@@ -151,6 +174,13 @@ export default function InvoiceView() {
       {sp.get('new') && inv.status === 'active' && (
         <div className="card" style={{ borderColor: 'var(--green)', marginBottom: 14, color: 'var(--green)', fontWeight: 800 }}>
           ✅ تم حفظ الفاتورة بنجاح
+        </div>
+      )}
+      {waPending && (
+        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span>📵 لا يوجد إنترنت — الفاتورة جاهزة للإرسال على واتساب. اضغط الزر أول ما النت يرجع.</span>
+          <a className="btn accent sm" href={waLink(party?.phone, waText())} target="_blank" rel="noreferrer"
+            onClick={() => setWaPending(false)}>📲 إرسال الآن</a>
         </div>
       )}
       {inv.status === 'cancelled' && (

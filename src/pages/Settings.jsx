@@ -10,6 +10,7 @@ export default function Settings() {
   const [opPassword, setOpPassword] = useState('');
   const [email, setEmail] = useState({ to: '', serviceId: '', templateId: '', publicKey: '' });
   const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
+  const [waAuto, setWaAuto] = useState(false);
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export default function Settings() {
         returnPolicy: await getSetting('returnPolicy', '') || '',
         warranty: await getSetting('warranty', '') || '',
       });
+      setWaAuto(await getSetting('waAutoSend', false) === true);
     })();
   }, []);
 
@@ -52,6 +54,14 @@ export default function Settings() {
     const r = new FileReader();
     r.onload = () => setShop((s) => ({ ...s, logo: r.result }));
     r.readAsDataURL(f);
+  };
+
+  const toggleWaAuto = async () => {
+    const next = !waAuto;
+    setWaAuto(next);
+    await setSetting('waAutoSend', next);
+    setToast(next ? '✅ تم تفعيل الإرسال التلقائي على واتساب' : '⏹️ تم تعطيل الإرسال التلقائي على واتساب');
+    setTimeout(() => setToast(''), 2500);
   };
 
   const saveEmail = async () => {
@@ -207,6 +217,26 @@ export default function Settings() {
             <button className="btn ghost" onClick={testEmail}>📧 إرسال إيميل تجريبي</button>
           </div>
           <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>ملاحظة: الإرسال بيحتاج إنترنت. سيب الخانات فاضية لتعطيل التنبيهات.</p>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>💬 إرسال الفاتورة تلقائياً على واتساب</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            لما تعمل فاتورة بيع أو عرض سعر لعميل مسجّل رقم واتساب، التطبيق بيفتح واتساب
+            بنص الفاتورة جاهز للإرسال للعميل على طول. لو مفيش إنترنت، الفاتورة بتفضل
+            <b> جاهزة للإرسال</b> وتقدر تبعتها بضغطة من صفحة الفاتورة أول ما النت يرجع.
+            الميزة دي <b>اختيارية</b> وتقدر تعطّلها في أي وقت.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 6 }}>
+            <input type="checkbox" checked={waAuto} onChange={toggleWaAuto} style={{ width: 20, height: 20 }} />
+            <b>{waAuto ? 'مُفعّل ✅' : 'مُعطّل'}</b>
+          </label>
+          <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+            ملاحظة: العميل لازم يكون له رقم واتساب مسجّل في بياناته. الفواتير النقدية بدون
+            عميل مش هيتبعت لها رسالة.
+          </p>
         </div>
       </div>
 
