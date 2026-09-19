@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, recordPayment, queueSync, getSetting } from '../db';
+import { db, nowISO, recordPayment, queueSync, getSetting, getCustomFields } from '../db';
 import { money, fmt, fmtDate, waLink } from '../utils';
 import { useAuth } from '../auth';
 import { Modal } from '../components/UI';
+import { CustomFieldInputs } from './CustomFields';
 
 export default function Parties({ kind = 'customer' }) {
   const isCustomer = kind === 'customer';
   const table = isCustomer ? db.customers : db.suppliers;
   const { user } = useAuth();
   const list = useLiveQuery(() => table.orderBy('name').toArray(), [kind], []);
+  const customFields = useLiveQuery(() => getCustomFields(kind), [kind], []);
   const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
   const waMsg = (c) =>
     `السلام عليكم أ/ ${c.name} 🌹\n` +
@@ -46,7 +48,7 @@ export default function Parties({ kind = 'customer' }) {
 
   const save = async () => {
     if (form.id) {
-      await table.update(form.id, { name: form.name, phone: form.phone, address: form.address });
+      await table.update(form.id, { name: form.name, phone: form.phone, address: form.address, custom: form.custom || {} });
     } else {
       await table.add({ ...form, balance: 0, points: 0, totalSpent: 0, createdAt: nowISO() });
     }
@@ -143,6 +145,13 @@ export default function Parties({ kind = 'customer' }) {
             <input className="input" inputMode="tel" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="field"><label>العنوان</label>
             <input className="input" value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+          {customFields.length > 0 && (
+            <CustomFieldInputs
+              fields={customFields}
+              values={form.custom}
+              onChange={(fid, v) => setForm({ ...form, custom: { ...(form.custom || {}), [fid]: v } })}
+            />
+          )}
           <button className="btn block" onClick={save} disabled={!form.name?.trim()}>💾 حفظ</button>
         </Modal>
       )}

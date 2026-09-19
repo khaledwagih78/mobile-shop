@@ -158,6 +158,19 @@ export async function setSetting(key, value) {
   await db.settings.put({ key, value });
 }
 
+// ---------- custom fields (user-defined, per entity: item/customer/supplier) ----------
+// Stored as one settings array so it syncs with everything else. Each def:
+// { id, entity, label, type: 'text'|'number'|'date' }.
+export async function getCustomFields(entity) {
+  const all = await getSetting('customFields', []);
+  const list = Array.isArray(all) ? all : [];
+  return entity ? list.filter((f) => f.entity === entity) : list;
+}
+export async function saveCustomFields(list) {
+  await setSetting('customFields', list);
+  import('./sync').then((m) => m.triggerSync()).catch(() => {});
+}
+
 // queue every write for cloud sync, then kick off a debounced push/pull
 // so changes reach the cloud immediately whenever the internet is available.
 export async function queueSync(table, op, payload) {

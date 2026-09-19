@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, queueSync, getSetting, stockOf } from '../db';
+import { db, nowISO, queueSync, getSetting, stockOf, getCustomFields } from '../db';
 import { money, fmt, fmtDate, can, marginPct, genBarcode } from '../utils';
 import { useAuth } from '../auth';
 import { Modal } from '../components/UI';
 import { Barcode, barcodeSVG } from '../components/Barcode';
+import { CustomFieldInputs } from './CustomFields';
 
 const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '' };
 
@@ -28,6 +29,7 @@ export default function Items() {
   const editable = can(user.role, 'editItem');
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
   const defMargin = useLiveQuery(() => getSetting('defaultMargin', 0), [], 0);
+  const customFields = useLiveQuery(() => getCustomFields('item'), [], []);
 
   const brands = useMemo(() => [...new Set(items.map((it) => it.brand).filter(Boolean))].sort(), [items]);
   const categories = useMemo(() => [...new Set(items.map((it) => it.category).filter(Boolean))].sort(), [items]);
@@ -247,6 +249,13 @@ export default function Items() {
             <div className="field"><label>الحد الأدنى للتنبيه</label>
               <input className="input" type="number" min="0" value={form.minStock} onChange={(e) => setForm({ ...form, minStock: e.target.value })} /></div>
           </div>
+          {customFields.length > 0 && (
+            <CustomFieldInputs
+              fields={customFields}
+              values={form.custom}
+              onChange={(fid, v) => setForm({ ...form, custom: { ...(form.custom || {}), [fid]: v } })}
+            />
+          )}
           <button className="btn block" onClick={saveItem} disabled={!form.name.trim()}>💾 حفظ</button>
         </Modal>
       )}
