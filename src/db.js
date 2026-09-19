@@ -428,6 +428,82 @@ export async function restoreInvoice(invoiceId, userName) {
   return result;
 }
 
+// ---------- quotations (عرض سعر) — no stock/balance effect until converted ----------
+export async function saveQuote(inv) {
+  return db.transaction('rw', [db.invoices, db.syncQueue], async () => {
+    const dev = deviceBlock();
+    const key = 'kerp_inv_seq_quote';
+    let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+    cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
+    const number = `Q${dev}-${String(cur).padStart(5, '0')}`;
+    const createdAt = nowISO();
+    const doc = { ...inv, type: 'quote', number, createdAt, day: dayOf(createdAt), status: 'quote', branchId: inv.branchId || DEFAULT_BRANCH_ID };
+    const id = await db.invoices.add(doc);
+    await queueSync('invoices', 'add', { ...doc, id });
+    return { id, number };
+  });
+}
+
+// Turn a quote into a real sale invoice (applies stock & balances via saveInvoice).
+export async function convertQuote(quoteId, userName) {
+  const q = await db.invoices.get(quoteId);
+  if (!q || q.type !== 'quote' || q.status === 'converted') return null;
+  const res = await saveInvoice({
+    type: 'sale', branchId: q.branchId, partyId: q.partyId, partyName: q.partyName,
+    lines: q.lines, subtotal: q.subtotal, discount: q.discount, total: q.total,
+    paid: q.paid, remaining: q.remaining, profit: q.profit, userId: q.userId, userName,
+  });
+  await db.invoices.update(quoteId, { status: 'converted', convertedTo: res.id, convertedAt: nowISO() });
+  await queueSync('invoices', 'update', { id: quoteId, status: 'converted' });
+  return res;
+}
+
+// ---------- returns (مرتجعات) — reverse of a sale/purchase ----------
+export async function saveReturn(inv) {
+  return db.transaction(
+    'rw',
+    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.syncQueue],
+    async () => {
+      const isSaleRet = inv.type === 'sale_return';
+      const dev = deviceBlock();
+      const key = isSaleRet ? 'kerp_inv_seq_sret' : 'kerp_inv_seq_pret';
+      let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+      cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
+      const number = `${isSaleRet ? 'RS' : 'RP'}${dev}-${String(cur).padStart(5, '0')}`;
+      const createdAt = nowISO();
+      const b = inv.branchId || DEFAULT_BRANCH_ID;
+      const doc = { ...inv, number, createdAt, day: dayOf(createdAt), status: 'active', branchId: b };
+      const id = await db.invoices.add(doc);
+      for (const line of inv.lines) {
+        const item = await db.items.get(line.itemId);
+        if (!item) continue;
+        const qBase = line.qty * (line.factor || 1);
+        const stocks = { ...(item.stocks || {}) };
+        // sale return: goods come back (+); purchase return: goods go out (-)
+        stocks[b] = Number(stocks[b] || 0) + (isSaleRet ? qBase : -qBase);
+        await db.items.update(line.itemId, { stocks });
+        await db.stockMoves.add({
+          itemId: line.itemId, itemName: line.name, qty: qBase, branchId: b,
+          direction: isSaleRet ? 'in' : 'out', refType: inv.type, refId: id, refNumber: number, createdAt,
+        });
+      }
+      // credit the party's balance by the returned value
+      if (inv.partyId && inv.total > 0) {
+        if (isSaleRet) {
+          const c = await db.customers.get(inv.partyId);
+          if (c) await db.customers.update(inv.partyId, { balance: (c.balance || 0) - inv.total });
+        } else {
+          const s = await db.suppliers.get(inv.partyId);
+          if (s) await db.suppliers.update(inv.partyId, { balance: (s.balance || 0) - inv.total });
+        }
+      }
+      await logAudit('return', inv.type, id, { userName: inv.userName, extra: { number, total: inv.total } });
+      await queueSync('invoices', 'add', { ...doc, id });
+      return { id, number };
+    }
+  );
+}
+
 // Record a payment from customer (in) or to supplier (out)
 export async function recordPayment({ partyType, partyId, partyName, amount, note, userName, branchId }) {
   return db.transaction('rw', [db.payments, db.customers, db.suppliers, db.syncQueue], async () => {

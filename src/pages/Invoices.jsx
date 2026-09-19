@@ -67,6 +67,9 @@ export default function Invoices() {
           <option value="all">كل الأنواع</option>
           <option value="sale">مبيعات</option>
           <option value="purchase">مشتريات</option>
+          <option value="quote">عروض أسعار</option>
+          <option value="sale_return">مرتجع بيع</option>
+          <option value="purchase_return">مرتجع شراء</option>
         </select>
         <select className="input" style={{ maxWidth: 150 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">كل الحالات</option>
@@ -101,15 +104,19 @@ export default function Invoices() {
                 <tr key={inv.id} className="clickable" onClick={() => nav(`/invoices/${inv.id}`)}>
                   <td className="num">{inv.number}</td>
                   <td>
-                    {inv.type === 'sale'
-                      ? <span className="badge primary">بيع</span>
-                      : <span className="badge gray">شراء</span>}
+                    {inv.type === 'sale' ? <span className="badge primary">بيع</span>
+                      : inv.type === 'purchase' ? <span className="badge gray">شراء</span>
+                      : inv.type === 'quote' ? <span className="badge amber">عرض سعر</span>
+                      : inv.type === 'sale_return' ? <span className="badge red">مرتجع بيع</span>
+                      : inv.type === 'purchase_return' ? <span className="badge red">مرتجع شراء</span>
+                      : <span className="badge gray">{inv.type}</span>}
                   </td>
                   <td>{inv.partyName || 'نقدي'}</td>
                   <td className="num">{money(inv.total)}</td>
                   <td>
-                    {inv.status === 'cancelled'
-                      ? <span className="badge red">ملغاة</span>
+                    {inv.status === 'cancelled' ? <span className="badge red">ملغاة</span>
+                      : inv.status === 'quote' ? <span className="badge amber">عرض</span>
+                      : inv.status === 'converted' ? <span className="badge green">محوّل</span>
                       : inv.remaining > 0
                         ? <span className="badge amber">آجل {money(inv.remaining)}</span>
                         : <span className="badge green">مدفوعة</span>}

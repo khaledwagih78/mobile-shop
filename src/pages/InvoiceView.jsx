@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, cancelInvoice, restoreInvoice, getSetting } from '../db';
+import { db, cancelInvoice, restoreInvoice, convertQuote, getSetting } from '../db';
 import { money, fmt, fmtDate, can, waLink } from '../utils';
 import { useAuth } from '../auth';
 import PasswordGate from '../components/PasswordGate';
@@ -56,6 +56,11 @@ export default function InvoiceView() {
       message: 'هيتم إرجاع الفاتورة وتطبيق حركة المخزون والأرصدة من جديد.',
       onConfirm: () => restoreInvoice(inv.id, user.name),
     });
+  };
+
+  const doConvert = async () => {
+    const res = await convertQuote(inv.id, user.name);
+    if (res) nav(`/invoices/${res.id}?new=1`);
   };
 
   const exportPDF = () => {
@@ -131,7 +136,10 @@ export default function InvoiceView() {
           <a className="btn ghost" href={waLink(party?.phone, waText())} target="_blank" rel="noreferrer">
             📲 واتساب{party?.phone ? ' العميل' : ''}
           </a>
-          {inv.status === 'active' && can(user.role, 'cancelInvoice') && (
+          {inv.type === 'quote' && inv.status === 'quote' && (
+            <button className="btn accent" onClick={doConvert}>✅ تحويل لفاتورة بيع</button>
+          )}
+          {inv.status === 'active' && (inv.type === 'sale' || inv.type === 'purchase') && can(user.role, 'cancelInvoice') && (
             <button className="btn danger" onClick={doCancel}>إلغاء الفاتورة</button>
           )}
           {inv.status === 'cancelled' && can(user.role, 'cancelInvoice') && (
@@ -148,6 +156,21 @@ export default function InvoiceView() {
       {inv.status === 'cancelled' && (
         <div className="card" style={{ borderColor: 'var(--red)', marginBottom: 14, color: 'var(--red)', fontWeight: 800 }}>
           ⛔ فاتورة ملغاة — بواسطة {inv.cancelledBy} في {fmtDate(inv.cancelledAt)}
+        </div>
+      )}
+      {inv.type === 'quote' && inv.status === 'quote' && (
+        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700 }}>
+          📄 عرض سعر — لا يؤثر على المخزون. اضغط "تحويل لفاتورة بيع" عند موافقة العميل.
+        </div>
+      )}
+      {inv.status === 'converted' && (
+        <div className="card" style={{ borderColor: 'var(--green)', marginBottom: 14, color: 'var(--green)', fontWeight: 700 }}>
+          ✅ تم تحويل عرض السعر إلى فاتورة بيع.
+        </div>
+      )}
+      {(inv.type === 'sale_return' || inv.type === 'purchase_return') && (
+        <div className="card" style={{ marginBottom: 14, fontWeight: 700 }}>
+          {inv.type === 'sale_return' ? '↩️ مرتجع بيع' : '↪️ مرتجع شراء'} — تم تعديل المخزون والأرصدة.
         </div>
       )}
 

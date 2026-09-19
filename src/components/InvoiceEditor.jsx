@@ -1,14 +1,24 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, saveInvoice, nowISO, stockOf } from '../db';
+import { db, saveInvoice, saveQuote, saveReturn, nowISO, stockOf } from '../db';
 import { money, fmt, normAr } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
 import MicButton from './MicButton';
 
+const TITLES = {
+  sale: '🧾 فاتورة بيع جديدة',
+  purchase: '📥 فاتورة شراء جديدة',
+  quote: '📄 عرض سعر جديد',
+  sale_return: '↩️ مرتجع بيع',
+  purchase_return: '↪️ مرتجع شراء',
+};
+
 export default function InvoiceEditor({ type }) {
-  const isSale = type === 'sale';
+  const isSale = type === 'sale' || type === 'quote' || type === 'sale_return';
+  const isQuote = type === 'quote';
+  const isReturn = type === 'sale_return' || type === 'purchase_return';
   const nav = useNavigate();
   const { user, activeBranch } = useAuth();
   const searchRef = useRef(null);
@@ -120,14 +130,14 @@ export default function InvoiceEditor({ type }) {
 
   const save = async () => {
     if (lines.length === 0) return;
-    if (remaining > 0 && !partyId) {
+    if (!isQuote && remaining > 0 && !partyId) {
       setToast(isSale ? 'البيع الآجل يحتاج اختيار عميل' : 'الشراء الآجل يحتاج اختيار مورد');
       setTimeout(() => setToast(''), 2500);
       return;
     }
     setSaving(true);
     const party = parties.find((p) => p.id === Number(partyId));
-    const { id } = await saveInvoice({
+    const payload = {
       type,
       branchId: activeBranch,
       partyId: party ? party.id : null,
@@ -141,8 +151,9 @@ export default function InvoiceEditor({ type }) {
       profit,
       userId: user.id,
       userName: user.name,
-    });
-    nav(`/invoices/${id}?new=1`);
+    };
+    const res = isQuote ? await saveQuote(payload) : isReturn ? await saveReturn(payload) : await saveInvoice(payload);
+    nav(`/invoices/${res.id}?new=1`);
   };
 
   const saveNewParty = async () => {
@@ -169,7 +180,7 @@ export default function InvoiceEditor({ type }) {
   return (
     <>
       <div className="page-head">
-        <h1>{isSale ? '🧾 فاتورة بيع جديدة' : '📥 فاتورة شراء جديدة'}</h1>
+        <h1>{TITLES[type] || '🧾 فاتورة'}</h1>
       </div>
 
       <div className="pos-grid">
@@ -344,7 +355,7 @@ export default function InvoiceEditor({ type }) {
 
           <button className="btn accent big block" style={{ marginTop: 14 }}
             onClick={save} disabled={lines.length === 0 || saving}>
-            {saving ? '...جاري الحفظ' : '💾 حفظ الفاتورة'}
+            {saving ? '...جاري الحفظ' : isQuote ? '💾 حفظ عرض السعر' : isReturn ? '💾 حفظ المرتجع' : '💾 حفظ الفاتورة'}
           </button>
         </div>
       </div>
