@@ -260,20 +260,21 @@ export async function saveInvoice(inv) {
       for (const line of inv.lines) {
         const item = await db.items.get(line.itemId);
         if (!item) continue;
+        const qBase = line.qty * (line.factor || 1); // qty converted to base units
         const stocks = { ...(item.stocks || {}) };
         const cur = Number(stocks[b] || 0);
         if (inv.type === 'sale') {
-          stocks[b] = cur - line.qty;
+          stocks[b] = cur - qBase;
           await db.items.update(line.itemId, { stocks });
         } else {
           // purchase: increase this branch's stock and update cost price
-          stocks[b] = cur + line.qty;
-          await db.items.update(line.itemId, { stocks, costPrice: line.price });
+          stocks[b] = cur + qBase;
+          await db.items.update(line.itemId, { stocks, costPrice: line.factor > 1 ? item.costPrice : line.price });
         }
         await db.stockMoves.add({
           itemId: line.itemId,
           itemName: line.name,
-          qty: line.qty,
+          qty: qBase,
           branchId: b,
           direction: inv.type === 'sale' ? 'out' : 'in',
           refType: inv.type,
@@ -331,14 +332,15 @@ export async function cancelInvoice(invoiceId, userName) {
       for (const line of inv.lines) {
         const item = await db.items.get(line.itemId);
         if (!item) continue;
+        const qBase = line.qty * (line.factor || 1);
         const stocks = { ...(item.stocks || {}) };
-        const delta = inv.type === 'sale' ? line.qty : -line.qty;
+        const delta = inv.type === 'sale' ? qBase : -qBase;
         stocks[b] = Number(stocks[b] || 0) + delta;
         await db.items.update(line.itemId, { stocks });
         await db.stockMoves.add({
           itemId: line.itemId,
           itemName: line.name,
-          qty: line.qty,
+          qty: qBase,
           branchId: b,
           direction: inv.type === 'sale' ? 'in' : 'out',
           refType: 'cancel',
@@ -391,12 +393,13 @@ export async function restoreInvoice(invoiceId, userName) {
       for (const line of inv.lines) {
         const item = await db.items.get(line.itemId);
         if (!item) continue;
+        const qBase = line.qty * (line.factor || 1);
         const stocks = { ...(item.stocks || {}) };
         // original effect: sale removes stock, purchase adds it
-        stocks[b] = Number(stocks[b] || 0) + (inv.type === 'sale' ? -line.qty : line.qty);
+        stocks[b] = Number(stocks[b] || 0) + (inv.type === 'sale' ? -qBase : qBase);
         await db.items.update(line.itemId, { stocks });
         await db.stockMoves.add({
-          itemId: line.itemId, itemName: line.name, qty: line.qty, branchId: b,
+          itemId: line.itemId, itemName: line.name, qty: qBase, branchId: b,
           direction: inv.type === 'sale' ? 'out' : 'in',
           refType: inv.type, refId: invoiceId, refNumber: inv.number, createdAt: nowISO(),
         });

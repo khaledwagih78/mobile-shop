@@ -7,7 +7,7 @@ import { Modal } from '../components/UI';
 import { Barcode, barcodeSVG } from '../components/Barcode';
 import { CustomFieldInputs } from './CustomFields';
 
-const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '' };
+const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '', baseUnit: 'قطعة', units: [] };
 
 export default function Items() {
   const { user, activeBranch, branches } = useAuth();
@@ -102,6 +102,8 @@ export default function Items() {
     const { stock, ...fields } = form;
     const base = {
       ...fields,
+      baseUnit: (form.baseUnit || 'قطعة').trim() || 'قطعة',
+      units: (form.units || []).filter((u) => u.name && Number(u.factor) > 1).map((u) => ({ name: u.name.trim(), factor: Number(u.factor) })),
       costUSD: Number(form.costUSD) || 0,
       costPrice: Number(form.costPrice) || 0,
       salePrice: Number(form.salePrice) || 0,
@@ -249,6 +251,25 @@ export default function Items() {
             <div className="field"><label>الحد الأدنى للتنبيه</label>
               <input className="input" type="number" min="0" value={form.minStock} onChange={(e) => setForm({ ...form, minStock: e.target.value })} /></div>
           </div>
+
+          <div className="row">
+            <div className="field"><label>وحدة القياس الأساسية</label>
+              <input className="input" value={form.baseUnit || ''} onChange={(e) => setForm({ ...form, baseUnit: e.target.value })} placeholder="قطعة / كيلو / متر" /></div>
+          </div>
+          <div className="field">
+            <label>📦 وحدات أكبر (اختياري) — مثال: كرتونة تحتوي 24 قطعة</label>
+            {(form.units || []).map((u, i) => (
+              <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                <input className="input" style={{ flex: 1 }} placeholder="اسم الوحدة (كرتونة)" value={u.name}
+                  onChange={(e) => { const units = [...form.units]; units[i] = { ...units[i], name: e.target.value }; setForm({ ...form, units }); }} />
+                <input className="input" style={{ width: 130 }} type="number" min="2" placeholder="تحتوي كام؟" value={u.factor}
+                  onChange={(e) => { const units = [...form.units]; units[i] = { ...units[i], factor: e.target.value }; setForm({ ...form, units }); }} />
+                <button className="btn ghost sm" type="button" onClick={() => setForm({ ...form, units: form.units.filter((_, x) => x !== i) })}>✕</button>
+              </div>
+            ))}
+            <button className="btn ghost sm" type="button" onClick={() => setForm({ ...form, units: [...(form.units || []), { name: '', factor: '' }] })}>＋ إضافة وحدة</button>
+          </div>
+
           {customFields.length > 0 && (
             <CustomFieldInputs
               fields={customFields}

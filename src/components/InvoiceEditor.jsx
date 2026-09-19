@@ -72,6 +72,12 @@ export default function InvoiceEditor({ type }) {
           stock: stockOf(it, activeBranch),
           wholesalePrice: it.wholesalePrice || 0,
           wholesaleMinQty: it.wholesaleMinQty || 0,
+          unit: it.baseUnit || 'قطعة',
+          factor: 1,
+          baseUnit: it.baseUnit || 'قطعة',
+          salePrice: it.salePrice || 0,
+          costPrice: it.costPrice || 0,
+          units: it.units || [],
         },
       ];
     });
@@ -97,6 +103,14 @@ export default function InvoiceEditor({ type }) {
     }));
   const removeLine = (itemId) => setLines((ls) => ls.filter((l) => l.itemId !== itemId));
 
+  const changeUnit = (itemId, unitName) => setLines((ls) => ls.map((l) => {
+    if (l.itemId !== itemId) return l;
+    const all = [{ name: l.baseUnit || 'قطعة', factor: 1 }, ...(l.units || [])];
+    const u = all.find((x) => x.name === unitName) || all[0];
+    const factor = Number(u.factor) || 1;
+    return { ...l, unit: u.name, factor, price: (isSale ? l.salePrice : l.costPrice) * factor, cost: (l.costPrice || 0) * factor };
+  }));
+
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
   const disc = Number(discount) || 0;
   const total = Math.max(0, subtotal - disc);
@@ -118,7 +132,7 @@ export default function InvoiceEditor({ type }) {
       branchId: activeBranch,
       partyId: party ? party.id : null,
       partyName: party ? party.name : null,
-      lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0 })),
+      lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, baseUnit, salePrice, costPrice, units, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0, factor: Number(l.factor) || 1 })),
       subtotal,
       discount: disc,
       total,
@@ -216,13 +230,24 @@ export default function InvoiceEditor({ type }) {
                       {l.name}
                       <small>
                         {l.code}
-                        {isSale && l.qty > l.stock && (
+                        {isSale && l.qty * (l.factor || 1) > l.stock && (
                           <span style={{ color: 'var(--red)', fontWeight: 700 }}> · الرصيد {fmt(l.stock)} فقط!</span>
                         )}
                         {isSale && l.wholesaleMinQty > 0 && l.qty < l.wholesaleMinQty && (
                           <span style={{ color: 'var(--amber)', fontSize: 11 }}> · جملة({l.wholesaleMinQty}+) {money(l.wholesalePrice)}</span>
                         )}
                       </small>
+                      {(l.units && l.units.length > 0) && (
+                        <select
+                          value={l.unit}
+                          onChange={(e) => changeUnit(l.itemId, e.target.value)}
+                          style={{ marginTop: 4, fontSize: 12, padding: '2px 4px', maxWidth: 150 }}
+                        >
+                          {[{ name: l.baseUnit || 'قطعة', factor: 1 }, ...l.units].map((u) => (
+                            <option key={u.name} value={u.name}>{u.name}{Number(u.factor) > 1 ? ` (${u.factor})` : ''}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     <input type="number" min="0" step="any" value={l.qty}
                       onChange={(e) => setLine(l.itemId, { qty: Number(e.target.value) })} />
