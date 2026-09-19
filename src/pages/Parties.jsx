@@ -12,7 +12,7 @@ export default function Parties({ kind = 'customer' }) {
   const { user } = useAuth();
   const list = useLiveQuery(() => table.orderBy('name').toArray(), [kind], []);
   const customFields = useLiveQuery(() => getCustomFields(kind), [kind], []);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
+  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
   const waMsg = (c) =>
     `السلام عليكم أ/ ${c.name} 🌹\n` +
     ((c.balance || 0) > 0 ? `تذكير ودّي: إجمالي المستحق ${money(c.balance)}.\nنرجو التكرم بالسداد في أقرب وقت.\n` : '') +

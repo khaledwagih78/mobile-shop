@@ -6,7 +6,7 @@ import { ROLES } from '../utils';
 
 export default function Login() {
   const users = useLiveQuery(() => db.users.toArray(), [], []);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
+  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
   const { login } = useAuth();
   const [userId, setUserId] = useState('');
   const [pin, setPin] = useState('');

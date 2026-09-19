@@ -14,7 +14,7 @@ export default function Settings() {
 
   useEffect(() => {
     (async () => {
-      setBizName(await getSetting('bizName', 'خالد لقطع غيار المحمول'));
+      setBizName(await getSetting('bizName', 'نظام المبيعات والمخزون'));
       setUsdRate(await getSetting('usdRate', '') || '');
       setMargin(await getSetting('defaultMargin', '') || '');
       setApiKey(await getSetting('aiKey', '') || '');
@@ -73,7 +73,7 @@ export default function Settings() {
   };
 
   const save = async () => {
-    await setSetting('bizName', bizName.trim() || 'خالد لقطع غيار المحمول');
+    await setSetting('bizName', bizName.trim() || 'نظام المبيعات والمخزون');
     await setSetting('usdRate', Number(usdRate) || 0);
     await setSetting('defaultMargin', Number(margin) || 0);
     await setSetting('aiKey', apiKey.trim());
@@ -102,7 +102,7 @@ export default function Settings() {
         <div className="field">
           <label>اسم النشاط (يظهر في الفواتير وشاشة الدخول)</label>
           <input className="input lg" value={bizName} onChange={(e) => setBizName(e.target.value)}
-            placeholder="مثال: خالد لقطع غيار المحمول / جزيرة فون / أي نشاط آخر" />
+            placeholder="مثال: نظام المبيعات والمخزون / جزيرة فون / أي نشاط آخر" />
         </div>
 
         <div className="row">

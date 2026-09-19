@@ -46,7 +46,7 @@ export default function Layout() {
   const { user, logout, branches, activeBranch, setActiveBranch } = useAuth();
   const syncStatus = useSyncStatus();
   const pending    = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
+  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
   const lowStockCount = useLiveQuery(async () => {
     const items = await db.items.toArray();
     return items.filter((it) => stockOf(it, activeBranch) > 0 && stockOf(it, activeBranch) <= (it.minStock || 0)).length;

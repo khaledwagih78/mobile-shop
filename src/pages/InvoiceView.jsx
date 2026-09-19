@@ -13,7 +13,7 @@ export default function InvoiceView() {
   const { user } = useAuth();
   const [gate, setGate] = useState(null); // { title, message, onConfirm }
   const inv = useLiveQuery(() => db.invoices.get(Number(id)), [id]);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
+  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
   const logo = useLiveQuery(() => getSetting('bizLogo', ''), [], '');
   const address = useLiveQuery(() => getSetting('bizAddress', ''), [], '');
   const shopPhone = useLiveQuery(() => getSetting('bizPhone', ''), [], '');
