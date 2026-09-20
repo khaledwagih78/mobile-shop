@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { db, getSetting, setSetting } from '../db';
+import { sendReportNow } from '../periodicReports';
 import { Toast } from '../components/UI';
 
 export default function Settings() {
@@ -13,6 +14,7 @@ export default function Settings() {
   const [waAuto, setWaAuto] = useState(false);
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
   const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0' });
+  const [reports, setReports] = useState({ daily: false, weekly: false, monthly: false });
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -46,6 +48,11 @@ export default function Settings() {
         overdueDays: String(await getSetting('overdueDays', 30) ?? 30),
         discountApprovalPct: String(await getSetting('discountApprovalPct', 0) ?? 0),
       });
+      setReports({
+        daily: await getSetting('reportDaily', false) === true,
+        weekly: await getSetting('reportWeekly', false) === true,
+        monthly: await getSetting('reportMonthly', false) === true,
+      });
     })();
   }, []);
 
@@ -74,6 +81,21 @@ export default function Settings() {
     await setSetting('waAutoSend', next);
     setToast(next ? '✅ تم تفعيل الإرسال التلقائي على واتساب' : '⏹️ تم تعطيل الإرسال التلقائي على واتساب');
     setTimeout(() => setToast(''), 2500);
+  };
+
+  const saveReports = async (next) => {
+    setReports(next);
+    await setSetting('reportDaily', !!next.daily);
+    await setSetting('reportWeekly', !!next.weekly);
+    await setSetting('reportMonthly', !!next.monthly);
+  };
+
+  const sendNow = async (period) => {
+    if (!email.to.trim()) { setToast('⚠️ اضبط إعدادات الإيميل أولاً'); setTimeout(() => setToast(''), 3000); return; }
+    setToast('📧 جاري إرسال التقرير...');
+    try { await sendReportNow(period); setToast('✅ تم إرسال التقرير — راجع بريدك'); }
+    catch { setToast('⚠️ تعذّر الإرسال'); }
+    setTimeout(() => setToast(''), 3500);
   };
 
   const saveAlerts = async () => {
@@ -287,6 +309,28 @@ export default function Settings() {
               <input className="input lg" type="number" min="0" step="0.01" value={tax.rate} onChange={(e) => setTax({ ...tax, rate: e.target.value })} placeholder="مثال: 14" /></div>
           </div>
           <button className="btn" onClick={saveTax}>💾 حفظ إعدادات الضريبة</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>📈 تقارير دورية للمدير بالإيميل</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            يرسل ملخص البيع والشراء والأرباح تلقائياً على إيميل المدير (نفس إعدادات الإيميل بالأعلى).
+            فعّل الدورية المطلوبة. الإرسال يتم عند فتح التطبيق مع وجود إنترنت (بدون سيرفر)، فلو
+            التطبيق مفتوح على جهاز المدير أو الكاشير باستمرار توصل في وقتها.
+          </p>
+          {[['daily', 'يومي'], ['weekly', 'أسبوعي'], ['monthly', 'شهري']].map(([k, lbl]) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', cursor: 'pointer' }}>
+              <input type="checkbox" checked={reports[k]} onChange={(e) => saveReports({ ...reports, [k]: e.target.checked })} />
+              تقرير {lbl}
+            </label>
+          ))}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            <button className="btn ghost sm" onClick={() => sendNow('daily')}>📧 أرسل التقرير اليومي الآن</button>
+            <button className="btn ghost sm" onClick={() => sendNow('weekly')}>📧 الأسبوعي</button>
+            <button className="btn ghost sm" onClick={() => sendNow('monthly')}>📧 الشهري</button>
+          </div>
         </div>
       </div>
 

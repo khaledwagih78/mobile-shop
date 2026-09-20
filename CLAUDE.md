@@ -407,6 +407,16 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   review table lets the accountant fix matches/qty/price before "اعتماد وحفظ", which
   calls `saveInvoice` (so stock + accounting + tax all apply normally).
 
+### Periodic email reports (`src/periodicReports.js`)
+
+- `buildPeriodReport('daily'|'weekly'|'monthly')` computes a sales/purchases/profit/
+  expenses summary for the period. `sendReportNow(period)` sends it via `notifyEvent`
+  (EmailJS). `maybeSendPeriodicReports()` (called from `main.jsx` on startup + every
+  3h) sends any enabled+due report and records `reportLastSent` per frequency.
+- Enabled per frequency in Settings (`reportDaily/reportWeekly/reportMonthly`), which
+  reuses the EmailJS config. Sending is best-effort and only fires while the app is
+  open + online (no backend scheduler); a manual "send now" button exists per period.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
