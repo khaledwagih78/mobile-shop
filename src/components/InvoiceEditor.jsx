@@ -33,6 +33,7 @@ export default function InvoiceEditor({ type }) {
   const taxEnabled = useLiveQuery(() => getSetting('taxEnabled', false), [], false);
   const taxRateSetting = useLiveQuery(() => getSetting('taxRate', 0), [], 0);
   const taxName = useLiveQuery(() => getSetting('taxName', 'ضريبة القيمة المضافة'), [], 'ضريبة القيمة المضافة');
+  const discountApprovalPct = useLiveQuery(() => getSetting('discountApprovalPct', 0), [], 0);
 
   const [q, setQ] = useState('');
   const [lines, setLines] = useState([]);
@@ -150,9 +151,16 @@ export default function InvoiceEditor({ type }) {
   const paidNum = paidTouched ? Number(paid) || 0 : total;
   const remaining = Math.max(0, total - paidNum);
   const profit = isSale ? lines.reduce((s, l) => s + l.qty * (l.price - l.cost), 0) - disc : 0;
+  const discountPct = subtotal > 0 ? (disc / subtotal) * 100 : 0;
+  const needsApproval = isSale && Number(discountApprovalPct) > 0 && discountPct > Number(discountApprovalPct) && user.role !== 'admin';
 
   const save = async () => {
     if (lines.length === 0) return;
+    if (needsApproval) {
+      setToast(`الخصم يتجاوز ${discountApprovalPct}% — يتطلب موافقة المدير`);
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
     if (!isQuote && !isPO && remaining > 0 && !partyId) {
       setToast(isSale ? 'البيع الآجل يحتاج اختيار عميل' : 'الشراء الآجل يحتاج اختيار مورد');
       setTimeout(() => setToast(''), 2500);
@@ -427,8 +435,13 @@ export default function InvoiceEditor({ type }) {
               الرصيد بعد البيع سيكون {money((selectedParty.balance || 0) + remaining)}.
             </div>
           )}
+          {needsApproval && (
+            <div className="card" style={{ borderColor: 'var(--red)', color: 'var(--red)', fontWeight: 700, marginTop: 12, padding: 10, fontSize: 13 }}>
+              🔒 الخصم ({fmt(Math.round(discountPct))}%) يتجاوز الحد المسموح ({fmt(discountApprovalPct)}%) — يتطلب موافقة/دخول المدير لإتمام الفاتورة.
+            </div>
+          )}
           <button className="btn accent big block" style={{ marginTop: 14 }}
-            onClick={save} disabled={lines.length === 0 || saving}>
+            onClick={save} disabled={lines.length === 0 || saving || needsApproval}>
             {saving ? '...جاري الحفظ' : isQuote ? '💾 حفظ عرض السعر' : isPO ? '💾 حفظ طلب الشراء' : isReturn ? '💾 حفظ المرتجع' : '💾 حفظ الفاتورة'}
           </button>
         </div>

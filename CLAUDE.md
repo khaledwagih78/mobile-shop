@@ -369,6 +369,16 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   lists items within 60 days of expiry (or expired). Tabs: stock take, damage,
   near-expiry. (Full per-unit serial/batch tracking is a future extension.)
 
+### Alerts center & approvals (`src/pages/Alerts.jsx`)
+
+- The Alerts page aggregates computed notifications: low-stock items, near-expiry
+  items (within `nearExpiryDays`), overdue installments, customers over their
+  credit limit, and top debtors — each linking to its module. No new tables.
+- Approval threshold: setting `discountApprovalPct` (>0). In `InvoiceEditor`, a
+  sale whose discount % exceeds it is blocked for non-admin users (warning + save
+  disabled) until a manager approves/logs in. Thresholds and near-expiry/overdue
+  days are configured in Settings.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

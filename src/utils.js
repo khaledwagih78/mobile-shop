@@ -56,9 +56,9 @@ export const ROLES = {
 // permissions per role
 export const can = (role, action) => {
   const map = {
-    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments', 'crm', 'pricing', 'assets', 'payroll', 'projects', 'maintenance', 'reps', 'invops', 'reportbuilder'],
-    sales: ['pos', 'customers', 'invoices', 'requests', 'quote', 'returns', 'installments', 'crm', 'maintenance', 'reps'],
-    store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer', 'requests', 'returns', 'production', 'maintenance', 'invops'],
+    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments', 'crm', 'pricing', 'assets', 'payroll', 'projects', 'maintenance', 'reps', 'invops', 'reportbuilder', 'alerts'],
+    sales: ['pos', 'customers', 'invoices', 'requests', 'quote', 'returns', 'installments', 'crm', 'maintenance', 'reps', 'alerts'],
+    store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer', 'requests', 'returns', 'production', 'maintenance', 'invops', 'alerts'],
   };
   return (map[role] || []).includes(action);
 };

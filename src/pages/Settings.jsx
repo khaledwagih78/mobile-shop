@@ -12,6 +12,7 @@ export default function Settings() {
   const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
   const [waAuto, setWaAuto] = useState(false);
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
+  const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0' });
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -40,6 +41,11 @@ export default function Settings() {
         name: await getSetting('taxName', 'ضريبة القيمة المضافة') || 'ضريبة القيمة المضافة',
         rate: String((await getSetting('taxRate', 0)) || ''),
       });
+      setAlerts({
+        nearExpiryDays: String(await getSetting('nearExpiryDays', 60) ?? 60),
+        overdueDays: String(await getSetting('overdueDays', 30) ?? 30),
+        discountApprovalPct: String(await getSetting('discountApprovalPct', 0) ?? 0),
+      });
     })();
   }, []);
 
@@ -67,6 +73,14 @@ export default function Settings() {
     setWaAuto(next);
     await setSetting('waAutoSend', next);
     setToast(next ? '✅ تم تفعيل الإرسال التلقائي على واتساب' : '⏹️ تم تعطيل الإرسال التلقائي على واتساب');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const saveAlerts = async () => {
+    await setSetting('nearExpiryDays', Number(alerts.nearExpiryDays) || 60);
+    await setSetting('overdueDays', Number(alerts.overdueDays) || 30);
+    await setSetting('discountApprovalPct', Number(alerts.discountApprovalPct) || 0);
+    setToast('✅ تم حفظ إعدادات التنبيهات والموافقات');
     setTimeout(() => setToast(''), 2500);
   };
 
@@ -273,6 +287,25 @@ export default function Settings() {
               <input className="input lg" type="number" min="0" step="0.01" value={tax.rate} onChange={(e) => setTax({ ...tax, rate: e.target.value })} placeholder="مثال: 14" /></div>
           </div>
           <button className="btn" onClick={saveTax}>💾 حفظ إعدادات الضريبة</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🔔 التنبيهات والموافقات</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            تتحكم في مركز التنبيهات (صفحة "التنبيهات") وفي موافقة المدير على الخصومات الكبيرة.
+          </p>
+          <div className="row">
+            <div className="field"><label>تنبيه قرب الصلاحية (أيام)</label>
+              <input className="input" type="number" min="1" value={alerts.nearExpiryDays} onChange={(e) => setAlerts({ ...alerts, nearExpiryDays: e.target.value })} /></div>
+            <div className="field"><label>اعتبار الدين متأخراً بعد (أيام)</label>
+              <input className="input" type="number" min="1" value={alerts.overdueDays} onChange={(e) => setAlerts({ ...alerts, overdueDays: e.target.value })} /></div>
+          </div>
+          <div className="field"><label>خصم يتطلب موافقة المدير عند تجاوز % (0 = بدون)</label>
+            <input className="input" type="number" min="0" value={alerts.discountApprovalPct} onChange={(e) => setAlerts({ ...alerts, discountApprovalPct: e.target.value })} placeholder="مثال: 10" /></div>
+          <p className="muted" style={{ fontSize: 12 }}>لو الخصم في الفاتورة تجاوز النسبة دي، الموظف غير المدير مش هيقدر يحفظ الفاتورة إلا بموافقة/دخول مدير.</p>
+          <button className="btn" onClick={saveAlerts}>💾 حفظ إعدادات التنبيهات</button>
         </div>
       </div>
 
