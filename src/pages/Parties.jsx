@@ -47,10 +47,11 @@ export default function Parties({ kind = 'customer' }) {
   const totalPoints = isCustomer ? (list || []).reduce((s, c) => s + (c.points || 0), 0) : 0;
 
   const save = async () => {
+    const creditLimit = Number(form.creditLimit) || 0;
     if (form.id) {
-      await table.update(form.id, { name: form.name, phone: form.phone, address: form.address, custom: form.custom || {} });
+      await table.update(form.id, { name: form.name, phone: form.phone, address: form.address, custom: form.custom || {}, creditLimit });
     } else {
-      await table.add({ ...form, balance: 0, points: 0, totalSpent: 0, createdAt: nowISO() });
+      await table.add({ ...form, creditLimit, balance: 0, points: 0, totalSpent: 0, createdAt: nowISO() });
     }
     await queueSync(isCustomer ? 'customers' : 'suppliers', form.id ? 'update' : 'add', form);
     setForm(null);
@@ -120,6 +121,9 @@ export default function Parties({ kind = 'customer' }) {
                     {(c.balance || 0) > 0
                       ? <span className="badge red">{isCustomer ? 'عليه' : 'له'} {money(c.balance)}</span>
                       : <span className="badge green">خالص</span>}
+                    {isCustomer && (c.creditLimit || 0) > 0 && (c.balance || 0) > c.creditLimit && (
+                      <span className="badge amber" title={`تجاوز الحد ${money(c.creditLimit)}`} style={{ marginRight: 4 }}>⚠️ تجاوز الحد</span>
+                    )}
                   </td>
                   <td style={{ display: 'flex', gap: 6 }}>
                     {c.phone && (
@@ -145,6 +149,11 @@ export default function Parties({ kind = 'customer' }) {
             <input className="input" inputMode="tel" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="field"><label>العنوان</label>
             <input className="input" value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+          {isCustomer && (
+            <div className="field"><label>💳 الحد الائتماني (اتركه 0 = بدون حد)</label>
+              <input className="input" type="number" min="0" value={form.creditLimit || ''} onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
+                placeholder="أقصى مديونية مسموح بها للعميل" /></div>
+          )}
           {customFields.length > 0 && (
             <CustomFieldInputs
               fields={customFields}

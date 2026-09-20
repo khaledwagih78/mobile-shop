@@ -245,6 +245,21 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - The Accounting page's **الضرائب** tab reports output VAT (sales), input VAT
   (purchases) and net due, from the `vat` account's movement over the period.
 
+### Installments & debt (`src/pages/Installments.jsx`)
+
+- `installmentPlans` (v11) is a monthly schedule over an existing customer debt
+  (embedded `installments[]`). `createInstallmentPlan({total, downPayment, count,
+  startDate, ...})` splits `total − downPayment` across `count` monthly dues (last
+  absorbs rounding); it posts nothing (the underlying credit sale already booked
+  the AR). `payInstallment({planId, no, amount})` records a normal customer payment
+  (nested `recordPayment` → balance + Dr cash/Cr AR) and marks the installment
+  paid/partial — so a plan never double-counts the debt.
+- Customers gained a `creditLimit` (Parties form); `InvoiceEditor` shows a soft
+  over-limit warning on credit sales, and Parties/aging flag over-limit customers.
+- The page's **أعمار الديون** tab buckets each customer's outstanding balance
+  (0–30/31–60/61–90/90+) by allocating their payments FIFO to their oldest unpaid
+  sale invoices; untracked/opening balances fall in the 0–30 bucket.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

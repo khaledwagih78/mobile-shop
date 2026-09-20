@@ -370,6 +370,13 @@ export default function InvoiceEditor({ type }) {
             <div className="trow grand"><span>الصافي</span><span className="num">{money(total)}</span></div>
           </div>
 
+          {isSale && !isQuote && selectedParty && (selectedParty.creditLimit || 0) > 0 &&
+            ((selectedParty.balance || 0) + remaining) > selectedParty.creditLimit && (
+            <div className="card" style={{ borderColor: 'var(--amber)', color: 'var(--amber)', fontWeight: 700, marginTop: 12, padding: 10, fontSize: 13 }}>
+              ⚠️ تنبيه: هذه الفاتورة تتجاوز الحد الائتماني للعميل ({money(selectedParty.creditLimit)}).
+              الرصيد بعد البيع سيكون {money((selectedParty.balance || 0) + remaining)}.
+            </div>
+          )}
           <button className="btn accent big block" style={{ marginTop: 14 }}
             onClick={save} disabled={lines.length === 0 || saving}>
             {saving ? '...جاري الحفظ' : isQuote ? '💾 حفظ عرض السعر' : isReturn ? '💾 حفظ المرتجع' : '💾 حفظ الفاتورة'}

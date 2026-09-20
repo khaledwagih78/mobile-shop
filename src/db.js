@@ -96,6 +96,14 @@ db.version(10).stores({
   journalEntries: '++id, number, day, refType, refId, branchId, createdAt',
 });
 
+// ---------- installment plans (تقسيط) ----------
+// A schedule over an existing customer debt. Paying an installment records a
+// normal customer payment (so it flows through balances + accounting) and marks
+// the installment paid — the plan never double-counts the debt.
+db.version(11).stores({
+  installmentPlans: '++id, customerId, invoiceId, status, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -133,7 +141,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries',
+  'accounts', 'journalEntries', 'installmentPlans',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -599,6 +607,62 @@ export async function recordExpense(doc) {
     await queueSync('expenses', 'add', { ...full, id });
     return id;
   });
+}
+
+// ---------- installments (تقسيط) ----------
+// Build a monthly schedule over `total − downPayment` across `count` installments.
+export async function createInstallmentPlan({ customerId, customerName, invoiceId, invoiceNumber, total, downPayment = 0, count, startDate, branchId, userName }) {
+  const t = Number(total) || 0, dp = Number(downPayment) || 0, n = Math.max(1, Number(count) || 1);
+  const financed = Math.max(0, Math.round((t - dp) * 100) / 100);
+  const per = Math.floor((financed / n) * 100) / 100;
+  const start = startDate || today();
+  const [sy, sm, sd] = start.split('-').map(Number);
+  const installments = [];
+  let allocated = 0;
+  for (let i = 0; i < n; i++) {
+    const d = new Date(sy, (sm - 1) + i, sd || 1);
+    const amount = i === n - 1 ? Math.round((financed - allocated) * 100) / 100 : per;
+    allocated = Math.round((allocated + amount) * 100) / 100;
+    installments.push({ no: i + 1, dueDate: d.toISOString().slice(0, 10), amount, paidAmount: 0, status: 'due' });
+  }
+  return db.transaction('rw', [db.installmentPlans, db.syncQueue], async () => {
+    const doc = {
+      customerId, customerName, invoiceId: invoiceId || null, invoiceNumber: invoiceNumber || null,
+      total: t, downPayment: dp, financed, count: n, startDate: start,
+      branchId: branchId || DEFAULT_BRANCH_ID, installments, status: 'active', createdAt: nowISO(), userName,
+    };
+    const id = await db.installmentPlans.add(doc);
+    await queueSync('installmentPlans', 'add', { ...doc, id });
+    return { id };
+  });
+}
+
+// Pay one installment: records a customer payment (balance + ledger) and marks
+// the installment paid/partial — all in one transaction.
+export async function payInstallment({ planId, no, amount, note, userName }) {
+  return db.transaction(
+    'rw',
+    [db.installmentPlans, db.payments, db.customers, db.suppliers, db.accounts, db.journalEntries, db.syncQueue],
+    async () => {
+      const plan = await db.installmentPlans.get(planId);
+      if (!plan) return null;
+      const insts = plan.installments.map((x) => ({ ...x }));
+      const inst = insts.find((x) => x.no === no);
+      if (!inst) return null;
+      const due = Math.round((inst.amount - (inst.paidAmount || 0)) * 100) / 100;
+      const pay = Math.min(Number(amount) || 0, due);
+      if (pay <= 0) return null;
+      // nested recordPayment — its table scope is a subset, so it joins this tx
+      await recordPayment({ partyType: 'customer', partyId: plan.customerId, partyName: plan.customerName, amount: pay, note: note || `قسط #${no}`, userName, branchId: plan.branchId });
+      inst.paidAmount = Math.round(((inst.paidAmount || 0) + pay) * 100) / 100;
+      inst.status = inst.paidAmount >= inst.amount - 0.01 ? 'paid' : 'partial';
+      const allPaid = insts.every((x) => x.status === 'paid');
+      const status = allPaid ? 'completed' : 'active';
+      await db.installmentPlans.update(planId, { installments: insts, status });
+      await queueSync('installmentPlans', 'update', { id: planId, installments: insts, status });
+      return { pay };
+    }
+  );
 }
 
 // Transfer stock quantities from one branch to another (atomic).
