@@ -30,6 +30,7 @@ const MENU = [
   { to: '/items', ico: '📦', label: 'المخزون', action: 'items' },
   { to: '/pricing', ico: '🏷️', label: 'قوائم الأسعار', action: 'pricing' },
   { to: '/production', ico: '🏭', label: 'التصنيع', action: 'production', mod: 'production' },
+  { to: '/inventory-ops', ico: '📋', label: 'الجرد والتسويات', action: 'invops' },
   { to: '/transfer', ico: '🔄', label: 'تحويل بضاعة', action: 'transfer' },
   { to: '/crm', ico: '🤝', label: 'العملاء المحتملون', action: 'crm' },
   { to: '/customers', ico: '👥', label: 'العملاء', action: 'customers' },

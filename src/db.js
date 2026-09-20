@@ -914,6 +914,59 @@ export async function runPayslip({ employeeId, employeeName, month, basic = 0, a
   });
 }
 
+// ---------- inventory adjustments & write-offs ----------
+// Set an item's counted quantity at a branch; the difference posts a stock move
+// and an accounting entry against the inventory-adjustment account.
+export async function adjustStock({ itemId, branchId, countedQty, note, userName }) {
+  return db.transaction('rw', [db.items, db.stockMoves, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const b = branchId || DEFAULT_BRANCH_ID;
+    const item = await db.items.get(itemId);
+    if (!item) return null;
+    const cur = Number((item.stocks && item.stocks[b]) || 0);
+    const counted = Number(countedQty) || 0;
+    const diff = Math.round((counted - cur) * 100) / 100;
+    if (diff === 0) return { diff: 0 };
+    const stocks = { ...(item.stocks || {}) };
+    stocks[b] = counted;
+    await db.items.update(itemId, { stocks });
+    const createdAt = nowISO();
+    await db.stockMoves.add({ itemId, itemName: item.name, qty: Math.abs(diff), branchId: b, direction: diff > 0 ? 'in' : 'out', refType: 'adjust', refNumber: note || 'جرد', createdAt });
+    const value = Math.round(Math.abs(diff) * (Number(item.costPrice) || 0) * 100) / 100;
+    if (value > 0) {
+      const accounts = await db.accounts.toArray();
+      const lines = diff > 0
+        ? [{ role: 'inventory', debit: value }, { role: 'invAdjust', credit: value }] // surplus
+        : [{ role: 'invAdjust', debit: value }, { role: 'inventory', credit: value }]; // shortage
+      await writeJournalEntry({ date: dayOf(createdAt), description: `تسوية جرد: ${item.name}`, refType: 'adjust', refId: itemId, branchId: b, lines, accounts, userName });
+    }
+    await queueSync('items', 'update', { id: itemId, stocks });
+    return { diff, value };
+  });
+}
+
+// Write off damaged/spoiled stock: reduce qty and expense it.
+export async function writeOffStock({ itemId, branchId, qty, reason, userName }) {
+  return db.transaction('rw', [db.items, db.stockMoves, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const b = branchId || DEFAULT_BRANCH_ID;
+    const q = Number(qty) || 0;
+    if (q <= 0) return null;
+    const item = await db.items.get(itemId);
+    if (!item) return null;
+    const stocks = { ...(item.stocks || {}) };
+    stocks[b] = Number(stocks[b] || 0) - q;
+    await db.items.update(itemId, { stocks });
+    const createdAt = nowISO();
+    await db.stockMoves.add({ itemId, itemName: item.name, qty: q, branchId: b, direction: 'out', refType: 'damage', refNumber: reason || 'تالف', createdAt });
+    const value = Math.round(q * (Number(item.costPrice) || 0) * 100) / 100;
+    if (value > 0) {
+      const accounts = await db.accounts.toArray();
+      await writeJournalEntry({ date: dayOf(createdAt), description: `تالف/هالك: ${item.name}${reason ? ' — ' + reason : ''}`, refType: 'damage', refId: itemId, branchId: b, lines: [{ role: 'invAdjust', debit: value }, { role: 'inventory', credit: value }], accounts, userName });
+    }
+    await queueSync('items', 'update', { id: itemId, stocks });
+    return { qty: q, value };
+  });
+}
+
 // ---------- sales reps ----------
 // Log a rep visit; if it collected money and recordCollection is set, also
 // record a real customer payment (balance + ledger).
@@ -1151,6 +1204,7 @@ const ASSET_ACCOUNTS = [
   { id: 16, code: '1600', name: 'مجمع إهلاك الأصول',    type: 'liability', role: 'accumDep' },
   { id: 17, code: '5400', name: 'مصروف الإهلاك',        type: 'expense',   role: 'depExpense' },
   { id: 18, code: '5500', name: 'الرواتب والأجور',      type: 'expense',   role: 'salaries' },
+  { id: 19, code: '5600', name: 'تسويات وتوالف المخزون', type: 'expense',  role: 'invAdjust' },
 ];
 export async function ensureAssetAccounts() {
   const iso = nowISO();

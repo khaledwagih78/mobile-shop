@@ -350,6 +350,16 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   editable monthly target (stored in the `repTargets` setting) and an achievement
   bar, plus the visit log filtered by rep + month.
 
+### Inventory ops — stock take, damage, expiry (`src/pages/InventoryOps.jsx`)
+
+- `adjustStock({itemId, branchId, countedQty})` sets the counted quantity and
+  posts the difference (a stock move + Dr/Cr against `invAdjust`, account id 19).
+  `writeOffStock({itemId, qty})` reduces stock and expenses it (Dr invAdjust /
+  Cr inventory). Both value the change at the item's `costPrice`.
+- Items gained optional `expiry` (date) and `batch` fields; the page's expiry tab
+  lists items within 60 days of expiry (or expired). Tabs: stock take, damage,
+  near-expiry. (Full per-unit serial/batch tracking is a future extension.)
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

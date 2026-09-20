@@ -7,7 +7,7 @@ import { Modal } from '../components/UI';
 import { Barcode, barcodeSVG } from '../components/Barcode';
 import { CustomFieldInputs } from './CustomFields';
 
-const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '', baseUnit: 'قطعة', units: [], taxable: true };
+const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '', baseUnit: 'قطعة', units: [], taxable: true, expiry: '', batch: '' };
 
 export default function Items() {
   const { user, activeBranch, branches } = useAuth();
@@ -253,6 +253,12 @@ export default function Items() {
               <input className="input" type="number" min="0" value={form.minStock} onChange={(e) => setForm({ ...form, minStock: e.target.value })} /></div>
           </div>
 
+          <div className="row">
+            <div className="field"><label>📅 تاريخ الصلاحية (اختياري)</label>
+              <input className="input" type="date" value={form.expiry || ''} onChange={(e) => setForm({ ...form, expiry: e.target.value })} /></div>
+            <div className="field"><label>🔖 رقم التشغيلة / اللوط (اختياري)</label>
+              <input className="input" value={form.batch || ''} onChange={(e) => setForm({ ...form, batch: e.target.value })} placeholder="Batch/Lot" /></div>
+          </div>
           <div className="row">
             <div className="field"><label>وحدة القياس الأساسية</label>
               <input className="input" value={form.baseUnit || ''} onChange={(e) => setForm({ ...form, baseUnit: e.target.value })} placeholder="قطعة / كيلو / متر" /></div>
