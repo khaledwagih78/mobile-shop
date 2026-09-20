@@ -42,6 +42,7 @@ const MENU = [
   { to: '/treasury', ico: '🏦', label: 'الخزائن والبنوك', action: 'treasury' },
   { to: '/assets', ico: '🏛️', label: 'الأصول الثابتة', action: 'assets' },
   { to: '/installments', ico: '💳', label: 'الأقساط والديون', action: 'installments' },
+  { to: '/projects', ico: '📁', label: 'المشاريع', action: 'projects' },
   { to: '/reports', ico: '📈', label: 'التقارير', action: 'reports' },
   { to: '/audit', ico: '📋', label: 'سجل النشاطات', action: 'reports' },
   { to: '/import', ico: '📑', label: 'استيراد Excel', action: 'import' },

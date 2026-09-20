@@ -127,6 +127,11 @@ db.version(15).stores({
   payslips: '++id, employeeId, month, branchId, createdAt',
 });
 
+// ---------- projects ----------
+db.version(16).stores({
+  projects: '++id, status, customerId, branchId, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -164,7 +169,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -892,6 +897,44 @@ export async function runPayslip({ employeeId, employeeName, month, basic = 0, a
     }
     await queueSync('payslips', 'add', { ...doc, id });
     return { id, net };
+  });
+}
+
+// ---------- projects ----------
+export async function createProject({ name, customerId, customerName, budget = 0, startDate, endDate, notes, branchId, userName }) {
+  return db.transaction('rw', [db.projects, db.syncQueue], async () => {
+    const doc = {
+      name: (name || '').trim(), customerId: customerId || null, customerName: customerName || '',
+      budget: Number(budget) || 0, startDate: startDate || today(), endDate: endDate || null, notes: notes || '',
+      status: 'active', tasks: [], entries: [], branchId: branchId || DEFAULT_BRANCH_ID, createdAt: nowISO(), userName,
+    };
+    const id = await db.projects.add(doc);
+    await queueSync('projects', 'add', { ...doc, id });
+    return { id };
+  });
+}
+
+// Add a cost or income entry to a project and post it to the ledger
+// (cost → Dr expense / Cr cash; income → Dr cash / Cr sales).
+export async function addProjectEntry({ projectId, type, amount, note, cashRole = 'cash', userName }) {
+  return db.transaction('rw', [db.projects, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const p = await db.projects.get(projectId);
+    if (!p) return null;
+    const amt = Number(amount) || 0;
+    if (amt <= 0) return null;
+    const entry = { key: `${Date.now()}_${Math.floor(Math.random() * 1e4)}`, type, amount: amt, note: note || '', date: today(), createdAt: nowISO() };
+    const entries = [...(p.entries || []), entry];
+    await db.projects.update(projectId, { entries });
+    const accounts = await db.accounts.toArray();
+    const lines = type === 'cost'
+      ? [{ role: 'expense', debit: amt }, { role: cashRole, credit: amt }]
+      : [{ role: cashRole, debit: amt }, { role: 'sales', credit: amt }];
+    await writeJournalEntry({
+      date: entry.date, description: `مشروع ${p.name}: ${type === 'cost' ? 'تكلفة' : 'إيراد'}${note ? ' — ' + note : ''}`,
+      refType: 'project', refId: projectId, branchId: p.branchId, lines, accounts, userName,
+    });
+    await queueSync('projects', 'update', { id: projectId, entries });
+    return { entry };
   });
 }
 

@@ -33,6 +33,7 @@ import CRM from './pages/CRM';
 import Pricing from './pages/Pricing';
 import Assets from './pages/Assets';
 import Payroll from './pages/Payroll';
+import Projects from './pages/Projects';
 import { can } from './utils';
 
 function Guard({ action, children }) {
@@ -70,6 +71,7 @@ function Shell() {
         <Route path="employees" element={<Guard action="employees"><Employees /></Guard>} />
         <Route path="employees/:id" element={<Guard action="employees"><EmployeeDetail /></Guard>} />
         <Route path="payroll" element={<Guard action="payroll"><Payroll /></Guard>} />
+        <Route path="projects" element={<Guard action="projects"><Projects /></Guard>} />
         <Route path="audit" element={<Guard action="reports"><AuditLog /></Guard>} />
         <Route path="deliveries" element={<Guard action="pos"><Deliveries /></Guard>} />
         <Route path="branches" element={<Guard action="branches"><Branches /></Guard>} />

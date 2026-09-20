@@ -322,6 +322,15 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   a payslip editor (prefilled from `employee.baseSalary`); commissions are entered
   as a component. A month summary lists all payslips.
 
+### Projects (`src/pages/Projects.jsx`)
+
+- `projects` (v16): name, optional customer, budget, dates, embedded `tasks[]` and
+  `entries[]`. `createProject` adds one; tasks are toggled by updating the record.
+  `addProjectEntry({type:'cost'|'income', amount, ...})` appends the entry and posts
+  it to the ledger (cost → Dr expense / Cr cash; income → Dr cash / Cr sales), so a
+  project's money is real GL activity, and its P&L (income − cost vs budget) shows
+  on the page and in an expandable detail modal with tasks + entries.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
