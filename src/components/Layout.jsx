@@ -26,6 +26,7 @@ const MENU = [
   { to: '/quote', ico: '📄', label: 'عرض سعر', action: 'quote' },
   { to: '/purchase', ico: '📥', label: 'فاتورة شراء', action: 'purchase' },
   { to: '/purchase-order', ico: '📝', label: 'طلب شراء', action: 'purchase' },
+  { to: '/smart-import', ico: '✨', label: 'الإضافة الذكية', action: 'smartimport' },
   { to: '/sale-return', ico: '↩️', label: 'مرتجع بيع', action: 'returns' },
   { to: '/purchase-return', ico: '↪️', label: 'مرتجع شراء', action: 'returns' },
   { to: '/invoices', ico: '🗂️', label: 'الفواتير', action: 'invoices' },

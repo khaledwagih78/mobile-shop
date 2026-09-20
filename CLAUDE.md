@@ -395,6 +395,18 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - `Dashboard.jsx` KPI widgets are customizable per device: a ⚙️ panel toggles each
   card, persisted in `localStorage.kerp_dash_hidden`.
 
+### Smart invoice import (`src/pages/SmartImport.jsx`)
+
+- Build a purchase/sale invoice from **Excel** (parsed with `xlsx`, header-detected
+  or positional), **pasted text** (`parseInvoiceLines` in utils splits name/qty/price
+  on tab / 2+ spaces / comma / pipe), or an **image/PDF** (opt-in, sent to the
+  Anthropic vision/document API with the user's `aiKey` to return JSON rows).
+- `matchItem(text, items)` (utils) scores each extracted line against the catalog
+  by token overlap, model-number match ("شاشة 530"), code/barcode and brand, and
+  auto-selects the best when score ≥ 0.6 (lower → flagged for manual pick). The
+  review table lets the accountant fix matches/qty/price before "اعتماد وحفظ", which
+  calls `saveInvoice` (so stock + accounting + tax all apply normally).
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

@@ -47,6 +47,49 @@ export const normAr = (s) => (s || '')
   .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ـ/g, '')
   .replace(/\s+/g, ' ').trim().toLowerCase();
 
+// ---------- smart invoice import: line matching ----------
+// Score how well a free-text line matches an item, then pick the best.
+// Handles model numbers ("شاشة 530"), token overlap, code/barcode, brand.
+export function matchItem(text, items) {
+  const raw = String(text || '');
+  const q = normAr(raw);
+  if (!q || !items || !items.length) return null;
+  const qTokens = q.split(' ').filter((x) => x.length >= 2);
+  const qNums = raw.match(/\d+/g) || [];
+  let best = null, bestScore = 0;
+  for (const it of items) {
+    const name = normAr(it.name);
+    const hay = (name + ' ' + normAr(it.brand || '') + ' ' + normAr(it.category || '')).split(' ').filter(Boolean);
+    let score = 0;
+    let overlap = 0;
+    for (const tkn of qTokens) if (hay.includes(tkn)) overlap++;
+    if (qTokens.length) score += overlap / qTokens.length;
+    if (name && (name.includes(q) || q.includes(name))) score += 0.5;
+    const itNums = (String(it.name).match(/\d+/g) || []).concat(String(it.code || '').match(/\d+/g) || []);
+    for (const n of qNums) if (itNums.includes(n)) score += 0.6;
+    if (it.code && q.includes(normAr(it.code))) score += 1;
+    if (it.barcode && raw.includes(it.barcode)) score += 1.5;
+    if (score > bestScore) { bestScore = score; best = it; }
+  }
+  return best ? { item: best, score: Math.round(bestScore * 100) / 100 } : null;
+}
+
+// Parse pasted/free text into invoice rows. Column separators (tab / 2+ spaces /
+// comma / pipe) → [name, qty, price]; otherwise the whole line is the name.
+export function parseInvoiceLines(text) {
+  const rows = [];
+  for (const line of String(text || '').split('\n')) {
+    const l = line.trim();
+    if (!l) continue;
+    const parts = l.split(/\t|\s{2,}|،|,|\|/).map((s) => s.trim()).filter(Boolean);
+    let name = l, qty = 1, price = 0;
+    if (parts.length >= 3) { name = parts.slice(0, parts.length - 2).join(' '); qty = Number(parts[parts.length - 2]) || 1; price = Number(parts[parts.length - 1]) || 0; }
+    else if (parts.length === 2) { name = parts[0]; price = Number(parts[1]) || 0; }
+    rows.push({ raw: l, name, qty, price });
+  }
+  return rows;
+}
+
 export const ROLES = {
   admin: 'مدير النظام',
   sales: 'موظف مبيعات',
@@ -56,9 +99,9 @@ export const ROLES = {
 // permissions per role
 export const can = (role, action) => {
   const map = {
-    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments', 'crm', 'pricing', 'assets', 'payroll', 'projects', 'maintenance', 'reps', 'invops', 'reportbuilder', 'alerts', 'smart', 'viewCost', 'viewProfit', 'changePrice'],
+    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments', 'crm', 'pricing', 'assets', 'payroll', 'projects', 'maintenance', 'reps', 'invops', 'reportbuilder', 'alerts', 'smart', 'smartimport', 'viewCost', 'viewProfit', 'changePrice'],
     sales: ['pos', 'customers', 'invoices', 'requests', 'quote', 'returns', 'installments', 'crm', 'maintenance', 'reps', 'alerts'],
-    store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer', 'requests', 'returns', 'production', 'maintenance', 'invops', 'alerts', 'viewCost', 'changePrice'],
+    store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer', 'requests', 'returns', 'production', 'maintenance', 'invops', 'alerts', 'viewCost', 'changePrice', 'smartimport'],
   };
   return (map[role] || []).includes(action);
 };
