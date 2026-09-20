@@ -17,7 +17,7 @@ DECLARE
     'employees', 'empRecords', 'users',
     'lines', 'transactions', 'profiles',
     'auditLog', 'deliveries', 'branches', 'requests', 'productions',
-    'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets'
+    'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips'
   ];
 BEGIN
   FOREACH tbl IN ARRAY tbls LOOP

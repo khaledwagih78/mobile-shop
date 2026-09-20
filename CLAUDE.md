@@ -312,6 +312,16 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - Helpers `assetMonthlyDep`/`assetBookValue`. The page shows KPIs (cost, accumulated,
   book value, monthly), a "record this month's depreciation" button, and disposal.
 
+### Payroll (`src/pages/Payroll.jsx`)
+
+- `payslips` (v15) per employee per month. `runPayslip({basic, allowances,
+  overtime, commission, deductions, advances, cashRole, ...})` computes
+  net = basic+allowances+overtime+commission − deductions − advances and posts
+  Dr salaries / Cr cash|bank (salaries is system account role `salaries`, id 18).
+- The page lists active employees for a chosen month with a paid/unpaid state and
+  a payslip editor (prefilled from `employee.baseSalary`); commissions are entered
+  as a component. A month summary lists all payslips.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

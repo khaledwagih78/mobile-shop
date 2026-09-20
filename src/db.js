@@ -122,6 +122,11 @@ db.version(14).stores({
   assets: '++id, name, category, status, branchId, createdAt',
 });
 
+// ---------- payroll (payslips) ----------
+db.version(15).stores({
+  payslips: '++id, employeeId, month, branchId, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -159,7 +164,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -864,6 +869,32 @@ export async function disposeAsset(assetId, disposalValue, userName) {
   });
 }
 
+// ---------- payroll ----------
+// Create & pay one payslip: net = basic + allowances + overtime + commission
+// − deductions − advances, posting Dr salaries / Cr cash|bank.
+export async function runPayslip({ employeeId, employeeName, month, basic = 0, allowances = 0, overtime = 0, commission = 0, deductions = 0, advances = 0, cashRole = 'cash', branchId, userName }) {
+  const gross = (Number(basic) || 0) + (Number(allowances) || 0) + (Number(overtime) || 0) + (Number(commission) || 0);
+  const net = Math.round((gross - (Number(deductions) || 0) - (Number(advances) || 0)) * 100) / 100;
+  return db.transaction('rw', [db.payslips, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const doc = {
+      employeeId, employeeName, month, basic: Number(basic) || 0, allowances: Number(allowances) || 0,
+      overtime: Number(overtime) || 0, commission: Number(commission) || 0, deductions: Number(deductions) || 0,
+      advances: Number(advances) || 0, net, branchId: branchId || DEFAULT_BRANCH_ID, cashRole, status: 'posted',
+      createdAt: nowISO(), day: today(), userName,
+    };
+    const id = await db.payslips.add(doc);
+    if (net > 0) {
+      const accounts = await db.accounts.toArray();
+      await writeJournalEntry({
+        date: doc.day, description: `راتب ${month}: ${employeeName}`, refType: 'payroll', refId: id,
+        branchId: doc.branchId, lines: [{ role: 'salaries', debit: net }, { role: cashRole, credit: net }], accounts, userName,
+      });
+    }
+    await queueSync('payslips', 'add', { ...doc, id });
+    return { id, net };
+  });
+}
+
 // Transfer stock quantities from one branch to another (atomic).
 // `lines` = [{ itemId, name, qty }]. Records two stock moves per item.
 export async function transferStock({ fromBranch, toBranch, lines, userName }) {
@@ -996,11 +1027,12 @@ export async function ensureChartOfAccounts() {
   }
 }
 
-// Accounts the fixed-assets module needs (added by role if missing, fixed ids).
+// Extra system accounts the later modules need (added by role if missing, fixed ids).
 const ASSET_ACCOUNTS = [
   { id: 15, code: '1500', name: 'الأصول الثابتة',       type: 'asset',     role: 'fixedAsset' },
   { id: 16, code: '1600', name: 'مجمع إهلاك الأصول',    type: 'liability', role: 'accumDep' },
   { id: 17, code: '5400', name: 'مصروف الإهلاك',        type: 'expense',   role: 'depExpense' },
+  { id: 18, code: '5500', name: 'الرواتب والأجور',      type: 'expense',   role: 'salaries' },
 ];
 export async function ensureAssetAccounts() {
   const iso = nowISO();
