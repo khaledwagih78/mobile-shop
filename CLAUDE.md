@@ -153,6 +153,12 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - Route access is enforced by the `<Guard action="...">` wrapper in `App.jsx`;
   the sidebar (`Layout.jsx`) hides items the role can't access. When adding a
   feature, **add its action to the `can()` map** and guard its route.
+- **Fine-grained sensitive permissions:** `canUser(user, action)` (utils.js) checks
+  the role map OR the user's own `user.perms` grants (admins always pass). Used for
+  `viewCost` (Items cost/margin columns), `viewProfit` (invoice profit rows), and
+  `changePrice` (price field read-only in the editor). The Users screen grants these
+  per user (`EXTRA_PERMS`). Note: true multi-company/multi-tenant needs a backend and
+  is out of scope for the offline PWA.
 - This is **client-side authorization only** (offline shop context). Supabase RLS
   policies are intentionally open (`USING (true)`) — the app's own PIN system is
   the access boundary. Don't treat Supabase as a security perimeter.

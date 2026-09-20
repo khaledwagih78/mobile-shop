@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, nowISO, queueSync, getSetting, stockOf, getCustomFields } from '../db';
-import { money, fmt, fmtDate, can, marginPct, genBarcode } from '../utils';
+import { money, fmt, fmtDate, can, canUser, marginPct, genBarcode } from '../utils';
 import { useAuth } from '../auth';
 import { Modal } from '../components/UI';
 import { Barcode, barcodeSVG } from '../components/Barcode';
@@ -27,6 +27,7 @@ export default function Items() {
   const [labelFor, setLabelFor] = useState(null);
   const [showPricer, setShowPricer] = useState(false);
   const editable = can(user.role, 'editItem');
+  const showCost = canUser(user, 'viewCost');
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
   const defMargin = useLiveQuery(() => getSetting('defaultMargin', 0), [], 0);
   const customFields = useLiveQuery(() => getCustomFields('item'), [], []);
@@ -170,10 +171,10 @@ export default function Items() {
                 <th className="clickable" onClick={() => toggleSort('name')}>الصنف{sortIcon('name')}</th>
                 <th className="clickable" onClick={() => toggleSort('brand')}>الماركة{sortIcon('brand')}</th>
                 <th>النوع</th>
-                <th className="clickable" onClick={() => toggleSort('costPrice')}>شراء{sortIcon('costPrice')}</th>
+                {showCost && <th className="clickable" onClick={() => toggleSort('costPrice')}>شراء{sortIcon('costPrice')}</th>}
                 <th className="clickable" onClick={() => toggleSort('salePrice')}>بيع{sortIcon('salePrice')}</th>
                 <th>جملة</th>
-                <th>ربح %</th>
+                {showCost && <th>ربح %</th>}
                 <th className="clickable" onClick={() => toggleSort('stock')}>رصيد {branchName}{sortIcon('stock')}</th>
                 <th></th>
               </tr>
@@ -187,12 +188,14 @@ export default function Items() {
                     <td><b>{it.name}</b></td>
                     <td>{it.brand || '—'}</td>
                     <td>{it.category || '—'}</td>
-                    <td className="num">{fmt(it.costPrice)}</td>
+                    {showCost && <td className="num">{fmt(it.costPrice)}</td>}
                     <td className="num">{fmt(it.salePrice)}</td>
                     <td className="num muted">{it.wholesalePrice ? fmt(it.wholesalePrice) : '—'}{it.wholesaleMinQty ? <small> ({it.wholesaleMinQty}+)</small> : ''}</td>
-                    <td className="num" style={{ color: marginPct(it.costPrice, it.salePrice) < 15 ? 'var(--red)' : 'var(--green)' }}>
-                      {it.costPrice > 0 ? marginPct(it.costPrice, it.salePrice) + '%' : '—'}
-                    </td>
+                    {showCost && (
+                      <td className="num" style={{ color: marginPct(it.costPrice, it.salePrice) < 15 ? 'var(--red)' : 'var(--green)' }}>
+                        {it.costPrice > 0 ? marginPct(it.costPrice, it.salePrice) + '%' : '—'}
+                      </td>
+                    )}
                     <td>
                       <span className={`badge ${low ? 'red' : 'green'}`}>{fmt(st(it))}</span>
                     </td>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, nowISO, queueSync, DEFAULT_BRANCH_ID } from '../db';
-import { ROLES } from '../utils';
+import { ROLES, EXTRA_PERMS } from '../utils';
 import { Modal } from '../components/UI';
 import { useAuth } from '../auth';
 
@@ -14,13 +14,14 @@ export default function Users() {
   const save = async () => {
     // admins see every branch (null); other roles are pinned to one branch
     const branchId = form.role === 'admin' ? null : (Number(form.branchId) || DEFAULT_BRANCH_ID);
+    const perms = form.perms || [];
     if (form.id) {
-      const patch = { name: form.name, role: form.role, branchId };
+      const patch = { name: form.name, role: form.role, branchId, perms };
       if (form.pin) patch.pin = form.pin;
       await db.users.update(form.id, patch);
       await queueSync('users', 'update', { id: form.id, ...patch });
     } else {
-      const doc = { name: form.name, pin: form.pin, role: form.role, branchId, createdAt: nowISO() };
+      const doc = { name: form.name, pin: form.pin, role: form.role, branchId, perms, createdAt: nowISO() };
       const id = await db.users.add(doc);
       await queueSync('users', 'add', { ...doc, id });
     }
@@ -52,7 +53,7 @@ export default function Users() {
                 <td><span className="badge primary">{ROLES[u.role]}</span></td>
                 <td className="muted">{u.role === 'admin' ? 'كل الفروع' : branchName(u.branchId || DEFAULT_BRANCH_ID)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn ghost sm" onClick={() => setForm({ ...u, pin: '', branchId: u.branchId || DEFAULT_BRANCH_ID })}>تعديل</button>
+                  <button className="btn ghost sm" onClick={() => setForm({ ...u, pin: '', branchId: u.branchId || DEFAULT_BRANCH_ID, perms: u.perms || [] })}>تعديل</button>
                   <button className="btn danger sm" onClick={() => remove(u)}>حذف</button>
                 </td>
               </tr>
@@ -85,6 +86,19 @@ export default function Users() {
               <select className="input" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: Number(e.target.value) })}>
                 {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select></div>
+          )}
+          {form.role !== 'admin' && (
+            <div className="field">
+              <label>صلاحيات حسّاسة إضافية</label>
+              <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>المدير عنده كل الصلاحيات. هنا تمنح موظفاً معيناً صلاحيات حسّاسة.</p>
+              {EXTRA_PERMS.map((p) => (
+                <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={(form.perms || []).includes(p.key)}
+                    onChange={(e) => setForm({ ...form, perms: e.target.checked ? [...(form.perms || []), p.key] : (form.perms || []).filter((x) => x !== p.key) })} />
+                  {p.label}
+                </label>
+              ))}
+            </div>
           )}
           <button className="btn block" onClick={save} disabled={!form.name.trim() || (!form.id && !form.pin)}>💾 حفظ</button>
         </Modal>

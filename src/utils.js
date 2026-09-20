@@ -56,9 +56,25 @@ export const ROLES = {
 // permissions per role
 export const can = (role, action) => {
   const map = {
-    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments', 'crm', 'pricing', 'assets', 'payroll', 'projects', 'maintenance', 'reps', 'invops', 'reportbuilder', 'alerts'],
+    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments', 'crm', 'pricing', 'assets', 'payroll', 'projects', 'maintenance', 'reps', 'invops', 'reportbuilder', 'alerts', 'viewCost', 'viewProfit', 'changePrice'],
     sales: ['pos', 'customers', 'invoices', 'requests', 'quote', 'returns', 'installments', 'crm', 'maintenance', 'reps', 'alerts'],
-    store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer', 'requests', 'returns', 'production', 'maintenance', 'invops', 'alerts'],
+    store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer', 'requests', 'returns', 'production', 'maintenance', 'invops', 'alerts', 'viewCost', 'changePrice'],
   };
   return (map[role] || []).includes(action);
 };
+
+// Fine-grained check that also honors per-user permission grants (`user.perms`),
+// used for sensitive UI (viewCost / viewProfit / changePrice). Admins get all.
+export const canUser = (user, action) => {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (Array.isArray(user.perms) && user.perms.includes(action)) return true;
+  return can(user.role, action);
+};
+
+// The optional per-user sensitive grants exposed in the Users screen.
+export const EXTRA_PERMS = [
+  { key: 'viewCost', label: 'عرض التكلفة' },
+  { key: 'viewProfit', label: 'عرض الربح' },
+  { key: 'changePrice', label: 'تعديل السعر في الفاتورة' },
+];

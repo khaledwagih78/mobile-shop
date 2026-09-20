@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, saveInvoice, saveQuote, saveReturn, savePurchaseOrder, nowISO, stockOf, getSetting, validateCoupon, redeemCoupon } from '../db';
-import { money, fmt, normAr } from '../utils';
+import { money, fmt, normAr, canUser } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
 import MicButton from './MicButton';
@@ -322,7 +322,7 @@ export default function InvoiceEditor({ type }) {
                     </div>
                     <input type="number" min="0" step="any" value={l.qty}
                       onChange={(e) => setLine(l.itemId, { qty: Number(e.target.value) })} />
-                    <input type="number" min="0" step="any" value={l.price}
+                    <input type="number" min="0" step="any" value={l.price} readOnly={!canUser(user, 'changePrice')}
                       onChange={(e) => setLine(l.itemId, { price: Number(e.target.value) })} />
                     <div className="num" style={{ textAlign: 'center' }}>{fmt(l.qty * l.price)}</div>
                     <button className="x" onClick={() => removeLine(l.itemId)}>✕</button>
@@ -420,7 +420,7 @@ export default function InvoiceEditor({ type }) {
                 <span>المتبقي (آجل)</span><span className="num">{money(remaining)}</span>
               </div>
             )}
-            {isSale && (
+            {isSale && canUser(user, 'viewProfit') && (
               <div className="trow" style={{ color: 'var(--green)' }}>
                 <span>ربح الفاتورة</span><span className="num">{money(profit)}</span>
               </div>
