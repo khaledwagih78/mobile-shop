@@ -117,6 +117,11 @@ db.version(13).stores({
   coupons:    '++id, code, active, createdAt',
 });
 
+// ---------- fixed assets & depreciation ----------
+db.version(14).stores({
+  assets: '++id, name, category, status, branchId, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -154,7 +159,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -271,6 +276,7 @@ export async function nextInvoiceNumber(type) {
 export async function ensureSeed() {
   await ensureDefaultBranch();
   await ensureChartOfAccounts();
+  await ensureAssetAccounts();
   await ensureCashboxes();
   const count = await db.users.count();
   if (count === 0) {
@@ -777,6 +783,87 @@ export async function redeemCoupon(couponId) {
   await queueSync('coupons', 'update', { id: couponId, uses });
 }
 
+// ---------- fixed assets & depreciation (straight-line) ----------
+const monthKey = (iso) => (iso || nowISO()).slice(0, 7);
+export const assetMonthlyDep = (a) => {
+  const base = Math.max(0, (Number(a.cost) || 0) - (Number(a.salvage) || 0));
+  const months = Math.max(1, (Number(a.usefulYears) || 1) * 12);
+  return Math.round((base / months) * 100) / 100;
+};
+export const assetBookValue = (a) => Math.round(((Number(a.cost) || 0) - (Number(a.accumulatedDep) || 0)) * 100) / 100;
+
+export async function createAsset({ name, category, cost, salvage = 0, usefulYears, purchaseDate, branchId, recordPurchase, cashRole = 'cash', userName }) {
+  return db.transaction('rw', [db.assets, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const doc = {
+      name: (name || '').trim(), category: category || '', cost: Number(cost) || 0, salvage: Number(salvage) || 0,
+      usefulYears: Number(usefulYears) || 1, purchaseDate: purchaseDate || today(), method: 'straight',
+      accumulatedDep: 0, lastDepMonth: null, status: 'active', branchId: branchId || DEFAULT_BRANCH_ID, createdAt: nowISO(),
+    };
+    const id = await db.assets.add(doc);
+    await queueSync('assets', 'add', { ...doc, id });
+    if (recordPurchase && doc.cost > 0) {
+      const accounts = await db.accounts.toArray();
+      await writeJournalEntry({
+        date: doc.purchaseDate, description: `شراء أصل: ${doc.name}`, refType: 'asset_buy', refId: id,
+        branchId: doc.branchId, lines: [{ role: 'fixedAsset', debit: doc.cost }, { role: cashRole, credit: doc.cost }], accounts, userName,
+      });
+    }
+    return { id };
+  });
+}
+
+// Post one month's depreciation for every active asset that hasn't been
+// depreciated in the given month yet (Dr depreciation expense / Cr accum. dep).
+export async function runDepreciation(month, userName) {
+  const mk = month || monthKey();
+  return db.transaction('rw', [db.assets, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const accounts = await db.accounts.toArray();
+    const assets = await db.assets.where('status').equals('active').toArray();
+    let count = 0, total = 0;
+    for (const a of assets) {
+      if (a.lastDepMonth === mk) continue;
+      const base = Math.max(0, (Number(a.cost) || 0) - (Number(a.salvage) || 0));
+      const remaining = Math.round((base - (Number(a.accumulatedDep) || 0)) * 100) / 100;
+      if (remaining <= 0) { await db.assets.update(a.id, { lastDepMonth: mk }); continue; }
+      const dep = Math.min(assetMonthlyDep(a), remaining);
+      if (dep <= 0) continue;
+      await writeJournalEntry({
+        date: `${mk}-28`, description: `إهلاك ${mk}: ${a.name}`, refType: 'depreciation', refId: a.id,
+        branchId: a.branchId, lines: [{ role: 'depExpense', debit: dep }, { role: 'accumDep', credit: dep }], accounts, userName,
+      });
+      await db.assets.update(a.id, { accumulatedDep: Math.round(((Number(a.accumulatedDep) || 0) + dep) * 100) / 100, lastDepMonth: mk });
+      await queueSync('assets', 'update', { id: a.id });
+      count++; total = Math.round((total + dep) * 100) / 100;
+    }
+    return { count, total, month: mk };
+  });
+}
+
+// Dispose an asset: remove cost + accumulated dep, receive disposalValue in cash,
+// route the difference to depreciation expense (loss debit / gain credit).
+export async function disposeAsset(assetId, disposalValue, userName) {
+  return db.transaction('rw', [db.assets, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const a = await db.assets.get(assetId);
+    if (!a || a.status === 'disposed') return null;
+    const dv = Number(disposalValue) || 0;
+    const cost = Number(a.cost) || 0, accum = Number(a.accumulatedDep) || 0;
+    const book = cost - accum;
+    const diff = book - dv; // >0 loss, <0 gain
+    const lines = [
+      { role: 'cash', debit: dv },
+      { role: 'accumDep', debit: accum },
+      { role: 'fixedAsset', credit: cost },
+    ];
+    if (diff > 0) lines.push({ role: 'depExpense', debit: diff });
+    else if (diff < 0) lines.push({ role: 'depExpense', credit: -diff });
+    const accounts = await db.accounts.toArray();
+    await writeJournalEntry({ date: today(), description: `استبعاد أصل: ${a.name}`, refType: 'asset_dispose', refId: assetId, branchId: a.branchId, lines, accounts, userName });
+    await db.assets.update(assetId, { status: 'disposed', disposedDate: today(), disposalValue: dv });
+    await queueSync('assets', 'update', { id: assetId, status: 'disposed' });
+    return { book, diff };
+  });
+}
+
 // Transfer stock quantities from one branch to another (atomic).
 // `lines` = [{ itemId, name, qty }]. Records two stock moves per item.
 export async function transferStock({ fromBranch, toBranch, lines, userName }) {
@@ -904,6 +991,22 @@ export async function ensureChartOfAccounts() {
   const iso = nowISO();
   for (const a of DEFAULT_ACCOUNTS) {
     // explicit id → the creating hook leaves it; a racing duplicate is ignored
+    try { await db.accounts.add({ ...a, parentId: null, isGroup: false, system: true, createdAt: iso }); }
+    catch (e) { if (e.name !== 'ConstraintError') throw e; }
+  }
+}
+
+// Accounts the fixed-assets module needs (added by role if missing, fixed ids).
+const ASSET_ACCOUNTS = [
+  { id: 15, code: '1500', name: 'الأصول الثابتة',       type: 'asset',     role: 'fixedAsset' },
+  { id: 16, code: '1600', name: 'مجمع إهلاك الأصول',    type: 'liability', role: 'accumDep' },
+  { id: 17, code: '5400', name: 'مصروف الإهلاك',        type: 'expense',   role: 'depExpense' },
+];
+export async function ensureAssetAccounts() {
+  const iso = nowISO();
+  for (const a of ASSET_ACCOUNTS) {
+    const exists = await db.accounts.where('role').equals(a.role).first();
+    if (exists) continue;
     try { await db.accounts.add({ ...a, parentId: null, isGroup: false, system: true, createdAt: iso }); }
     catch (e) { if (e.name !== 'ConstraintError') throw e; }
   }

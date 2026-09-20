@@ -298,6 +298,20 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   and posts one extra entry (Dr inventory / Cr cash) for the added cost. `InvoiceView`
   drives this from a modal on the PO.
 
+### Fixed assets & depreciation (`src/pages/Assets.jsx`)
+
+- `assets` (v14): name, cost, salvage, usefulYears, straight-line method,
+  accumulatedDep, lastDepMonth, status. `ensureAssetAccounts` seeds three system
+  accounts (fixed ids 15–17): fixedAsset, accumDep (contra, credit-normal), depExpense.
+- `createAsset({..., recordPurchase, cashRole})` adds the asset and (optionally)
+  posts Dr fixedAsset / Cr cash|bank. `runDepreciation(month)` posts one month's
+  straight-line depreciation (Dr depExpense / Cr accumDep) for every active asset
+  not yet depreciated that month, capped at the depreciable base (`lastDepMonth`
+  guards against double-posting). `disposeAsset(id, disposalValue)` removes cost +
+  accumulated dep, receives cash, and routes the gain/loss to depExpense.
+- Helpers `assetMonthlyDep`/`assetBookValue`. The page shows KPIs (cost, accumulated,
+  book value, monthly), a "record this month's depreciation" button, and disposal.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
