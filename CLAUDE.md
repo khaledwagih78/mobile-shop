@@ -196,6 +196,25 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   a `productions` row, an audit entry, and queues sync. `saveRecipe` stores the
   components on the product as `item.bom` so the form prefills next time.
 
+### Accounting (double-entry, `src/pages/Accounting.jsx`)
+
+- Two tables (v10): `accounts` (chart of accounts; system accounts carry a `role`)
+  and `journalEntries` (balanced vouchers with embedded `lines`). `ensureSeed`
+  seeds a default Arabic chart via `ensureChartOfAccounts` (roles: cash, bank, ar,
+  inventory, ap, vat, capital, retained, sales, cogs, expense, discount).
+- **Auto-posting:** `saveInvoice`, `saveReturn`, `cancelInvoice` (reversing),
+  `restoreInvoice`, `recordPayment` and `recordExpense` each post a balanced entry
+  **inside their own transaction** via the internal `writeJournalEntry` (which is
+  defensive — returns null and skips, never throws, if accounts are unseeded or the
+  entry doesn't balance, so a sale is never rolled back by posting). Expenses now go
+  through the new `db.js` `recordExpense(doc)` (used by `Expenses.jsx` and recurring).
+- **Manual entries:** `postJournal({date, description, branchId, lines:[{role|accountId, debit, credit}], ...})`
+  opens its own transaction. The Accounting page also has a manual-entry form (must balance).
+- Reports computed in JS from entries: `accountBalance(account, entries)` (natural
+  sign per type), trial balance, income statement, general ledger. `ACCOUNT_TYPES`
+  maps each type to its normal side. Posting starts at adoption — historical
+  invoices predating v10 have no entries.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

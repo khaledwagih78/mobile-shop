@@ -86,6 +86,16 @@ db.version(9).stores({
   productions: '++id, number, productId, branchId, day, createdAt',
 });
 
+// ---------- double-entry accounting ----------
+// `accounts` is the chart of accounts; `journalEntries` are balanced journal
+// vouchers (debits == credits) posted automatically by every business operation
+// (sale/purchase/return/payment/expense) and manually by the user. Lines are
+// embedded on each entry (like invoices) and totals are computed in JS.
+db.version(10).stores({
+  accounts:       '++id, code, type, role, parentId, createdAt',
+  journalEntries: '++id, number, day, refType, refId, branchId, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -123,6 +133,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
+  'accounts', 'journalEntries',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -238,6 +249,7 @@ export async function nextInvoiceNumber(type) {
 // ---------- first run: seed admin user + default branch ----------
 export async function ensureSeed() {
   await ensureDefaultBranch();
+  await ensureChartOfAccounts();
   const count = await db.users.count();
   if (count === 0) {
     await db.users.add({
@@ -256,7 +268,7 @@ export async function ensureSeed() {
 export async function saveInvoice(inv) {
   return db.transaction(
     'rw',
-    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.settings, db.auditLog, db.syncQueue],
+    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.settings, db.auditLog, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
       const number = await nextInvoiceNumber(inv.type);
       const createdAt = nowISO();
@@ -320,6 +332,14 @@ export async function saveInvoice(inv) {
         extra: { number, type: inv.type, total: inv.total, partyName: inv.partyName },
       });
 
+      // double-entry posting (skips silently if accounts unseeded / unbalanced)
+      const accounts = await db.accounts.toArray();
+      await writeJournalEntry({
+        date: doc.day, description: `فاتورة ${inv.type === 'sale' ? 'بيع' : 'شراء'} ${number}`,
+        refType: 'invoice', refId: id, refNumber: number, branchId: b,
+        lines: invoiceJournalLines({ ...inv }), accounts, userId: inv.userId, userName: inv.userName,
+      });
+
       await queueSync('invoices', 'add', { ...doc, id });
       return { id, number };
     }
@@ -331,7 +351,7 @@ export async function cancelInvoice(invoiceId, userName) {
   const snapshot = await db.invoices.get(invoiceId);
   const result = await db.transaction(
     'rw',
-    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.syncQueue],
+    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
       const inv = await db.invoices.get(invoiceId);
       if (!inv || inv.status === 'cancelled') return;
@@ -374,6 +394,13 @@ export async function cancelInvoice(invoiceId, userName) {
         userName,
         extra: { number: inv.number, type: inv.type, total: inv.total },
       });
+      // reverse the original posting
+      const accounts = await db.accounts.toArray();
+      await writeJournalEntry({
+        date: today(), description: `إلغاء فاتورة ${inv.number}`,
+        refType: 'cancel', refId: invoiceId, refNumber: inv.number, branchId: b,
+        lines: reverseJournalLines(invoiceJournalLines(inv)), accounts, userName,
+      });
       await queueSync('invoices', 'cancel', { id: invoiceId });
     }
   );
@@ -392,7 +419,7 @@ export async function restoreInvoice(invoiceId, userName) {
   const snapshot = await db.invoices.get(invoiceId);
   const result = await db.transaction(
     'rw',
-    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.syncQueue],
+    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
       const inv = await db.invoices.get(invoiceId);
       if (!inv || inv.status !== 'cancelled') return;
@@ -422,6 +449,13 @@ export async function restoreInvoice(invoiceId, userName) {
       }
       await db.invoices.update(invoiceId, { status: 'active', cancelledAt: null, cancelledBy: null, restoredAt: nowISO(), restoredBy: userName });
       await logAudit('restore', 'invoice', invoiceId, { userName, extra: { number: inv.number, type: inv.type, total: inv.total } });
+      // re-apply the original posting
+      const accounts = await db.accounts.toArray();
+      await writeJournalEntry({
+        date: today(), description: `استرجاع فاتورة ${inv.number}`,
+        refType: 'restore', refId: invoiceId, refNumber: inv.number, branchId: b,
+        lines: invoiceJournalLines(inv), accounts, userName,
+      });
       await queueSync('invoices', 'restore', { id: invoiceId });
     }
   );
@@ -469,7 +503,7 @@ export async function convertQuote(quoteId, userName) {
 export async function saveReturn(inv) {
   return db.transaction(
     'rw',
-    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.syncQueue],
+    [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
       const isSaleRet = inv.type === 'sale_return';
       const dev = deviceBlock();
@@ -505,6 +539,12 @@ export async function saveReturn(inv) {
         }
       }
       await logAudit('return', inv.type, id, { userName: inv.userName, extra: { number, total: inv.total } });
+      const accounts = await db.accounts.toArray();
+      await writeJournalEntry({
+        date: doc.day, description: `${isSaleRet ? 'مرتجع بيع' : 'مرتجع شراء'} ${number}`,
+        refType: 'return', refId: id, refNumber: number, branchId: b,
+        lines: invoiceJournalLines({ ...inv }), accounts, userId: inv.userId, userName: inv.userName,
+      });
       await queueSync('invoices', 'add', { ...doc, id });
       return { id, number };
     }
@@ -513,9 +553,10 @@ export async function saveReturn(inv) {
 
 // Record a payment from customer (in) or to supplier (out)
 export async function recordPayment({ partyType, partyId, partyName, amount, note, userName, branchId }) {
-  return db.transaction('rw', [db.payments, db.customers, db.suppliers, db.syncQueue], async () => {
+  return db.transaction('rw', [db.payments, db.customers, db.suppliers, db.accounts, db.journalEntries, db.syncQueue], async () => {
     const createdAt = nowISO();
-    const doc = { partyType, partyId, partyName, amount, note, userName, branchId: branchId || DEFAULT_BRANCH_ID, createdAt, day: dayOf(createdAt) };
+    const b = branchId || DEFAULT_BRANCH_ID;
+    const doc = { partyType, partyId, partyName, amount, note, userName, branchId: b, createdAt, day: dayOf(createdAt) };
     const id = await db.payments.add(doc);
     if (partyType === 'customer') {
       const c = await db.customers.get(partyId);
@@ -524,7 +565,37 @@ export async function recordPayment({ partyType, partyId, partyName, amount, not
       const s = await db.suppliers.get(partyId);
       if (s) await db.suppliers.update(partyId, { balance: (s.balance || 0) - amount });
     }
+    // double-entry: customer pays us → Dr cash / Cr AR ; we pay supplier → Dr AP / Cr cash
+    const accounts = await db.accounts.toArray();
+    const amt = Number(amount || 0);
+    await writeJournalEntry({
+      date: doc.day, description: `${partyType === 'customer' ? 'تحصيل من' : 'دفعة إلى'} ${partyName || ''}`.trim(),
+      refType: 'payment', refId: id, refNumber: null, branchId: b,
+      lines: partyType === 'customer'
+        ? [{ role: 'cash', debit: amt }, { role: 'ar', credit: amt }]
+        : [{ role: 'ap', debit: amt }, { role: 'cash', credit: amt }],
+      accounts, userName,
+    });
     await queueSync('payments', 'add', { ...doc, id });
+    return id;
+  });
+}
+
+// Record an expense and post it to accounting (Dr expense / Cr cash) atomically.
+export async function recordExpense(doc) {
+  return db.transaction('rw', [db.expenses, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const createdAt = doc.createdAt || nowISO();
+    const full = { ...doc, createdAt, day: doc.day || today(), branchId: doc.branchId || DEFAULT_BRANCH_ID };
+    const id = await db.expenses.add(full);
+    const accounts = await db.accounts.toArray();
+    const amt = Number(full.amount || 0);
+    await writeJournalEntry({
+      date: full.day, description: `مصروف: ${full.description || full.category || ''}`.trim(),
+      refType: 'expense', refId: id, refNumber: null, branchId: full.branchId,
+      lines: [{ role: 'expense', debit: amt }, { role: 'cash', credit: amt }],
+      accounts, userName: full.userName,
+    });
+    await queueSync('expenses', 'add', { ...full, id });
     return id;
   });
 }
@@ -618,6 +689,147 @@ export async function recordProduction({ branchId, productId, productName, qty, 
     await queueSync('productions', 'add', { ...doc, id });
     return { id, number, unitCost };
   });
+}
+
+// ---------- double-entry accounting ----------
+// Account types and their "normal" balance side. asset/expense are debit-normal
+// (balance = debits − credits); liability/equity/revenue are credit-normal.
+export const ACCOUNT_TYPES = {
+  asset:     { label: 'أصول',        normal: 'debit'  },
+  liability: { label: 'خصوم',        normal: 'credit' },
+  equity:    { label: 'حقوق ملكية',  normal: 'credit' },
+  revenue:   { label: 'إيرادات',     normal: 'credit' },
+  expense:   { label: 'مصروفات',     normal: 'debit'  },
+};
+
+// Default chart of accounts, seeded once. `role` marks the "system" accounts the
+// auto-posting engine targets (resolved by role so renames/re-codes don't break it).
+const DEFAULT_ACCOUNTS = [
+  { code: '1100', name: 'الصندوق (النقدية)',        type: 'asset',     role: 'cash' },
+  { code: '1200', name: 'البنك',                    type: 'asset',     role: 'bank' },
+  { code: '1300', name: 'العملاء (المدينون)',       type: 'asset',     role: 'ar' },
+  { code: '1400', name: 'المخزون',                  type: 'asset',     role: 'inventory' },
+  { code: '2100', name: 'الموردون (الدائنون)',      type: 'liability', role: 'ap' },
+  { code: '2200', name: 'ضريبة القيمة المضافة',     type: 'liability', role: 'vat' },
+  { code: '3100', name: 'رأس المال',                type: 'equity',    role: 'capital' },
+  { code: '3200', name: 'الأرباح المحتجزة',         type: 'equity',    role: 'retained' },
+  { code: '4100', name: 'إيرادات المبيعات',         type: 'revenue',   role: 'sales' },
+  { code: '5100', name: 'تكلفة البضاعة المباعة',    type: 'expense',   role: 'cogs' },
+  { code: '5200', name: 'مصروفات تشغيلية',          type: 'expense',   role: 'expense' },
+  { code: '5300', name: 'الخصومات الممنوحة',        type: 'expense',   role: 'discount' },
+];
+
+export async function ensureChartOfAccounts() {
+  if (await db.accounts.count() > 0) return;
+  const iso = nowISO();
+  for (const a of DEFAULT_ACCOUNTS) {
+    try { await db.accounts.add({ ...a, parentId: null, isGroup: false, system: true, createdAt: iso }); }
+    catch (e) { if (e.name !== 'ConstraintError') throw e; }
+  }
+}
+
+// Core writer — MUST run inside a transaction whose scope includes
+// db.journalEntries and db.syncQueue. `accounts` is the pre-read accounts array.
+// `lines` = [{ role|accountId, debit, credit }]. Skips silently (returns null)
+// if it can't resolve ≥2 lines or the entry doesn't balance — never throws, so a
+// business operation is never rolled back just because posting couldn't complete.
+async function writeJournalEntry({ date, description, refType, refId, refNumber, branchId, lines, accounts, userId, userName }) {
+  const byRole = {};
+  for (const a of accounts) if (a.role) byRole[a.role] = a;
+  const resolved = [];
+  for (const l of (lines || [])) {
+    const a = l.accountId ? accounts.find((x) => x.id === l.accountId) : byRole[l.role];
+    if (!a) continue;
+    const debit = Math.round(Number(l.debit || 0) * 100) / 100;
+    const credit = Math.round(Number(l.credit || 0) * 100) / 100;
+    if (!debit && !credit) continue;
+    resolved.push({ accountId: a.id, code: a.code, name: a.name, debit, credit });
+  }
+  if (resolved.length < 2) return null;
+  const totalDebit = Math.round(resolved.reduce((s, l) => s + l.debit, 0) * 100) / 100;
+  const totalCredit = Math.round(resolved.reduce((s, l) => s + l.credit, 0) * 100) / 100;
+  if (Math.abs(totalDebit - totalCredit) > 0.01) {
+    console.warn('[accounting] unbalanced entry skipped', refType, refId, totalDebit, totalCredit);
+    return null;
+  }
+  const dev = deviceBlock();
+  const key = 'kerp_jv_seq';
+  let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+  cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
+  const number = `JV${dev}-${String(cur).padStart(5, '0')}`;
+  const day = date || today();
+  const doc = {
+    number, date: day, day, description: description || '', refType: refType || 'manual',
+    refId: refId ?? null, refNumber: refNumber ?? null, branchId: branchId || DEFAULT_BRANCH_ID,
+    lines: resolved, totalDebit, totalCredit, userId: userId || null, userName: userName || null,
+    createdAt: nowISO(), status: 'posted',
+  };
+  const id = await db.journalEntries.add(doc);
+  await queueSync('journalEntries', 'add', { ...doc, id });
+  return { id, number };
+}
+
+// The journal lines an invoice-type document generates (double-entry).
+function invoiceJournalLines(inv) {
+  const total = Number(inv.total || 0), paid = Number(inv.paid || 0);
+  const remaining = Number(inv.remaining || 0), discount = Number(inv.discount || 0);
+  const subtotal = Number(inv.subtotal || 0);
+  const cogs = Math.round((inv.lines || []).reduce((s, l) => s + Number(l.qty || 0) * Number(l.cost || 0), 0) * 100) / 100;
+  const hasParty = !!inv.partyId;
+  if (inv.type === 'sale') {
+    const lines = [
+      { role: 'cash', debit: paid },
+      { role: 'ar', debit: remaining },
+      { role: 'discount', debit: discount },
+      { role: 'sales', credit: subtotal },
+    ];
+    if (cogs > 0) { lines.push({ role: 'cogs', debit: cogs }, { role: 'inventory', credit: cogs }); }
+    return lines;
+  }
+  if (inv.type === 'purchase') {
+    return [
+      { role: 'inventory', debit: total },
+      { role: 'cash', credit: paid },
+      { role: 'ap', credit: remaining },
+    ];
+  }
+  if (inv.type === 'sale_return') {
+    const lines = [
+      { role: 'sales', debit: total },
+      { role: hasParty ? 'ar' : 'cash', credit: total },
+    ];
+    if (cogs > 0) { lines.push({ role: 'inventory', debit: cogs }, { role: 'cogs', credit: cogs }); }
+    return lines;
+  }
+  if (inv.type === 'purchase_return') {
+    return [
+      { role: hasParty ? 'ap' : 'cash', debit: total },
+      { role: 'inventory', credit: total },
+    ];
+  }
+  return [];
+}
+const reverseJournalLines = (lines) => lines.map((l) => ({ ...l, debit: l.credit || 0, credit: l.debit || 0 }));
+
+// Public: post a manual (or standalone) journal entry in its own transaction.
+export async function postJournal(args) {
+  return db.transaction('rw', [db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const accounts = await db.accounts.toArray();
+    return writeJournalEntry({ ...args, accounts });
+  });
+}
+
+// Balance of a single account across a set of journal-entry docs (natural sign
+// for the account's type: debit-normal → debits − credits, credit-normal flipped).
+export function accountBalance(account, entries) {
+  let debit = 0, credit = 0;
+  for (const e of entries) {
+    for (const l of (e.lines || [])) {
+      if (l.accountId === account.id) { debit += Number(l.debit || 0); credit += Number(l.credit || 0); }
+    }
+  }
+  const net = debit - credit;
+  return (ACCOUNT_TYPES[account.type]?.normal === 'credit') ? -net : net;
 }
 
 // ---------- demo data ----------
