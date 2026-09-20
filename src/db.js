@@ -137,6 +137,11 @@ db.version(17).stores({
   workOrders: '++id, number, status, customerId, branchId, createdAt',
 });
 
+// ---------- sales reps (visits / collections / targets) ----------
+db.version(18).stores({
+  repVisits: '++id, repName, customerId, day, branchId, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -174,7 +179,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects', 'workOrders',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects', 'workOrders', 'repVisits',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -906,6 +911,26 @@ export async function runPayslip({ employeeId, employeeName, month, basic = 0, a
     }
     await queueSync('payslips', 'add', { ...doc, id });
     return { id, net };
+  });
+}
+
+// ---------- sales reps ----------
+// Log a rep visit; if it collected money and recordCollection is set, also
+// record a real customer payment (balance + ledger).
+export async function addRepVisit(v) {
+  return db.transaction('rw', [db.repVisits, db.payments, db.customers, db.suppliers, db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const doc = {
+      repName: v.repName || '', customerId: v.customerId || null, customerName: v.customerName || '',
+      date: v.date || today(), purpose: v.purpose || 'visit', result: v.result || '',
+      orderAmount: Number(v.orderAmount) || 0, collectedAmount: Number(v.collectedAmount) || 0, notes: v.notes || '',
+      day: v.date || today(), branchId: v.branchId || DEFAULT_BRANCH_ID, createdAt: nowISO(),
+    };
+    const id = await db.repVisits.add(doc);
+    if (v.recordCollection && doc.collectedAmount > 0 && doc.customerId) {
+      await recordPayment({ partyType: 'customer', partyId: doc.customerId, partyName: doc.customerName, amount: doc.collectedAmount, note: `تحصيل مندوب: ${doc.repName}`, userName: doc.repName, branchId: doc.branchId });
+    }
+    await queueSync('repVisits', 'add', { ...doc, id });
+    return { id };
   });
 }
 

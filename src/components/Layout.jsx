@@ -35,6 +35,7 @@ const MENU = [
   { to: '/customers', ico: '👥', label: 'العملاء', action: 'customers' },
   { to: '/suppliers', ico: '🚚', label: 'الموردين', action: 'suppliers' },
   { to: '/deliveries', ico: '🚗', label: 'التوصيل', action: 'pos' },
+  { to: '/reps', ico: '🚶', label: 'المندوبون', action: 'reps' },
   { to: '/expenses',   ico: '💸', label: 'المصروفات',  action: 'expenses'   },
   { to: '/employees',  ico: '👷', label: 'الموظفين',   action: 'employees'  },
   { to: '/payroll',    ico: '💵', label: 'الرواتب',    action: 'payroll'    },

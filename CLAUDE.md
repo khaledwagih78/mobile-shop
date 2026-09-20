@@ -341,6 +341,15 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   (itemId null). All stock loops now skip `itemId == null` lines, so labor/service
   lines carry revenue without touching inventory.
 
+### Sales reps (`src/pages/Reps.jsx`)
+
+- `repVisits` (v18): a rep's visit log (customer, purpose, order amount, collected
+  amount, result). `addRepVisit` records the visit and, when `recordCollection`
+  is set, also posts a real customer payment (nested `recordPayment`).
+- The page shows per-rep monthly KPIs (visits, orders, collections) with an
+  editable monthly target (stored in the `repTargets` setting) and an achievement
+  bar, plus the visit log filtered by rep + month.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
