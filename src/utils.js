@@ -56,8 +56,8 @@ export const ROLES = {
 // permissions per role
 export const can = (role, action) => {
   const map = {
-    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments'],
-    sales: ['pos', 'customers', 'invoices', 'requests', 'quote', 'returns', 'installments'],
+    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments', 'crm'],
+    sales: ['pos', 'customers', 'invoices', 'requests', 'quote', 'returns', 'installments', 'crm'],
     store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer', 'requests', 'returns', 'production'],
   };
   return (map[role] || []).includes(action);

@@ -260,6 +260,17 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   (0–30/31–60/61–90/90+) by allocating their payments FIFO to their oldest unpaid
   sale invoices; untracked/opening balances fall in the 0–30 bucket.
 
+### CRM — leads & pipeline (`src/pages/CRM.jsx`)
+
+- `leads` (v12) with stages new/contacted/quoted/negotiation/won/lost; each lead
+  carries value, probability, source, `nextFollowUp`, notes and an embedded
+  `activities[]` log (call/meeting/note). The page is a horizontal pipeline board
+  (a column per stage) with per-card stage move, KPIs (open count, probability-
+  weighted value, won-this-month), and a due-follow-ups strip.
+- `convertLead(leadId)` (in db.js) creates a customer from the lead once and marks
+  it won (idempotent — a second call returns the same customer id). `STAGES` is
+  exported for reuse.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

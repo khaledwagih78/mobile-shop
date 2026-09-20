@@ -104,6 +104,11 @@ db.version(11).stores({
   installmentPlans: '++id, customerId, invoiceId, status, createdAt',
 });
 
+// ---------- CRM: leads & sales pipeline ----------
+db.version(12).stores({
+  leads: '++id, stage, status, nextFollowUp, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -141,7 +146,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -663,6 +668,22 @@ export async function payInstallment({ planId, no, amount, note, userName }) {
       return { pay };
     }
   );
+}
+
+// ---------- CRM ----------
+// Convert a lead into a real customer (once), marking the lead won.
+export async function convertLead(leadId) {
+  return db.transaction('rw', [db.leads, db.customers, db.syncQueue], async () => {
+    const lead = await db.leads.get(leadId);
+    if (!lead) return null;
+    if (lead.customerId) return lead.customerId;
+    const cdoc = { name: lead.name, phone: lead.phone || '', address: lead.company || '', balance: 0, points: 0, totalSpent: 0, creditLimit: 0, createdAt: nowISO() };
+    const cid = await db.customers.add(cdoc);
+    await queueSync('customers', 'add', { ...cdoc, id: cid });
+    await db.leads.update(leadId, { status: 'won', stage: 'won', customerId: cid });
+    await queueSync('leads', 'update', { id: leadId, status: 'won', stage: 'won', customerId: cid });
+    return cid;
+  });
 }
 
 // Transfer stock quantities from one branch to another (atomic).
