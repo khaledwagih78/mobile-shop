@@ -132,6 +132,11 @@ db.version(16).stores({
   projects: '++id, status, customerId, branchId, createdAt',
 });
 
+// ---------- maintenance / work orders ----------
+db.version(17).stores({
+  workOrders: '++id, number, status, customerId, branchId, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -169,7 +174,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects', 'workOrders',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -315,6 +320,7 @@ export async function saveInvoice(inv) {
       const id = await db.invoices.add(doc);
 
       for (const line of inv.lines) {
+        if (line.itemId == null) continue; // non-stock line (e.g. labor/service)
         const item = await db.items.get(line.itemId);
         if (!item) continue;
         const qBase = line.qty * (line.factor || 1); // qty converted to base units
@@ -395,6 +401,7 @@ export async function cancelInvoice(invoiceId, userName) {
       if (!inv || inv.status === 'cancelled') return;
       const b = inv.branchId || DEFAULT_BRANCH_ID;
       for (const line of inv.lines) {
+        if (line.itemId == null) continue; // non-stock line (e.g. labor/service)
         const item = await db.items.get(line.itemId);
         if (!item) continue;
         const qBase = line.qty * (line.factor || 1);
@@ -463,6 +470,7 @@ export async function restoreInvoice(invoiceId, userName) {
       if (!inv || inv.status !== 'cancelled') return;
       const b = inv.branchId || DEFAULT_BRANCH_ID;
       for (const line of inv.lines) {
+        if (line.itemId == null) continue; // non-stock line (e.g. labor/service)
         const item = await db.items.get(line.itemId);
         if (!item) continue;
         const qBase = line.qty * (line.factor || 1);
@@ -611,6 +619,7 @@ export async function saveReturn(inv) {
       const doc = { ...inv, number, createdAt, day: dayOf(createdAt), status: 'active', branchId: b };
       const id = await db.invoices.add(doc);
       for (const line of inv.lines) {
+        if (line.itemId == null) continue; // non-stock line (e.g. labor/service)
         const item = await db.items.get(line.itemId);
         if (!item) continue;
         const qBase = line.qty * (line.factor || 1);
@@ -898,6 +907,47 @@ export async function runPayslip({ employeeId, employeeName, month, basic = 0, a
     await queueSync('payslips', 'add', { ...doc, id });
     return { id, net };
   });
+}
+
+// ---------- maintenance / work orders ----------
+export async function createWorkOrder(wo) {
+  return db.transaction('rw', [db.workOrders, db.syncQueue], async () => {
+    const dev = deviceBlock();
+    const key = 'kerp_wo_seq';
+    let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+    cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
+    const number = `WO${dev}-${String(cur).padStart(5, '0')}`;
+    const doc = {
+      ...wo, number, status: wo.status || 'received', parts: wo.parts || [],
+      laborCost: Number(wo.laborCost) || 0, createdAt: nowISO(), day: today(),
+      branchId: wo.branchId || DEFAULT_BRANCH_ID,
+    };
+    const id = await db.workOrders.add(doc);
+    await queueSync('workOrders', 'add', { ...doc, id });
+    return { id, number };
+  });
+}
+
+// Turn a work order into a sale invoice: parts (consume stock + COGS) plus a
+// non-stock labor line. Reuses saveInvoice so accounting/stock/tax all apply.
+export async function invoiceWorkOrder(woId, { paid, userName, branchId }) {
+  const wo = await db.workOrders.get(woId);
+  if (!wo || wo.invoiceId) return null;
+  const parts = (wo.parts || []).map((p) => ({ itemId: p.itemId, name: p.name, code: p.code || '', qty: Number(p.qty) || 0, price: Number(p.price) || 0, cost: Number(p.cost) || 0, factor: 1 }));
+  const labor = Number(wo.laborCost) || 0;
+  const lines = [...parts];
+  if (labor > 0) lines.push({ itemId: null, name: 'أجر الصيانة / العمالة', code: '', qty: 1, price: labor, cost: 0, factor: 1 });
+  const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const total = subtotal;
+  const paidNum = paid != null ? Number(paid) : total;
+  const res = await saveInvoice({
+    type: 'sale', branchId: branchId || wo.branchId, partyId: wo.customerId || null, partyName: wo.customerName || null,
+    lines, subtotal, discount: 0, tax: 0, total, paid: paidNum, remaining: Math.max(0, total - paidNum),
+    profit: lines.reduce((s, l) => s + l.qty * (l.price - l.cost), 0), userId: null, userName,
+  });
+  await db.workOrders.update(woId, { status: 'delivered', invoiceId: res.id, invoiceNumber: res.number, deliveredDate: today(), total, paid: paidNum });
+  await queueSync('workOrders', 'update', { id: woId, status: 'delivered', invoiceId: res.id });
+  return res;
 }
 
 // ---------- projects ----------

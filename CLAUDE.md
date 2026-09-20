@@ -331,6 +331,16 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   project's money is real GL activity, and its P&L (income − cost vs budget) shows
   on the page and in an expandable detail modal with tasks + entries.
 
+### Maintenance / work orders (`src/pages/WorkOrders.jsx`)
+
+- `workOrders` (v17): generic repair/service jobs (device type/info, issue,
+  technician, parts, laborCost, warranty, status received→in_progress→done→
+  delivered). `createWorkOrder` numbers them `WO<dev>-…`.
+- `invoiceWorkOrder(id, {paid})` turns a done order into a **sale invoice** via
+  `saveInvoice` — parts consume stock + COGS, plus a **non-stock labor line**
+  (itemId null). All stock loops now skip `itemId == null` lines, so labor/service
+  lines carry revenue without touching inventory.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
