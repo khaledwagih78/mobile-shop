@@ -27,6 +27,7 @@ const MENU = [
   { to: '/purchase-return', ico: '↪️', label: 'مرتجع شراء', action: 'returns' },
   { to: '/invoices', ico: '🗂️', label: 'الفواتير', action: 'invoices' },
   { to: '/items', ico: '📦', label: 'المخزون', action: 'items' },
+  { to: '/pricing', ico: '🏷️', label: 'قوائم الأسعار', action: 'pricing' },
   { to: '/production', ico: '🏭', label: 'التصنيع', action: 'production', mod: 'production' },
   { to: '/transfer', ico: '🔄', label: 'تحويل بضاعة', action: 'transfer' },
   { to: '/crm', ico: '🤝', label: 'العملاء المحتملون', action: 'crm' },

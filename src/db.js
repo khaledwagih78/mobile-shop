@@ -109,6 +109,14 @@ db.version(12).stores({
   leads: '++id, stage, status, nextFollowUp, createdAt',
 });
 
+// ---------- price lists & coupons ----------
+// A price list holds per-item price overrides; a customer can be assigned one.
+// Coupons are codes that compute a discount at checkout.
+db.version(13).stores({
+  priceLists: '++id, name, createdAt',
+  coupons:    '++id, code, active, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -146,7 +154,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans', 'leads',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -684,6 +692,32 @@ export async function convertLead(leadId) {
     await queueSync('leads', 'update', { id: leadId, status: 'won', stage: 'won', customerId: cid });
     return cid;
   });
+}
+
+// ---------- coupons ----------
+// Validate a coupon code against an order total; returns the computed discount.
+export async function validateCoupon(code, total) {
+  const key = String(code || '').trim().toLowerCase();
+  if (!key) return { ok: false, reason: 'أدخل كود الكوبون' };
+  const c = (await db.coupons.toArray()).find((x) => (x.code || '').toLowerCase() === key);
+  if (!c) return { ok: false, reason: 'كوبون غير موجود' };
+  if (c.active === false) return { ok: false, reason: 'الكوبون غير مفعّل' };
+  if (c.expiry && c.expiry < today()) return { ok: false, reason: 'انتهت صلاحية الكوبون' };
+  if (c.maxUses && (c.uses || 0) >= c.maxUses) return { ok: false, reason: 'تم استهلاك الكوبون بالكامل' };
+  if (c.minTotal && Number(total) < c.minTotal) return { ok: false, reason: `الحد الأدنى للفاتورة ${c.minTotal}` };
+  const t = Number(total) || 0;
+  const discount = c.type === 'percent'
+    ? Math.round(t * (Number(c.value) || 0)) / 100
+    : Math.min(Number(c.value) || 0, t);
+  return { ok: true, discount, coupon: c };
+}
+
+export async function redeemCoupon(couponId) {
+  const c = await db.coupons.get(couponId);
+  if (!c) return;
+  const uses = (c.uses || 0) + 1;
+  await db.coupons.update(couponId, { uses });
+  await queueSync('coupons', 'update', { id: couponId, uses });
 }
 
 // Transfer stock quantities from one branch to another (atomic).

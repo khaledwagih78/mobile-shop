@@ -271,6 +271,19 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   it won (idempotent — a second call returns the same customer id). `STAGES` is
   exported for reuse.
 
+### Price lists & coupons (`src/pages/Pricing.jsx`)
+
+- `priceLists` (v13) hold a `prices` map `{ [itemId]: price }`; a customer can be
+  assigned a `priceListId` (Parties form). When such a customer is selected in
+  `InvoiceEditor`, added lines use the list price and existing lines re-price via
+  an effect on the loaded price list (falling back to the item's base salePrice).
+- `coupons` (v13): code, type `percent|fixed`, value, minTotal, maxUses, uses,
+  expiry, active. `validateCoupon(code, total)` returns `{ok, discount, coupon}`
+  or a reason; `redeemCoupon(id)` bumps `uses`. The editor has a coupon field that
+  sets the discount and stores `couponCode` on the invoice; the coupon is redeemed
+  after a successful save. Item-level quantity pricing still lives on the item
+  (`wholesalePrice`/`wholesaleMinQty`).
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

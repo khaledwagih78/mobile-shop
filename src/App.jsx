@@ -30,6 +30,7 @@ import Accounting from './pages/Accounting';
 import Treasury from './pages/Treasury';
 import Installments from './pages/Installments';
 import CRM from './pages/CRM';
+import Pricing from './pages/Pricing';
 import { can } from './utils';
 
 function Guard({ action, children }) {
@@ -78,6 +79,7 @@ function Shell() {
         <Route path="treasury" element={<Guard action="treasury"><Treasury /></Guard>} />
         <Route path="installments" element={<Guard action="installments"><Installments /></Guard>} />
         <Route path="crm" element={<Guard action="crm"><CRM /></Guard>} />
+        <Route path="pricing" element={<Guard action="pricing"><Pricing /></Guard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -11,6 +11,7 @@ export default function Parties({ kind = 'customer' }) {
   const table = isCustomer ? db.customers : db.suppliers;
   const { user } = useAuth();
   const list = useLiveQuery(() => table.orderBy('name').toArray(), [kind], []);
+  const priceLists = useLiveQuery(() => db.priceLists.toArray(), [], []);
   const customFields = useLiveQuery(() => getCustomFields(kind), [kind], []);
   const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
   const waMsg = (c) =>
@@ -48,8 +49,9 @@ export default function Parties({ kind = 'customer' }) {
 
   const save = async () => {
     const creditLimit = Number(form.creditLimit) || 0;
+    const priceListId = form.priceListId ? Number(form.priceListId) : null;
     if (form.id) {
-      await table.update(form.id, { name: form.name, phone: form.phone, address: form.address, custom: form.custom || {}, creditLimit });
+      await table.update(form.id, { name: form.name, phone: form.phone, address: form.address, custom: form.custom || {}, creditLimit, priceListId });
     } else {
       await table.add({ ...form, creditLimit, balance: 0, points: 0, totalSpent: 0, createdAt: nowISO() });
     }
@@ -150,9 +152,16 @@ export default function Parties({ kind = 'customer' }) {
           <div className="field"><label>العنوان</label>
             <input className="input" value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
           {isCustomer && (
-            <div className="field"><label>💳 الحد الائتماني (اتركه 0 = بدون حد)</label>
-              <input className="input" type="number" min="0" value={form.creditLimit || ''} onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
-                placeholder="أقصى مديونية مسموح بها للعميل" /></div>
+            <div className="row">
+              <div className="field"><label>💳 الحد الائتماني (0 = بدون حد)</label>
+                <input className="input" type="number" min="0" value={form.creditLimit || ''} onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
+                  placeholder="أقصى مديونية مسموح بها" /></div>
+              <div className="field"><label>🏷️ قائمة الأسعار</label>
+                <select className="input" value={form.priceListId || ''} onChange={(e) => setForm({ ...form, priceListId: e.target.value })}>
+                  <option value="">الأسعار الأساسية</option>
+                  {priceLists.map((pl) => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
+                </select></div>
+            </div>
           )}
           {customFields.length > 0 && (
             <CustomFieldInputs

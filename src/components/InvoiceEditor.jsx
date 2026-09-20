@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, saveInvoice, saveQuote, saveReturn, nowISO, stockOf, getSetting } from '../db';
+import { db, saveInvoice, saveQuote, saveReturn, nowISO, stockOf, getSetting, validateCoupon, redeemCoupon } from '../db';
 import { money, fmt, normAr } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
@@ -45,6 +45,16 @@ export default function InvoiceEditor({ type }) {
   const [toast, setToast] = useState('');
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [coupon, setCoupon] = useState(null);
+  const [couponMsg, setCouponMsg] = useState('');
+
+  // price list bound to the selected customer (sales only)
+  const priceList = useLiveQuery(async () => {
+    const p = parties.find((x) => x.id === Number(partyId));
+    if (isSale && p && p.priceListId) return db.priceLists.get(p.priceListId);
+    return null;
+  }, [partyId, parties, isSale], null);
 
   const results = useMemo(() => {
     const t = normAr(q);
@@ -80,7 +90,9 @@ export default function InvoiceEditor({ type }) {
           name: it.name,
           code: it.code,
           qty: 1,
-          price: isSale ? it.salePrice || 0 : it.costPrice || 0,
+          price: isSale
+            ? (priceList && priceList.prices && priceList.prices[it.id] != null ? Number(priceList.prices[it.id]) : (it.salePrice || 0))
+            : it.costPrice || 0,
           cost: it.costPrice || 0,
           stock: stockOf(it, activeBranch),
           wholesalePrice: it.wholesalePrice || 0,
@@ -154,6 +166,8 @@ export default function InvoiceEditor({ type }) {
       lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, baseUnit, salePrice, costPrice, units, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0, factor: Number(l.factor) || 1 })),
       subtotal,
       discount: disc,
+      couponCode: coupon ? coupon.code : null,
+      priceListId: party ? (party.priceListId || null) : null,
       tax,
       taxRate,
       taxName,
@@ -165,6 +179,7 @@ export default function InvoiceEditor({ type }) {
       userName: user.name,
     };
     const res = isQuote ? await saveQuote(payload) : isReturn ? await saveReturn(payload) : await saveInvoice(payload);
+    if (coupon) await redeemCoupon(coupon.id).catch(() => {});
     // Signal auto WhatsApp send for sale/quote invoices addressed to a customer with a phone
     const wantSend = (type === 'sale' || type === 'quote') && party && (party.phone || '').trim();
     nav(`/invoices/${res.id}?new=1${wantSend ? '&send=1' : ''}`);
@@ -177,6 +192,27 @@ export default function InvoiceEditor({ type }) {
     setPartyId(String(id));
     setShowNewParty(false);
     setNewParty({ name: '', phone: '', address: '' });
+  };
+
+  // re-price sale lines when the customer's price list changes
+  useEffect(() => {
+    if (!isSale) return;
+    setLines((ls) => ls.map((l) => {
+      const lp = priceList && priceList.prices && priceList.prices[l.itemId];
+      return { ...l, price: lp != null ? Number(lp) : (l.salePrice || l.price) };
+    }));
+  }, [priceList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const applyCoupon = async () => {
+    const res = await validateCoupon(couponCode, subtotal);
+    if (res.ok) {
+      setCoupon(res.coupon);
+      setDiscount(String(res.discount));
+      setCouponMsg(`✅ خصم ${res.coupon.type === 'percent' ? res.coupon.value + '%' : res.discount} مطبّق`);
+    } else {
+      setCoupon(null);
+      setCouponMsg('⚠️ ' + res.reason);
+    }
   };
 
   const onBarcodeDetected = (code) => {
@@ -336,11 +372,23 @@ export default function InvoiceEditor({ type }) {
             return null;
           })()}
 
+          {isSale && !isReturn && (
+            <div className="field">
+              <label>🎟️ كوبون خصم</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="input" style={{ flex: 1 }} value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)} placeholder="أدخل كود الكوبون" />
+                <button className="btn ghost" type="button" onClick={applyCoupon} disabled={!couponCode.trim()}>تطبيق</button>
+              </div>
+              {couponMsg && <div style={{ fontSize: 12, color: coupon ? 'var(--green)' : 'var(--amber)', marginTop: 4 }}>{couponMsg}</div>}
+            </div>
+          )}
+
           <div className="row">
             <div className="field">
-              <label>الخصم</label>
+              <label>الخصم{coupon ? ` (كوبون ${coupon.code})` : ''}</label>
               <input className="input" type="number" min="0" value={discount}
-                onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
+                onChange={(e) => { setDiscount(e.target.value); setCoupon(null); setCouponMsg(''); }} placeholder="0" />
             </div>
             <div className="field">
               <label>المدفوع</label>
