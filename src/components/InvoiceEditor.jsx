@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, saveInvoice, saveQuote, saveReturn, nowISO, stockOf } from '../db';
+import { db, saveInvoice, saveQuote, saveReturn, nowISO, stockOf, getSetting } from '../db';
 import { money, fmt, normAr } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
@@ -28,6 +28,9 @@ export default function InvoiceEditor({ type }) {
     () => (isSale ? db.customers.toArray() : db.suppliers.toArray()),
     [isSale], []
   );
+  const taxEnabled = useLiveQuery(() => getSetting('taxEnabled', false), [], false);
+  const taxRateSetting = useLiveQuery(() => getSetting('taxRate', 0), [], 0);
+  const taxName = useLiveQuery(() => getSetting('taxName', 'ضريبة القيمة المضافة'), [], 'ضريبة القيمة المضافة');
 
   const [q, setQ] = useState('');
   const [lines, setLines] = useState([]);
@@ -88,6 +91,7 @@ export default function InvoiceEditor({ type }) {
           salePrice: it.salePrice || 0,
           costPrice: it.costPrice || 0,
           units: it.units || [],
+          taxable: it.taxable !== false,
         },
       ];
     });
@@ -123,7 +127,12 @@ export default function InvoiceEditor({ type }) {
 
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
   const disc = Number(discount) || 0;
-  const total = Math.max(0, subtotal - disc);
+  const taxRate = (taxEnabled && !isQuote) ? Number(taxRateSetting) || 0 : 0;
+  // tax on taxable lines only, after allocating the invoice discount proportionally
+  const discFactor = subtotal > 0 ? (subtotal - disc) / subtotal : 1;
+  const taxableBase = lines.reduce((s, l) => s + (l.taxable !== false ? l.qty * l.price : 0), 0) * discFactor;
+  const tax = taxRate > 0 ? Math.round(taxableBase * taxRate) / 100 : 0;
+  const total = Math.max(0, subtotal - disc + tax);
   const paidNum = paidTouched ? Number(paid) || 0 : total;
   const remaining = Math.max(0, total - paidNum);
   const profit = isSale ? lines.reduce((s, l) => s + l.qty * (l.price - l.cost), 0) - disc : 0;
@@ -145,6 +154,9 @@ export default function InvoiceEditor({ type }) {
       lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, baseUnit, salePrice, costPrice, units, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0, factor: Number(l.factor) || 1 })),
       subtotal,
       discount: disc,
+      tax,
+      taxRate,
+      taxName,
       total,
       paid: paidNum,
       remaining,
@@ -342,6 +354,9 @@ export default function InvoiceEditor({ type }) {
           <div className="totals">
             <div className="trow"><span>الإجمالي قبل الخصم</span><span className="num">{money(subtotal)}</span></div>
             <div className="trow"><span>الخصم</span><span className="num">- {money(disc)}</span></div>
+            {tax > 0 && (
+              <div className="trow"><span>{taxName} ({fmt(taxRate)}%)</span><span className="num">+ {money(tax)}</span></div>
+            )}
             {remaining > 0 && (
               <div className="trow" style={{ color: 'var(--amber)' }}>
                 <span>المتبقي (آجل)</span><span className="num">{money(remaining)}</span>

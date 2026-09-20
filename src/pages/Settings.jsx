@@ -11,6 +11,7 @@ export default function Settings() {
   const [email, setEmail] = useState({ to: '', serviceId: '', templateId: '', publicKey: '' });
   const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
   const [waAuto, setWaAuto] = useState(false);
+  const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -34,6 +35,11 @@ export default function Settings() {
         warranty: await getSetting('warranty', '') || '',
       });
       setWaAuto(await getSetting('waAutoSend', false) === true);
+      setTax({
+        enabled: await getSetting('taxEnabled', false) === true,
+        name: await getSetting('taxName', 'ضريبة القيمة المضافة') || 'ضريبة القيمة المضافة',
+        rate: String((await getSetting('taxRate', 0)) || ''),
+      });
     })();
   }, []);
 
@@ -61,6 +67,14 @@ export default function Settings() {
     setWaAuto(next);
     await setSetting('waAutoSend', next);
     setToast(next ? '✅ تم تفعيل الإرسال التلقائي على واتساب' : '⏹️ تم تعطيل الإرسال التلقائي على واتساب');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const saveTax = async () => {
+    await setSetting('taxEnabled', !!tax.enabled);
+    await setSetting('taxName', (tax.name || '').trim() || 'ضريبة القيمة المضافة');
+    await setSetting('taxRate', Number(tax.rate) || 0);
+    setToast('✅ تم حفظ إعدادات الضريبة');
     setTimeout(() => setToast(''), 2500);
   };
 
@@ -237,6 +251,28 @@ export default function Settings() {
             ملاحظة: العميل لازم يكون له رقم واتساب مسجّل في بياناته. الفواتير النقدية بدون
             عميل مش هيتبعت لها رسالة.
           </p>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🧾 الضريبة (VAT)</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            فعّل الضريبة عشان تتحسب تلقائياً على فواتير البيع والشراء وتظهر في الفاتورة
+            والتقارير الضريبية. الأصناف تقدر تعملها <b>معفاة</b> من صفحة المخزون
+            (خانة "خاضع للضريبة"). الخصم بيتوزّع على القيمة الخاضعة قبل حساب الضريبة.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', margin: '6px 0' }}>
+            <input type="checkbox" checked={tax.enabled} onChange={(e) => setTax({ ...tax, enabled: e.target.checked })} style={{ width: 20, height: 20 }} />
+            <b>{tax.enabled ? 'الضريبة مُفعّلة ✅' : 'الضريبة مُعطّلة'}</b>
+          </label>
+          <div className="row">
+            <div className="field"><label>اسم الضريبة</label>
+              <input className="input" value={tax.name} onChange={(e) => setTax({ ...tax, name: e.target.value })} placeholder="ضريبة القيمة المضافة" /></div>
+            <div className="field"><label>النسبة %</label>
+              <input className="input lg" type="number" min="0" step="0.01" value={tax.rate} onChange={(e) => setTax({ ...tax, rate: e.target.value })} placeholder="مثال: 14" /></div>
+          </div>
+          <button className="btn" onClick={saveTax}>💾 حفظ إعدادات الضريبة</button>
         </div>
       </div>
 

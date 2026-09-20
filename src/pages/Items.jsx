@@ -7,7 +7,7 @@ import { Modal } from '../components/UI';
 import { Barcode, barcodeSVG } from '../components/Barcode';
 import { CustomFieldInputs } from './CustomFields';
 
-const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '', baseUnit: 'قطعة', units: [] };
+const EMPTY = { code: '', barcode: '', name: '', brand: '', category: '', costUSD: '', costPrice: '', salePrice: '', wholesalePrice: '', wholesaleMinQty: '', minStock: '', stock: '', baseUnit: 'قطعة', units: [], taxable: true };
 
 export default function Items() {
   const { user, activeBranch, branches } = useAuth();
@@ -110,6 +110,7 @@ export default function Items() {
       wholesalePrice: Number(form.wholesalePrice) || 0,
       wholesaleMinQty: Number(form.wholesaleMinQty) || 0,
       minStock: Number(form.minStock) || 0,
+      taxable: form.taxable !== false,
     };
     if (form.id) {
       const existing = await db.items.get(form.id);
@@ -255,6 +256,12 @@ export default function Items() {
           <div className="row">
             <div className="field"><label>وحدة القياس الأساسية</label>
               <input className="input" value={form.baseUnit || ''} onChange={(e) => setForm({ ...form, baseUnit: e.target.value })} placeholder="قطعة / كيلو / متر" /></div>
+            <div className="field"><label>الضريبة</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 0' }}>
+                <input type="checkbox" checked={form.taxable !== false} onChange={(e) => setForm({ ...form, taxable: e.target.checked })} style={{ width: 18, height: 18 }} />
+                خاضع للضريبة
+              </label>
+            </div>
           </div>
           <div className="field">
             <label>📦 وحدات أكبر (اختياري) — مثال: كرتونة تحتوي 24 قطعة</label>

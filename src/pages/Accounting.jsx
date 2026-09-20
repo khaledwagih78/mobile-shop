@@ -100,6 +100,19 @@ export default function Accounting() {
     return { rev, exp, totRev, totExp, net: totRev - totExp };
   }, [accounts, entriesInRange]);
 
+  // VAT report from the tax account movement in range
+  const taxReport = useMemo(() => {
+    const vat = accounts.find((a) => a.role === 'vat');
+    if (!vat) return null;
+    let collected = 0, paid = 0;
+    for (const e of entriesInRange) for (const l of (e.lines || [])) {
+      if (l.accountId !== vat.id) continue;
+      collected += Number(l.credit || 0); // output VAT on sales
+      paid += Number(l.debit || 0);       // input VAT on purchases (+ returns adjust)
+    }
+    return { collected, paid, net: collected - paid };
+  }, [accounts, entriesInRange]);
+
   // general ledger for a chosen account
   const ledger = useMemo(() => {
     if (!ledgerAcc) return null;
@@ -138,10 +151,11 @@ export default function Accounting() {
         <button className={`btn ${tab === 'journal' ? '' : 'ghost'}`} onClick={() => setTab('journal')}>📝 القيود</button>
         <button className={`btn ${tab === 'trial' ? '' : 'ghost'}`} onClick={() => setTab('trial')}>⚖️ ميزان المراجعة</button>
         <button className={`btn ${tab === 'income' ? '' : 'ghost'}`} onClick={() => setTab('income')}>📈 قائمة الدخل</button>
+        <button className={`btn ${tab === 'tax' ? '' : 'ghost'}`} onClick={() => setTab('tax')}>🧾 الضرائب</button>
         <button className={`btn ${tab === 'ledger' ? '' : 'ghost'}`} onClick={() => setTab('ledger')}>📖 الأستاذ العام</button>
       </div>
 
-      {(tab === 'trial' || tab === 'income' || tab === 'ledger') && (
+      {(tab === 'trial' || tab === 'income' || tab === 'ledger' || tab === 'tax') && (
         <div className="list-tools">
           <span className="muted" style={{ alignSelf: 'center', fontSize: 13 }}>الفترة من</span>
           <input className="input" style={{ maxWidth: 155 }} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -272,6 +286,28 @@ export default function Accounting() {
               <span>صافي {income.net >= 0 ? 'الربح' : 'الخسارة'}</span><span className="num">{money(income.net)}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Tax (VAT) report ── */}
+      {tab === 'tax' && (
+        <div className="card" style={{ maxWidth: 560 }}>
+          <h3 style={{ marginTop: 0 }}>تقرير الضريبة — {from} إلى {to}</h3>
+          {!taxReport ? (
+            <p className="muted">لا يوجد حساب ضريبة.</p>
+          ) : (
+            <div className="totals">
+              <div className="trow"><span>ضريبة المبيعات المُحصّلة (مخرجات)</span><span className="num">{money(taxReport.collected)}</span></div>
+              <div className="trow"><span>ضريبة المشتريات (مدخلات)</span><span className="num">- {money(taxReport.paid)}</span></div>
+              <div className="trow grand" style={{ color: taxReport.net >= 0 ? 'var(--red)' : 'var(--green)' }}>
+                <span>{taxReport.net >= 0 ? 'صافي الضريبة المستحقة للمصلحة' : 'رصيد ضريبة لصالحك'}</span>
+                <span className="num">{money(Math.abs(taxReport.net))}</span>
+              </div>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+            المُحصّلة = ضريبة فواتير البيع، المدخلات = ضريبة فواتير الشراء. الصافي = ما يجب توريده لمصلحة الضرائب عن الفترة.
+          </p>
         </div>
       )}
 

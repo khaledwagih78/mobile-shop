@@ -771,10 +771,12 @@ async function writeJournalEntry({ date, description, refType, refId, refNumber,
 }
 
 // The journal lines an invoice-type document generates (double-entry).
+// `inv.total` is the grand total INCLUDING tax; `inv.tax` is the VAT amount, so
+// the taxable-goods value (revenue / inventory) is the net = total − tax.
 function invoiceJournalLines(inv) {
   const total = Number(inv.total || 0), paid = Number(inv.paid || 0);
   const remaining = Number(inv.remaining || 0), discount = Number(inv.discount || 0);
-  const subtotal = Number(inv.subtotal || 0);
+  const subtotal = Number(inv.subtotal || 0), tax = Number(inv.tax || 0);
   const cogs = Math.round((inv.lines || []).reduce((s, l) => s + Number(l.qty || 0) * Number(l.cost || 0), 0) * 100) / 100;
   const hasParty = !!inv.partyId;
   if (inv.type === 'sale') {
@@ -783,20 +785,23 @@ function invoiceJournalLines(inv) {
       { role: 'ar', debit: remaining },
       { role: 'discount', debit: discount },
       { role: 'sales', credit: subtotal },
+      { role: 'vat', credit: tax }, // VAT collected on behalf of the tax authority
     ];
     if (cogs > 0) { lines.push({ role: 'cogs', debit: cogs }, { role: 'inventory', credit: cogs }); }
     return lines;
   }
   if (inv.type === 'purchase') {
     return [
-      { role: 'inventory', debit: total },
+      { role: 'inventory', debit: total - tax }, // goods at net cost
+      { role: 'vat', debit: tax },               // recoverable input VAT
       { role: 'cash', credit: paid },
       { role: 'ap', credit: remaining },
     ];
   }
   if (inv.type === 'sale_return') {
     const lines = [
-      { role: 'sales', debit: total },
+      { role: 'sales', debit: total - tax },
+      { role: 'vat', debit: tax },
       { role: hasParty ? 'ar' : 'cash', credit: total },
     ];
     if (cogs > 0) { lines.push({ role: 'inventory', debit: cogs }, { role: 'cogs', credit: cogs }); }
@@ -805,7 +810,8 @@ function invoiceJournalLines(inv) {
   if (inv.type === 'purchase_return') {
     return [
       { role: hasParty ? 'ap' : 'cash', debit: total },
-      { role: 'inventory', credit: total },
+      { role: 'inventory', credit: total - tax },
+      { role: 'vat', credit: tax },
     ];
   }
   return [];

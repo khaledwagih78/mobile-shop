@@ -17,6 +17,7 @@ function buildWaText(inv, bizName) {
   inv.lines.forEach((l) => { t += `${l.name} × ${fmt(l.qty)} = ${fmt(l.qty * l.price)}\n`; });
   t += `------------------\n`;
   if (inv.discount > 0) t += `الخصم: ${money(inv.discount)}\n`;
+  if (inv.tax > 0) t += `${inv.taxName || 'ضريبة'}: ${money(inv.tax)}\n`;
   t += `*الإجمالي: ${money(inv.total)}*\n`;
   if (inv.remaining > 0) t += `المتبقي: ${money(inv.remaining)}\n`;
   t += `شكراً لتعاملكم معنا 🌹`;
@@ -134,6 +135,7 @@ export default function InvoiceView() {
       <div class="totals">
         <div class="row"><span>الإجمالي</span><span>${money(inv.subtotal)}</span></div>
         ${inv.discount > 0 ? `<div class="row"><span>الخصم</span><span>-${money(inv.discount)}</span></div>` : ''}
+        ${inv.tax > 0 ? `<div class="row"><span>${inv.taxName || 'ضريبة'} (${fmt(inv.taxRate)}%)</span><span>${money(inv.tax)}</span></div>` : ''}
         <div class="row"><span>المدفوع</span><span>${money(inv.paid)}</span></div>
         ${inv.remaining > 0 ? `<div class="row" style="color:#e67e22"><span>المتبقي</span><span>${money(inv.remaining)}</span></div>` : ''}
         ${isSale ? `<div class="row" style="color:#27ae60"><span>الربح</span><span>${money(inv.profit)}</span></div>` : ''}
@@ -214,6 +216,7 @@ export default function InvoiceView() {
           <div className="totals">
             <div className="trow"><span>قبل الخصم</span><span className="num">{money(inv.subtotal)}</span></div>
             <div className="trow"><span>الخصم</span><span className="num">- {money(inv.discount)}</span></div>
+            {inv.tax > 0 && <div className="trow"><span>{inv.taxName || 'ضريبة'} ({fmt(inv.taxRate)}%)</span><span className="num">+ {money(inv.tax)}</span></div>}
             <div className="trow"><span>المدفوع</span><span className="num">{money(inv.paid)}</span></div>
             {inv.remaining > 0 && <div className="trow" style={{ color: 'var(--amber)' }}><span>المتبقي</span><span className="num">{money(inv.remaining)}</span></div>}
             {isSale && <div className="trow" style={{ color: 'var(--green)' }}><span>الربح</span><span className="num">{money(inv.profit)}</span></div>}
@@ -266,6 +269,7 @@ export default function InvoiceView() {
           </table>
           <div className="tot">
             {inv.discount > 0 && <>الخصم: {money(inv.discount)}<br /></>}
+            {inv.tax > 0 && <>{inv.taxName || 'ضريبة'}: {money(inv.tax)}<br /></>}
             الإجمالي: {money(inv.total)}<br />
             المدفوع: {money(inv.paid)}
             {inv.remaining > 0 && <><br />المتبقي: {money(inv.remaining)}</>}

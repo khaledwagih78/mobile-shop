@@ -230,6 +230,21 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - The page shows per-cashbox balances, a statement (ledger) per cashbox, and a
   simple bank reconciliation (enter the actual bank balance → shows the difference).
 
+### Tax / VAT (opt-in)
+
+- Settings hold `taxEnabled`, `taxName`, `taxRate` (single configurable rate).
+  Items carry a `taxable` flag (default true; uncheck to exempt).
+- `InvoiceEditor` computes tax on the taxable lines after allocating the invoice
+  discount proportionally (`tax = taxableBase × (subtotal−discount)/subtotal ×
+  rate`), so `total` = subtotal − discount + tax. Quotes are never taxed. The
+  invoice stores `tax`, `taxRate`, `taxName`; `InvoiceView` (screen/PDF/print/
+  WhatsApp) shows the tax line.
+- `invoiceJournalLines` splits net vs tax: sales Cr `vat` (output), purchases Dr
+  `vat` (input), returns reverse; goods value (revenue/inventory) is `total−tax`.
+  With `tax:0` the entries are identical to the pre-tax ones (backward compatible).
+- The Accounting page's **الضرائب** tab reports output VAT (sales), input VAT
+  (purchases) and net due, from the `vat` account's movement over the period.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
