@@ -20,6 +20,7 @@ const MENU = [
   { to: '/', ico: '📊', label: 'الرئيسية', action: null },
   { to: '/alerts', ico: '🔔', label: 'التنبيهات', action: 'alerts' },
   { to: '/insights', ico: '🤖', label: 'المساعد الذكي', action: 'insights' },
+  { to: '/smart', ico: '🧠', label: 'التحليلات الذكية', action: 'smart' },
   { to: '/voice', ico: '🎤', label: 'تحليل بالصوت', action: 'voice' },
   { to: '/pos', ico: '🧾', label: 'بيع جديد', action: 'pos' },
   { to: '/quote', ico: '📄', label: 'عرض سعر', action: 'quote' },

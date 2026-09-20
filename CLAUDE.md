@@ -385,6 +385,16 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   disabled) until a manager approves/logs in. Thresholds and near-expiry/overdue
   days are configured in Settings.
 
+### Smart analytics & customizable dashboard
+
+- `src/pages/SmartAnalytics.jsx` computes everything locally from invoices/items/
+  expenses: reorder suggestions (per-item 30-day velocity, days-of-stock, suggested
+  qty), a sales forecast (last-30 total adjusted by the 15-vs-prev-15 trend),
+  expense anomaly (this month vs prior-3-month average), top sellers and stagnant
+  items. Presented as estimates, not guarantees.
+- `Dashboard.jsx` KPI widgets are customizable per device: a ⚙️ panel toggles each
+  card, persisted in `localStorage.kerp_dash_hidden`.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
