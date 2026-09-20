@@ -47,6 +47,7 @@ const MENU = [
   { to: '/projects', ico: '📁', label: 'المشاريع', action: 'projects' },
   { to: '/maintenance', ico: '🔧', label: 'الصيانة', action: 'maintenance' },
   { to: '/reports', ico: '📈', label: 'التقارير', action: 'reports' },
+  { to: '/report-builder', ico: '🧱', label: 'منشئ التقارير', action: 'reportbuilder' },
   { to: '/audit', ico: '📋', label: 'سجل النشاطات', action: 'reports' },
   { to: '/import', ico: '📑', label: 'استيراد Excel', action: 'import' },
   { to: '/backup', ico: '🛡️', label: 'النسخ الاحتياطي', action: 'backup' },

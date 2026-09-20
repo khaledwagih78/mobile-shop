@@ -37,6 +37,7 @@ import Projects from './pages/Projects';
 import WorkOrders from './pages/WorkOrders';
 import Reps from './pages/Reps';
 import InventoryOps from './pages/InventoryOps';
+import ReportBuilder from './pages/ReportBuilder';
 import { can } from './utils';
 
 function Guard({ action, children }) {
@@ -78,6 +79,7 @@ function Shell() {
         <Route path="maintenance" element={<Guard action="maintenance"><WorkOrders /></Guard>} />
         <Route path="reps" element={<Guard action="reps"><Reps /></Guard>} />
         <Route path="inventory-ops" element={<Guard action="invops"><InventoryOps /></Guard>} />
+        <Route path="report-builder" element={<Guard action="reportbuilder"><ReportBuilder /></Guard>} />
         <Route path="audit" element={<Guard action="reports"><AuditLog /></Guard>} />
         <Route path="deliveries" element={<Guard action="pos"><Deliveries /></Guard>} />
         <Route path="branches" element={<Guard action="branches"><Branches /></Guard>} />

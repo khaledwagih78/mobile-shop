@@ -246,6 +246,15 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   With `tax:0` the entries are identical to the pre-tax ones (backward compatible).
 - The Accounting page's **الضرائب** tab reports output VAT (sales), input VAT
   (purchases) and net due, from the `vat` account's movement over the period.
+- The Accounting page also has a **balance sheet** tab (assets vs liabilities +
+  equity + un-closed net income, with a balanced check) and a **cash flow** tab
+  (opening + inflows − outflows = closing, from cashbox-account movement).
+
+### Report builder (`src/pages/ReportBuilder.jsx`)
+
+- A generic report tool over invoices / payments / expenses / items / customers /
+  suppliers: pick a dataset, toggle columns, filter by date range + search, see
+  totals for numeric columns, print, and export CSV (UTF-8 BOM for Arabic Excel).
 
 ### Installments & debt (`src/pages/Installments.jsx`)
 

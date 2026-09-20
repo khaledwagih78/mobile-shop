@@ -113,6 +113,37 @@ export default function Accounting() {
     return { collected, paid, net: collected - paid };
   }, [accounts, entriesInRange]);
 
+  // balance sheet (cumulative up to `to`)
+  const balanceSheet = useMemo(() => {
+    const upTo = entries.filter((e) => e.day <= to);
+    const byType = { asset: [], liability: [], equity: [] };
+    let rev = 0, exp = 0;
+    for (const a of accounts) {
+      const bal = accountBalance(a, upTo);
+      if (a.type === 'revenue') rev += bal;
+      else if (a.type === 'expense') exp += bal;
+      else if (byType[a.type] && Math.abs(bal) > 0.001) byType[a.type].push({ a, bal });
+    }
+    const netIncome = rev - exp;
+    const assets = byType.asset.reduce((s, r) => s + r.bal, 0);
+    const liab = byType.liability.reduce((s, r) => s + r.bal, 0);
+    const equity = byType.equity.reduce((s, r) => s + r.bal, 0);
+    return { byType, assets, liab, equity, netIncome, rightSide: liab + equity + netIncome };
+  }, [accounts, entries, to]);
+
+  // cash flow over the period (movement of cashbox accounts)
+  const cashFlow = useMemo(() => {
+    const cashIds = new Set(accounts.filter((a) => a.cashbox || a.role === 'cash' || a.role === 'bank').map((a) => a.id));
+    let opening = 0, inflow = 0, outflow = 0;
+    for (const e of entries) for (const l of (e.lines || [])) {
+      if (!cashIds.has(l.accountId)) continue;
+      const delta = Number(l.debit || 0) - Number(l.credit || 0);
+      if (e.day < from) opening += delta;
+      else if (e.day <= to) { if (delta > 0) inflow += delta; else outflow += -delta; }
+    }
+    return { opening, inflow, outflow, closing: opening + inflow - outflow };
+  }, [accounts, entries, from, to]);
+
   // general ledger for a chosen account
   const ledger = useMemo(() => {
     if (!ledgerAcc) return null;
@@ -151,11 +182,13 @@ export default function Accounting() {
         <button className={`btn ${tab === 'journal' ? '' : 'ghost'}`} onClick={() => setTab('journal')}>📝 القيود</button>
         <button className={`btn ${tab === 'trial' ? '' : 'ghost'}`} onClick={() => setTab('trial')}>⚖️ ميزان المراجعة</button>
         <button className={`btn ${tab === 'income' ? '' : 'ghost'}`} onClick={() => setTab('income')}>📈 قائمة الدخل</button>
+        <button className={`btn ${tab === 'balance' ? '' : 'ghost'}`} onClick={() => setTab('balance')}>🏛️ الميزانية</button>
+        <button className={`btn ${tab === 'cashflow' ? '' : 'ghost'}`} onClick={() => setTab('cashflow')}>💧 التدفق النقدي</button>
         <button className={`btn ${tab === 'tax' ? '' : 'ghost'}`} onClick={() => setTab('tax')}>🧾 الضرائب</button>
         <button className={`btn ${tab === 'ledger' ? '' : 'ghost'}`} onClick={() => setTab('ledger')}>📖 الأستاذ العام</button>
       </div>
 
-      {(tab === 'trial' || tab === 'income' || tab === 'ledger' || tab === 'tax') && (
+      {(tab === 'trial' || tab === 'income' || tab === 'ledger' || tab === 'tax' || tab === 'balance' || tab === 'cashflow') && (
         <div className="list-tools">
           <span className="muted" style={{ alignSelf: 'center', fontSize: 13 }}>الفترة من</span>
           <input className="input" style={{ maxWidth: 155 }} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -308,6 +341,51 @@ export default function Accounting() {
           <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
             المُحصّلة = ضريبة فواتير البيع، المدخلات = ضريبة فواتير الشراء. الصافي = ما يجب توريده لمصلحة الضرائب عن الفترة.
           </p>
+        </div>
+      )}
+
+      {/* ── Balance sheet ── */}
+      {tab === 'balance' && (
+        <div className="card" style={{ maxWidth: 680 }}>
+          <h3 style={{ marginTop: 0 }}>الميزانية العمومية — حتى {to}</h3>
+          <div className="grid-2">
+            <div>
+              <div className="totals">
+                <div className="trow" style={{ fontWeight: 700 }}><span>الأصول</span><span /></div>
+                {balanceSheet.byType.asset.map((r) => <div className="trow" key={r.a.id}><span style={{ paddingRight: 10 }}>{r.a.name}</span><span className="num">{money(r.bal)}</span></div>)}
+                <div className="trow grand"><span>إجمالي الأصول</span><span className="num">{money(balanceSheet.assets)}</span></div>
+              </div>
+            </div>
+            <div>
+              <div className="totals">
+                <div className="trow" style={{ fontWeight: 700 }}><span>الخصوم</span><span /></div>
+                {balanceSheet.byType.liability.map((r) => <div className="trow" key={r.a.id}><span style={{ paddingRight: 10 }}>{r.a.name}</span><span className="num">{money(r.bal)}</span></div>)}
+                <div className="trow" style={{ fontWeight: 700, marginTop: 6 }}><span>حقوق الملكية</span><span /></div>
+                {balanceSheet.byType.equity.map((r) => <div className="trow" key={r.a.id}><span style={{ paddingRight: 10 }}>{r.a.name}</span><span className="num">{money(r.bal)}</span></div>)}
+                <div className="trow"><span style={{ paddingRight: 10 }}>صافي الربح (غير مرحّل)</span><span className="num">{money(balanceSheet.netIncome)}</span></div>
+                <div className="trow grand"><span>إجمالي الخصوم وحقوق الملكية</span><span className="num">{money(balanceSheet.rightSide)}</span></div>
+              </div>
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 10 }}>
+            {Math.abs(balanceSheet.assets - balanceSheet.rightSide) < 0.01
+              ? <span className="badge green">الميزانية متوازنة ✓</span>
+              : <span className="badge red">فرق {money(Math.abs(balanceSheet.assets - balanceSheet.rightSide))}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Cash flow ── */}
+      {tab === 'cashflow' && (
+        <div className="card" style={{ maxWidth: 520 }}>
+          <h3 style={{ marginTop: 0 }}>التدفق النقدي — {from} إلى {to}</h3>
+          <div className="totals">
+            <div className="trow"><span>الرصيد النقدي الافتتاحي</span><span className="num">{money(cashFlow.opening)}</span></div>
+            <div className="trow" style={{ color: 'var(--green)' }}><span>+ المقبوضات</span><span className="num">{money(cashFlow.inflow)}</span></div>
+            <div className="trow" style={{ color: 'var(--red)' }}><span>− المدفوعات</span><span className="num">{money(cashFlow.outflow)}</span></div>
+            <div className="trow"><span>صافي التدفق</span><span className="num">{money(cashFlow.inflow - cashFlow.outflow)}</span></div>
+            <div className="trow grand"><span>الرصيد النقدي الختامي</span><span className="num">{money(cashFlow.closing)}</span></div>
+          </div>
         </div>
       )}
 
