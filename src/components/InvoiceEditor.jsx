@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, saveInvoice, saveQuote, saveReturn, nowISO, stockOf, getSetting, validateCoupon, redeemCoupon } from '../db';
+import { db, saveInvoice, saveQuote, saveReturn, savePurchaseOrder, nowISO, stockOf, getSetting, validateCoupon, redeemCoupon } from '../db';
 import { money, fmt, normAr } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
@@ -11,6 +11,7 @@ const TITLES = {
   sale: '🧾 فاتورة بيع جديدة',
   purchase: '📥 فاتورة شراء جديدة',
   quote: '📄 عرض سعر جديد',
+  po: '📝 طلب شراء جديد',
   sale_return: '↩️ مرتجع بيع',
   purchase_return: '↪️ مرتجع شراء',
 };
@@ -18,6 +19,7 @@ const TITLES = {
 export default function InvoiceEditor({ type }) {
   const isSale = type === 'sale' || type === 'quote' || type === 'sale_return';
   const isQuote = type === 'quote';
+  const isPO = type === 'po';
   const isReturn = type === 'sale_return' || type === 'purchase_return';
   const nav = useNavigate();
   const { user, activeBranch } = useAuth();
@@ -139,7 +141,7 @@ export default function InvoiceEditor({ type }) {
 
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
   const disc = Number(discount) || 0;
-  const taxRate = (taxEnabled && !isQuote) ? Number(taxRateSetting) || 0 : 0;
+  const taxRate = (taxEnabled && !isQuote && !isPO) ? Number(taxRateSetting) || 0 : 0;
   // tax on taxable lines only, after allocating the invoice discount proportionally
   const discFactor = subtotal > 0 ? (subtotal - disc) / subtotal : 1;
   const taxableBase = lines.reduce((s, l) => s + (l.taxable !== false ? l.qty * l.price : 0), 0) * discFactor;
@@ -151,7 +153,7 @@ export default function InvoiceEditor({ type }) {
 
   const save = async () => {
     if (lines.length === 0) return;
-    if (!isQuote && remaining > 0 && !partyId) {
+    if (!isQuote && !isPO && remaining > 0 && !partyId) {
       setToast(isSale ? 'البيع الآجل يحتاج اختيار عميل' : 'الشراء الآجل يحتاج اختيار مورد');
       setTimeout(() => setToast(''), 2500);
       return;
@@ -178,7 +180,7 @@ export default function InvoiceEditor({ type }) {
       userId: user.id,
       userName: user.name,
     };
-    const res = isQuote ? await saveQuote(payload) : isReturn ? await saveReturn(payload) : await saveInvoice(payload);
+    const res = isQuote ? await saveQuote(payload) : isPO ? await savePurchaseOrder(payload) : isReturn ? await saveReturn(payload) : await saveInvoice(payload);
     if (coupon) await redeemCoupon(coupon.id).catch(() => {});
     // Signal auto WhatsApp send for sale/quote invoices addressed to a customer with a phone
     const wantSend = (type === 'sale' || type === 'quote') && party && (party.phone || '').trim();
@@ -427,7 +429,7 @@ export default function InvoiceEditor({ type }) {
           )}
           <button className="btn accent big block" style={{ marginTop: 14 }}
             onClick={save} disabled={lines.length === 0 || saving}>
-            {saving ? '...جاري الحفظ' : isQuote ? '💾 حفظ عرض السعر' : isReturn ? '💾 حفظ المرتجع' : '💾 حفظ الفاتورة'}
+            {saving ? '...جاري الحفظ' : isQuote ? '💾 حفظ عرض السعر' : isPO ? '💾 حفظ طلب الشراء' : isReturn ? '💾 حفظ المرتجع' : '💾 حفظ الفاتورة'}
           </button>
         </div>
       </div>

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, cancelInvoice, restoreInvoice, convertQuote, getSetting } from '../db';
+import { db, cancelInvoice, restoreInvoice, convertQuote, convertPurchaseOrder, getSetting } from '../db';
 import { money, fmt, fmtDate, can, waLink } from '../utils';
 import { useAuth } from '../auth';
 import PasswordGate from '../components/PasswordGate';
+import { Modal } from '../components/UI';
 
 // Build the WhatsApp message text for an invoice (no hooks — safe to call anywhere).
 function buildWaText(inv, bizName) {
@@ -30,6 +31,7 @@ export default function InvoiceView() {
   const [sp] = useSearchParams();
   const { user } = useAuth();
   const [gate, setGate] = useState(null); // { title, message, onConfirm }
+  const [poConv, setPoConv] = useState(null); // { extraCosts, allocation, paid }
   const [waPending, setWaPending] = useState(false); // offline: invoice queued for WhatsApp send
   const sentRef = useRef(false);
   const inv = useLiveQuery(() => db.invoices.get(Number(id)), [id]);
@@ -84,6 +86,15 @@ export default function InvoiceView() {
 
   const doConvert = async () => {
     const res = await convertQuote(inv.id, user.name);
+    if (res) nav(`/invoices/${res.id}?new=1`);
+  };
+
+  const doConvertPO = async () => {
+    const res = await convertPurchaseOrder(inv.id, {
+      extraCosts: Number(poConv.extraCosts) || 0, allocation: poConv.allocation,
+      paid: poConv.paid === '' ? null : Number(poConv.paid), userName: user.name,
+    });
+    setPoConv(null);
     if (res) nav(`/invoices/${res.id}?new=1`);
   };
 
@@ -164,6 +175,9 @@ export default function InvoiceView() {
           {inv.type === 'quote' && inv.status === 'quote' && (
             <button className="btn accent" onClick={doConvert}>✅ تحويل لفاتورة بيع</button>
           )}
+          {inv.type === 'po' && inv.status === 'po' && (
+            <button className="btn accent" onClick={() => setPoConv({ extraCosts: '', allocation: 'value', paid: '' })}>✅ تحويل لفاتورة شراء</button>
+          )}
           {inv.status === 'active' && (inv.type === 'sale' || inv.type === 'purchase') && can(user.role, 'cancelInvoice') && (
             <button className="btn danger" onClick={doCancel}>إلغاء الفاتورة</button>
           )}
@@ -193,6 +207,11 @@ export default function InvoiceView() {
       {inv.type === 'quote' && inv.status === 'quote' && (
         <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700 }}>
           📄 عرض سعر — لا يؤثر على المخزون. اضغط "تحويل لفاتورة بيع" عند موافقة العميل.
+        </div>
+      )}
+      {inv.type === 'po' && inv.status === 'po' && (
+        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700 }}>
+          📝 طلب شراء — لا يؤثر على المخزون. عند الاستلام اضغط "تحويل لفاتورة شراء" (تقدر تضيف مصاريف شحن/جمارك توزّع على التكلفة).
         </div>
       )}
       {inv.status === 'converted' && (
@@ -289,6 +308,24 @@ export default function InvoiceView() {
           title={gate.title} message={gate.message}
           onConfirm={gate.onConfirm} onClose={() => setGate(null)}
         />
+      )}
+
+      {poConv && (
+        <Modal title={`تحويل طلب الشراء ${inv.number} لفاتورة`} onClose={() => setPoConv(null)}>
+          <div className="field"><label>مصاريف إضافية (شحن / جمارك / نقل)</label>
+            <input className="input" type="number" min="0" value={poConv.extraCosts}
+              onChange={(e) => setPoConv({ ...poConv, extraCosts: e.target.value })} placeholder="0" autoFocus /></div>
+          <div className="field"><label>توزيع المصاريف على الأصناف</label>
+            <select className="input" value={poConv.allocation} onChange={(e) => setPoConv({ ...poConv, allocation: e.target.value })}>
+              <option value="value">حسب قيمة الصنف</option>
+              <option value="qty">حسب الكمية</option>
+            </select></div>
+          <div className="field"><label>المدفوع للمورد (اتركه فارغاً = دفع كامل)</label>
+            <input className="input" type="number" min="0" value={poConv.paid}
+              onChange={(e) => setPoConv({ ...poConv, paid: e.target.value })} placeholder={String(inv.total)} /></div>
+          <p className="muted" style={{ fontSize: 12 }}>المصاريف الإضافية تُضاف لتكلفة الأصناف (تكلفة فعلية) وتُسجّل قيد محاسبي.</p>
+          <button className="btn accent block" onClick={doConvertPO}>✅ تأكيد التحويل</button>
+        </Modal>
       )}
     </>
   );

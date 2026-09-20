@@ -23,6 +23,7 @@ const MENU = [
   { to: '/pos', ico: '🧾', label: 'بيع جديد', action: 'pos' },
   { to: '/quote', ico: '📄', label: 'عرض سعر', action: 'quote' },
   { to: '/purchase', ico: '📥', label: 'فاتورة شراء', action: 'purchase' },
+  { to: '/purchase-order', ico: '📝', label: 'طلب شراء', action: 'purchase' },
   { to: '/sale-return', ico: '↩️', label: 'مرتجع بيع', action: 'returns' },
   { to: '/purchase-return', ico: '↪️', label: 'مرتجع شراء', action: 'returns' },
   { to: '/invoices', ico: '🗂️', label: 'الفواتير', action: 'invoices' },

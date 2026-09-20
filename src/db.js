@@ -521,6 +521,63 @@ export async function convertQuote(quoteId, userName) {
   return res;
 }
 
+// ---------- purchase orders (طلب شراء) + landed cost ----------
+// A PO is a purchase-side draft: no stock/accounting effect until converted.
+export async function savePurchaseOrder(inv) {
+  return db.transaction('rw', [db.invoices, db.syncQueue], async () => {
+    const dev = deviceBlock();
+    const key = 'kerp_inv_seq_po';
+    let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+    cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
+    const number = `PO${dev}-${String(cur).padStart(5, '0')}`;
+    const createdAt = nowISO();
+    const doc = { ...inv, type: 'po', number, createdAt, day: dayOf(createdAt), status: 'po', branchId: inv.branchId || DEFAULT_BRANCH_ID };
+    const id = await db.invoices.add(doc);
+    await queueSync('invoices', 'add', { ...doc, id });
+    return { id, number };
+  });
+}
+
+// Convert a PO to a purchase invoice, optionally distributing extra costs
+// (shipping/customs) across the lines to compute the real landed unit cost.
+// allocation: 'value' (by line value) | 'qty' (by quantity).
+export async function convertPurchaseOrder(poId, { extraCosts = 0, allocation = 'value', paid, userName }) {
+  const po = await db.invoices.get(poId);
+  if (!po || po.type !== 'po' || po.status === 'converted') return null;
+  const extra = Number(extraCosts) || 0;
+  const subtotal = Number(po.subtotal) || po.lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const discount = Number(po.discount) || 0;
+  const total = Math.max(0, subtotal - discount);
+  const paidNum = paid != null ? Number(paid) : total;
+  const res = await saveInvoice({
+    type: 'purchase', branchId: po.branchId, partyId: po.partyId, partyName: po.partyName,
+    lines: po.lines, subtotal, discount, tax: 0, total,
+    paid: paidNum, remaining: Math.max(0, total - paidNum), profit: 0, userId: po.userId, userName,
+  });
+  if (extra > 0) {
+    await db.transaction('rw', [db.items, db.accounts, db.journalEntries, db.syncQueue], async () => {
+      const totalQty = po.lines.reduce((s, l) => s + l.qty, 0);
+      for (const l of po.lines) {
+        const weight = allocation === 'qty'
+          ? (totalQty > 0 ? l.qty / totalQty : 0)
+          : (subtotal > 0 ? (l.qty * l.price) / subtotal : 0);
+        const perUnit = l.qty > 0 ? (extra * weight) / l.qty : 0;
+        const item = await db.items.get(l.itemId);
+        if (item) await db.items.update(l.itemId, { costPrice: Math.round((l.price + perUnit) * 100) / 100 });
+      }
+      const accounts = await db.accounts.toArray();
+      await writeJournalEntry({
+        date: today(), description: `تكاليف إضافية (شحن/جمارك) — ${po.number}`, refType: 'landed',
+        refId: res.id, refNumber: po.number, branchId: po.branchId,
+        lines: [{ role: 'inventory', debit: extra }, { role: 'cash', credit: extra }], accounts, userName,
+      });
+    });
+  }
+  await db.invoices.update(poId, { status: 'converted', convertedTo: res.id, convertedAt: nowISO(), extraCosts: extra });
+  await queueSync('invoices', 'update', { id: poId, status: 'converted' });
+  return res;
+}
+
 // ---------- returns (مرتجعات) — reverse of a sale/purchase ----------
 export async function saveReturn(inv) {
   return db.transaction(
@@ -824,25 +881,29 @@ export const ACCOUNT_TYPES = {
 
 // Default chart of accounts, seeded once. `role` marks the "system" accounts the
 // auto-posting engine targets (resolved by role so renames/re-codes don't break it).
+// System accounts use FIXED ids (like DEFAULT_BRANCH_ID) so every device agrees
+// on them and a concurrent double-seed (React StrictMode / racing callers) hits a
+// ConstraintError on the duplicate id instead of creating a second set.
 const DEFAULT_ACCOUNTS = [
-  { code: '1100', name: 'الصندوق (النقدية)',        type: 'asset',     role: 'cash', cashbox: true, cbType: 'cash' },
-  { code: '1200', name: 'البنك',                    type: 'asset',     role: 'bank', cashbox: true, cbType: 'bank' },
-  { code: '1300', name: 'العملاء (المدينون)',       type: 'asset',     role: 'ar' },
-  { code: '1400', name: 'المخزون',                  type: 'asset',     role: 'inventory' },
-  { code: '2100', name: 'الموردون (الدائنون)',      type: 'liability', role: 'ap' },
-  { code: '2200', name: 'ضريبة القيمة المضافة',     type: 'liability', role: 'vat' },
-  { code: '3100', name: 'رأس المال',                type: 'equity',    role: 'capital' },
-  { code: '3200', name: 'الأرباح المحتجزة',         type: 'equity',    role: 'retained' },
-  { code: '4100', name: 'إيرادات المبيعات',         type: 'revenue',   role: 'sales' },
-  { code: '5100', name: 'تكلفة البضاعة المباعة',    type: 'expense',   role: 'cogs' },
-  { code: '5200', name: 'مصروفات تشغيلية',          type: 'expense',   role: 'expense' },
-  { code: '5300', name: 'الخصومات الممنوحة',        type: 'expense',   role: 'discount' },
+  { id: 1,  code: '1100', name: 'الصندوق (النقدية)',        type: 'asset',     role: 'cash', cashbox: true, cbType: 'cash' },
+  { id: 2,  code: '1200', name: 'البنك',                    type: 'asset',     role: 'bank', cashbox: true, cbType: 'bank' },
+  { id: 3,  code: '1300', name: 'العملاء (المدينون)',       type: 'asset',     role: 'ar' },
+  { id: 4,  code: '1400', name: 'المخزون',                  type: 'asset',     role: 'inventory' },
+  { id: 5,  code: '2100', name: 'الموردون (الدائنون)',      type: 'liability', role: 'ap' },
+  { id: 6,  code: '2200', name: 'ضريبة القيمة المضافة',     type: 'liability', role: 'vat' },
+  { id: 7,  code: '3100', name: 'رأس المال',                type: 'equity',    role: 'capital' },
+  { id: 8,  code: '3200', name: 'الأرباح المحتجزة',         type: 'equity',    role: 'retained' },
+  { id: 9,  code: '4100', name: 'إيرادات المبيعات',         type: 'revenue',   role: 'sales' },
+  { id: 10, code: '5100', name: 'تكلفة البضاعة المباعة',    type: 'expense',   role: 'cogs' },
+  { id: 11, code: '5200', name: 'مصروفات تشغيلية',          type: 'expense',   role: 'expense' },
+  { id: 12, code: '5300', name: 'الخصومات الممنوحة',        type: 'expense',   role: 'discount' },
 ];
 
 export async function ensureChartOfAccounts() {
   if (await db.accounts.count() > 0) return;
   const iso = nowISO();
   for (const a of DEFAULT_ACCOUNTS) {
+    // explicit id → the creating hook leaves it; a racing duplicate is ignored
     try { await db.accounts.add({ ...a, parentId: null, isGroup: false, system: true, createdAt: iso }); }
     catch (e) { if (e.name !== 'ConstraintError') throw e; }
   }

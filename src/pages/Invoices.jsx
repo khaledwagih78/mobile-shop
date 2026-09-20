@@ -68,6 +68,7 @@ export default function Invoices() {
           <option value="sale">مبيعات</option>
           <option value="purchase">مشتريات</option>
           <option value="quote">عروض أسعار</option>
+          <option value="po">طلبات شراء</option>
           <option value="sale_return">مرتجع بيع</option>
           <option value="purchase_return">مرتجع شراء</option>
         </select>
@@ -107,6 +108,7 @@ export default function Invoices() {
                     {inv.type === 'sale' ? <span className="badge primary">بيع</span>
                       : inv.type === 'purchase' ? <span className="badge gray">شراء</span>
                       : inv.type === 'quote' ? <span className="badge amber">عرض سعر</span>
+                      : inv.type === 'po' ? <span className="badge amber">طلب شراء</span>
                       : inv.type === 'sale_return' ? <span className="badge red">مرتجع بيع</span>
                       : inv.type === 'purchase_return' ? <span className="badge red">مرتجع شراء</span>
                       : <span className="badge gray">{inv.type}</span>}
@@ -116,6 +118,7 @@ export default function Invoices() {
                   <td>
                     {inv.status === 'cancelled' ? <span className="badge red">ملغاة</span>
                       : inv.status === 'quote' ? <span className="badge amber">عرض</span>
+                      : inv.status === 'po' ? <span className="badge amber">طلب</span>
                       : inv.status === 'converted' ? <span className="badge green">محوّل</span>
                       : inv.remaining > 0
                         ? <span className="badge amber">آجل {money(inv.remaining)}</span>

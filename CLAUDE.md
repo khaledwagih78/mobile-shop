@@ -201,7 +201,9 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - Two tables (v10): `accounts` (chart of accounts; system accounts carry a `role`)
   and `journalEntries` (balanced vouchers with embedded `lines`). `ensureSeed`
   seeds a default Arabic chart via `ensureChartOfAccounts` (roles: cash, bank, ar,
-  inventory, ap, vat, capital, retained, sales, cogs, expense, discount).
+  inventory, ap, vat, capital, retained, sales, cogs, expense, discount). System
+  accounts use **fixed ids 1–12** (like `DEFAULT_BRANCH_ID`) so every device agrees
+  and a concurrent double-seed hits a ConstraintError instead of duplicating.
 - **Auto-posting:** `saveInvoice`, `saveReturn`, `cancelInvoice` (reversing),
   `restoreInvoice`, `recordPayment` and `recordExpense` each post a balanced entry
   **inside their own transaction** via the internal `writeJournalEntry` (which is
@@ -283,6 +285,18 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   sets the discount and stores `couponCode` on the invoice; the coupon is redeemed
   after a successful save. Item-level quantity pricing still lives on the item
   (`wholesalePrice`/`wholesaleMinQty`).
+
+### Purchase orders & landed cost
+
+- A purchase order is an invoice of `type:'po'` (status `po`) created via
+  `InvoiceEditor` (`type="po"`, route `/purchase-order`) → `savePurchaseOrder`
+  (number `PO<dev>-…`, no stock/accounting effect, like a quote). It appears in
+  the Invoices list and is opened from `InvoiceView`.
+- `convertPurchaseOrder(poId, {extraCosts, allocation:'value'|'qty', paid})` runs
+  `saveInvoice` for the purchase, then distributes `extraCosts` (shipping/customs)
+  across the lines to raise each item's `costPrice` to the real landed unit cost,
+  and posts one extra entry (Dr inventory / Cr cash) for the added cost. `InvoiceView`
+  drives this from a modal on the PO.
 
 ### WhatsApp auto-send (opt-in)
 

@@ -49,6 +49,7 @@ function Shell() {
         <Route index element={<Dashboard />} />
         <Route path="pos" element={<Guard action="pos"><InvoiceEditor type="sale" key="sale" /></Guard>} />
         <Route path="purchase" element={<Guard action="purchase"><InvoiceEditor type="purchase" key="purchase" /></Guard>} />
+        <Route path="purchase-order" element={<Guard action="purchase"><InvoiceEditor type="po" key="po" /></Guard>} />
         <Route path="quote" element={<Guard action="quote"><InvoiceEditor type="quote" key="quote" /></Guard>} />
         <Route path="sale-return" element={<Guard action="returns"><InvoiceEditor type="sale_return" key="sret" /></Guard>} />
         <Route path="purchase-return" element={<Guard action="returns"><InvoiceEditor type="purchase_return" key="pret" /></Guard>} />
