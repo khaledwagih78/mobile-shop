@@ -215,6 +215,21 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   maps each type to its normal side. Posting starts at adoption — historical
   invoices predating v10 have no entries.
 
+### Treasury — cashboxes & banks (`src/pages/Treasury.jsx`)
+
+- A cashbox/bank **is** a chart-of-accounts asset account flagged `cashbox: true`
+  (`cbType: 'cash'|'bank'`), so its balance is exactly its ledger balance — no
+  separate cash ledger, no drift. The seeded الصندوق/البنك are cashboxes;
+  `ensureCashboxes` backfills the flag for pre-existing databases.
+- `createCashbox({name, cbType, openingBalance, ...})` adds the account and posts
+  an opening entry (Dr cashbox / Cr capital). `postCashMovement({cashboxId,
+  direction:'in'|'out', counterAccountId, amount, ...})` posts a receipt
+  (Dr cashbox / Cr counter) or payment (Dr counter / Cr cashbox);
+  `postCashTransfer({fromId, toId, amount})` posts Dr destination / Cr source.
+  All go through `postJournal`, so treasury and accounting can never disagree.
+- The page shows per-cashbox balances, a statement (ledger) per cashbox, and a
+  simple bank reconciliation (enter the actual bank balance → shows the difference).
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a

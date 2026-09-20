@@ -250,6 +250,7 @@ export async function nextInvoiceNumber(type) {
 export async function ensureSeed() {
   await ensureDefaultBranch();
   await ensureChartOfAccounts();
+  await ensureCashboxes();
   const count = await db.users.count();
   if (count === 0) {
     await db.users.add({
@@ -705,8 +706,8 @@ export const ACCOUNT_TYPES = {
 // Default chart of accounts, seeded once. `role` marks the "system" accounts the
 // auto-posting engine targets (resolved by role so renames/re-codes don't break it).
 const DEFAULT_ACCOUNTS = [
-  { code: '1100', name: 'الصندوق (النقدية)',        type: 'asset',     role: 'cash' },
-  { code: '1200', name: 'البنك',                    type: 'asset',     role: 'bank' },
+  { code: '1100', name: 'الصندوق (النقدية)',        type: 'asset',     role: 'cash', cashbox: true, cbType: 'cash' },
+  { code: '1200', name: 'البنك',                    type: 'asset',     role: 'bank', cashbox: true, cbType: 'bank' },
   { code: '1300', name: 'العملاء (المدينون)',       type: 'asset',     role: 'ar' },
   { code: '1400', name: 'المخزون',                  type: 'asset',     role: 'inventory' },
   { code: '2100', name: 'الموردون (الدائنون)',      type: 'liability', role: 'ap' },
@@ -816,6 +817,72 @@ export async function postJournal(args) {
   return db.transaction('rw', [db.accounts, db.journalEntries, db.syncQueue], async () => {
     const accounts = await db.accounts.toArray();
     return writeJournalEntry({ ...args, accounts });
+  });
+}
+
+// ---------- treasury: cashboxes & banks ----------
+// A cashbox/bank IS a chart-of-accounts asset account flagged `cashbox: true`,
+// so its balance is exactly its ledger balance — one source of truth, no drift.
+// Backfill flags on the seeded cash/bank accounts for databases created before this.
+export async function ensureCashboxes() {
+  const cash = await db.accounts.where('role').equals('cash').first();
+  if (cash && !cash.cashbox) await db.accounts.update(cash.id, { cashbox: true, cbType: 'cash' });
+  const bank = await db.accounts.where('role').equals('bank').first();
+  if (bank && !bank.cashbox) await db.accounts.update(bank.id, { cashbox: true, cbType: 'bank' });
+}
+
+function nextAssetCode(accounts) {
+  const nums = accounts
+    .filter((a) => /^\d+$/.test(a.code)).map((a) => Number(a.code))
+    .filter((n) => n >= 1100 && n < 2000);
+  return String((nums.length ? Math.max(...nums) : 1400) + 10);
+}
+
+// Create a new cashbox/bank (an asset account); an opening balance posts
+// Dr cashbox / Cr capital.
+export async function createCashbox({ name, cbType = 'cash', openingBalance = 0, branchId, userName }) {
+  return db.transaction('rw', [db.accounts, db.journalEntries, db.syncQueue], async () => {
+    const accounts = await db.accounts.toArray();
+    const code = nextAssetCode(accounts);
+    const doc = { code, name: (name || '').trim(), type: 'asset', role: null, cashbox: true, cbType, parentId: null, isGroup: false, system: false, createdAt: nowISO() };
+    const id = await db.accounts.add(doc);
+    await queueSync('accounts', 'add', { ...doc, id });
+    const opening = Number(openingBalance || 0);
+    if (opening > 0) {
+      const capital = accounts.find((a) => a.role === 'capital');
+      await writeJournalEntry({
+        date: today(), description: `رصيد افتتاحي — ${doc.name}`, refType: 'opening', refId: id,
+        branchId: branchId || DEFAULT_BRANCH_ID,
+        lines: [{ accountId: id, debit: opening }, capital && { accountId: capital.id, credit: opening }].filter(Boolean),
+        accounts: [...accounts, { ...doc, id }], userName,
+      });
+    }
+    return { id, code };
+  });
+}
+
+// Cash receipt (Dr cashbox / Cr counter) or payment (Dr counter / Cr cashbox).
+export async function postCashMovement({ cashboxId, direction, counterAccountId, amount, description, day, branchId, userName }) {
+  const amt = Number(amount || 0);
+  if (amt <= 0) throw new Error('أدخل مبلغاً صحيحاً');
+  if (!counterAccountId) throw new Error('اختر الحساب المقابل');
+  const lines = direction === 'in'
+    ? [{ accountId: Number(cashboxId), debit: amt }, { accountId: Number(counterAccountId), credit: amt }]
+    : [{ accountId: Number(counterAccountId), debit: amt }, { accountId: Number(cashboxId), credit: amt }];
+  return postJournal({
+    date: day || today(), description: description || (direction === 'in' ? 'سند قبض' : 'سند صرف'),
+    refType: direction === 'in' ? 'receipt' : 'payment', branchId, lines, userName,
+  });
+}
+
+// Transfer between two cashboxes (Dr destination / Cr source).
+export async function postCashTransfer({ fromId, toId, amount, description, day, branchId, userName }) {
+  const amt = Number(amount || 0);
+  if (amt <= 0) throw new Error('أدخل مبلغاً صحيحاً');
+  if (Number(fromId) === Number(toId)) throw new Error('اختر خزينتين مختلفتين');
+  return postJournal({
+    date: day || today(), description: description || 'تحويل بين الخزائن', refType: 'cash_transfer', branchId,
+    lines: [{ accountId: Number(toId), debit: amt }, { accountId: Number(fromId), credit: amt }], userName,
   });
 }
 

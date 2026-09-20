@@ -27,6 +27,7 @@ import CustomFields from './pages/CustomFields';
 import Sector from './pages/Sector';
 import Production from './pages/Production';
 import Accounting from './pages/Accounting';
+import Treasury from './pages/Treasury';
 import { can } from './utils';
 
 function Guard({ action, children }) {
@@ -72,6 +73,7 @@ function Shell() {
         <Route path="sector" element={<Guard action="sector"><Sector /></Guard>} />
         <Route path="production" element={<Guard action="production"><Production /></Guard>} />
         <Route path="accounting" element={<Guard action="accounting"><Accounting /></Guard>} />
+        <Route path="treasury" element={<Guard action="treasury"><Treasury /></Guard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -35,6 +35,7 @@ const MENU = [
   { to: '/expenses',   ico: '💸', label: 'المصروفات',  action: 'expenses'   },
   { to: '/employees',  ico: '👷', label: 'الموظفين',   action: 'employees'  },
   { to: '/accounting', ico: '📒', label: 'المحاسبة', action: 'accounting' },
+  { to: '/treasury', ico: '🏦', label: 'الخزائن والبنوك', action: 'treasury' },
   { to: '/reports', ico: '📈', label: 'التقارير', action: 'reports' },
   { to: '/audit', ico: '📋', label: 'سجل النشاطات', action: 'reports' },
   { to: '/import', ico: '📑', label: 'استيراد Excel', action: 'import' },
