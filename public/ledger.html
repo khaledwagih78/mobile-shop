@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f766e">
+<title>دفتر حسابات العملاء</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{--bg:#f1f5f9;--line:#e2e8f0;--primary:#0f766e;--red:#dc2626;--red-bg:#fee2e2;--green:#15803d;--green-bg:#dcfce7;--text:#0f172a;--muted:#64748b}
+html,body{margin:0}
+body{font-family:'Cairo',Tahoma,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+header{background:var(--primary);color:#fff;padding:12px 0}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{font-size:19px;margin:0;font-weight:800}
+main{max-width:980px;margin:18px auto 60px;padding:0 16px}
+.status{font-size:12px;font-weight:800;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;white-space:nowrap}
+.status.bad{background:#fff;color:#b91c1c}
+.warn{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-weight:700;line-height:2}
+.btn{border:none;border-radius:10px;padding:10px 16px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;background:var(--primary);color:#fff;transition:.15s}
+.btn:hover{filter:brightness(.92)}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+header .btn.ghost{color:#fff;border-color:rgba(255,255,255,.45)}
+.btn.red{background:var(--red)}
+.btn.green{background:var(--green)}
+.btn.sm{padding:6px 12px;font-size:13px}
+.iconbtn{background:transparent;border:none;cursor:pointer;font-size:16px;padding:4px 6px;border-radius:6px}
+.iconbtn:hover{background:rgba(0,0,0,.06)}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+input,select,textarea{font-family:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;width:100%;color:var(--text)}
+input:focus,textarea:focus{outline:2px solid var(--primary);border-color:var(--primary)}
+#search{flex:1;min-width:220px;width:auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.stat .lbl{color:var(--muted);font-size:12px;font-weight:700}
+.stat .val{font-size:17px;font-weight:800;margin-top:2px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{background:#f8fafc;color:var(--muted);font-size:12px;text-align:right;padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:hover td{background:#f8fafc}
+.rowlink{cursor:pointer}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:800;font-size:13px;white-space:nowrap}
+.badge.neg{background:var(--red-bg);color:var(--red)}
+.badge.pos{background:var(--green-bg);color:var(--green)}
+.badge.zero{background:#f1f5f9;color:var(--muted)}
+.tag{font-size:12px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap;display:inline-block}
+.tag.out{background:#fef3c7;color:#92400e}
+.tag.in{background:#dbeafe;color:#1e40af}
+.empty{text-align:center;color:var(--muted);padding:34px 10px}
+.topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.balance-card{border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;border:1px solid var(--line)}
+.balance-card .lbl{font-size:14px;font-weight:700;color:var(--muted)}
+.balance-card .val{font-size:30px;font-weight:800;margin-top:4px}
+.balance-card.neg{background:var(--red-bg);border-color:#fecaca}.balance-card.neg .val{color:var(--red)}
+.balance-card.pos{background:var(--green-bg);border-color:#bbf7d0}.balance-card.pos .val{color:var(--green)}
+.balance-card.zero{background:#f1f5f9}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.mini .stat .val{font-size:16px}
+dialog{border:none;border-radius:16px;padding:0;width:min(520px,calc(100% - 32px));box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(15,23,42,.55)}
+.dlg-body{padding:20px}
+.dlg-body h3{margin:0 0 14px;font-size:17px}
+#reportDialog{width:min(780px,calc(100% - 32px))}
+#reportDialog .dlg-body,#smsDialog .dlg-body{max-height:75vh;overflow:auto}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;font-weight:700;margin-bottom:5px;color:#334155}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dlg-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg label{flex:1;margin:0}
+.seg span{display:block;text-align:center;padding:10px;font-weight:800;font-size:14px;cursor:pointer;background:#fff;color:var(--muted)}
+.seg input{display:none}
+.seg input[value="out"]:checked + span{background:#fef3c7;color:#92400e}
+.seg input[value="in"]:checked + span{background:#dbeafe;color:#1e40af}
+.rp-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.rp-box{border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.rp-box .l{font-size:12px;color:var(--muted);font-weight:700}
+.rp-box .v{font-size:16px;font-weight:800;margin-top:2px}
+.rp-head{border-bottom:2px solid var(--primary);padding-bottom:10px;margin-bottom:12px}
+.rp-head h2{margin:0 0 6px;font-size:20px}
+.rp-head div{color:var(--muted);font-size:13px}
+#smsBody select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;font-family:inherit;font-size:13px;max-width:170px}
+.hint{background:#f0fdfa;border:1px solid #ccfbf1;color:#134e4a;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.9;margin-bottom:12px}
+@media print{
+  @page{size:A4;margin:14mm}
+  body *{visibility:hidden!important}
+  #reportPrint,#reportPrint *{visibility:visible!important}
+  #reportDialog{position:static!important;width:100%!important;max-width:none!important;max-height:none!important;overflow:visible!important;box-shadow:none!important}
+  #reportDialog .dlg-body{max-height:none!important;overflow:visible!important;padding:0!important}
+  #reportPrint{position:absolute;top:0;right:0;left:0}
+  .no-print{display:none!important}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>📒 دفتر حسابات العملاء</h1>
+    <span class="status" id="saveState">...</span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost" id="btnLinkFile" title="يشتغل على Chrome/Edge على الكمبيوتر">💾 حفظ تلقائي في ملف</button>
+      <button class="btn ghost" id="btnExport">⬇️ نسخة احتياطية</button>
+      <button class="btn ghost" id="btnImport">⬆️ استيراد</button>
+      <button class="btn ghost" id="btnSettings">⚙️</button>
+    </div>
+  </div>
+</header>
+<input type="file" id="fileImport" accept=".json,application/json" hidden>
+
+<main>
+  <div class="warn" id="warnBar" hidden>
+    ⚠️ <strong>المتصفح مانع الحفظ على الجهاز!</strong>
+    غالبًا إنت في وضع التصفح الخاص أو إعدادات المتصفح بتتمسح تلقائي.
+    الحل: اقفل الصفحة وافتح الملف في Chrome أو Edge عادي (مش تصفح خاص) على نفس الجهاز.
+  </div>
+
+  <!-- شاشة العملاء -->
+  <section id="viewClients">
+    <div class="toolbar">
+      <input type="text" id="search" placeholder="🔍 ابحث بالاسم أو رقم التليفون...">
+      <button class="btn" id="btnAddClient">➕ عميل جديد</button>
+      <button class="btn ghost" id="btnSmsOpen">📨 تفريغ رسائل تحويلات</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="lbl">عدد العملاء</div><div class="val" id="statClients">0</div></div>
+      <div class="stat"><div class="lbl">إجمالي المطلوب من العملاء</div><div class="val" id="statOwed" style="color:var(--red)">0</div></div>
+      <div class="stat"><div class="lbl">إجمالي لصالح العملاء</div><div class="val" id="statFav" style="color:var(--green)">0</div></div>
+    </div>
+    <div class="card table-wrap">
+      <table>
+        <thead><tr><th>العميل</th><th>عدد العمليات</th><th>الرصيد</th><th>إجراءات</th></tr></thead>
+        <tbody id="clientsBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- شاشة العميل -->
+  <section id="viewClient" hidden>
+    <div class="topbar">
+      <button class="btn ghost" id="btnBack">→ رجوع</button>
+      <h2 style="margin:0;font-size:18px" id="cName"></h2>
+      <small style="color:var(--muted)" id="cPhoneWrap">📞 <a id="cPhone" style="color:var(--primary);text-decoration:none"></a></small>
+      <span style="flex:1"></span>
+      <button class="btn ghost sm" id="btnEditClient">✏️ تعديل بيانات</button>
+      <button class="btn ghost sm" id="btnReportClient">🖨️ تقرير</button>
+    </div>
+    <div class="balance-card" id="balanceCard">
+      <div class="lbl" id="balLbl"></div>
+      <div class="val" id="balVal"></div>
+    </div>
+    <div class="actions">
+      <button class="btn red" id="btnTxOut">📤 حوّلت له كاش</button>
+      <button class="btn green" id="btnTxIn">📥 استلمت منه فلوس</button>
+    </div>
+    <div class="mini">
+      <div class="stat"><div class="lbl">إجمالي المُحوَّل له</div><div class="val" id="sumOut"></div></div>
+      <div class="stat"><div class="lbl">إجمالي المستلم منه</div><div class="val" id="sumIn"></div></div>
+    </div>
+    <div class="card table-wrap">
+      <table>
+        <thead><tr><th>التاريخ</th><th>نوع العملية</th><th>المبلغ</th><th>ملاحظة</th><th>الرصيد بعدها</th><th></th></tr></thead>
+        <tbody id="txBody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<dialog id="clDialog">
+  <form id="clForm" class="dlg-body">
+    <h3 id="clTitle">عميل جديد</h3>
+    <div class="field"><label>اسم العميل *</label><input type="text" id="clName" required></div>
+    <div class="field"><label>رقم المحفظة / التليفون</label><input type="tel" id="clPhone"></div>
+    <div class="dlg-actions">
+      <button type="submit" class="btn">حفظ</button>
+      <button type="button" class="btn ghost" onclick="this.closest('dialog').close()">إلغاء</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="txDialog">
+  <form id="txForm" class="dlg-body">
+    <h3 id="txTitle"></h3>
+    <div class="field"><label>نوع العملية</label>
+      <div class="seg">
+        <label><input type="radio" name="txType" value="out" checked><span>📤 حوّلت له (يلزم عليه)</span></label>
+        <label><input type="radio" name="txType" value="in"><span>📥 استلمت منه (يخصم)</span></label>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>المبلغ *</label><input type="number" id="txAmount" min="0.01" step="any" required></div>
+      <div class="field"><label>التاريخ</label><input type="date" id="txDate"></div>
+    </div>
+    <div class="field"><label>ملاحظة</label><input type="text" id="txNote" placeholder="اختياري..."></div>
+    <div class="dlg-actions">
+      <button type="submit" class="btn">حفظ العملية</button>
+      <button type="button" class="btn ghost" onclick="this.closest('dialog').close()">إلغاء</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- نافذة: تفريغ رسائل التحويلات -->
+<dialog id="smsDialog">
+  <form id="smsForm" class="dlg-body">
+    <h3>📨 تفريغ رسائل التحويلات</h3>
+    <div class="hint">
+      الصق رسايل التحويل زي ما هي (رسالة أو أكتر)، والبرنامج هيفهم المبلغ ورقم المحفظة لوحده،
+      ويربط كل رسالة بالعميل صاحب الرقم — ولو الرقم مش مسجل يعملك عميل جديد بيه.<br>
+      مثال: <b>تم تحويل 15200 جنيه لرقم 01100358137 مصاريف الخدمة 0 جنيه</b>
+    </div>
+    <div class="field">
+      <label>الرسايل</label>
+      <textarea id="smsText" rows="7" placeholder="مثال:&#10;تم تحويل 17500 جنيه لرقم 01100358137 مصاريف الخدمة 0 جنيه . اطلب #9*9&#10;تم تحويل 15200 جنيه لرقم 01100358137 مصاريف الخدمة 0 جنيه"></textarea>
+    </div>
+    <div class="row2">
+      <div class="field"><label>تاريخ العمليات</label><input type="date" id="smsDate"></div>
+      <div class="field"><label>&nbsp;</label><button type="button" class="btn" id="btnParse" style="width:100%">🔍 تحليل الرسائل</button></div>
+    </div>
+    <div id="smsPreviewWrap" hidden>
+      <div class="table-wrap" style="max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:10px">
+        <table>
+          <thead><tr><th>المبلغ</th><th>النوع</th><th>الرقم</th><th>العميل</th><th></th></tr></thead>
+          <tbody id="smsBody"></tbody>
+        </table>
+      </div>
+      <div id="smsSkip" style="color:#b45309;font-size:12px;font-weight:700;margin-top:6px"></div>
+    </div>
+    <div class="dlg-actions">
+      <button type="submit" class="btn green" id="btnSmsConfirm" hidden>➕ إضافة العمليات</button>
+      <button type="button" class="btn ghost" onclick="this.closest('dialog').close()">إغلاق</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="reportDialog">
+  <div class="dlg-body">
+    <div class="no-print" style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn" onclick="window.print()">🖨️ طباعة / PDF</button>
+      <button class="btn green" id="btnCopy">📋 نسخ نص التقرير</button>
+      <button class="btn ghost" onclick="document.getElementById('reportDialog').close()">إغلاق</button>
+    </div>
+    <div id="reportPrint"></div>
+  </div>
+</dialog>
+
+<dialog id="setDialog">
+  <form id="setForm" class="dlg-body">
+    <h3>الإعدادات</h3>
+    <div class="field"><label>اسم العملة</label><input type="text" id="curInput" placeholder="جنيه / ريال / درهم..."></div>
+    <div class="dlg-actions">
+      <button type="submit" class="btn">حفظ</button>
+      <button type="button" class="btn ghost" onclick="this.closest('dialog').close()">إلغاء</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const LS='cashbook_v1';
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const nf=new Intl.NumberFormat('en-US',{maximumFractionDigits:2});
+let db=load(),current=null,editingTxId=null,editingClientId=null;
+let fh=null;
+
+function load(){try{const d=JSON.parse(localStorage.getItem(LS));if(d&&Array.isArray(d.clients))return d;}catch(e){}return{currency:'جنيه',clients:[]};}
+
+function storageOK(){try{localStorage.setItem('__t','1');localStorage.removeItem('__t');return true;}catch(e){return false;}}
+function setStatus(txt,bad){const el=$('#saveState');el.textContent=txt;el.classList.toggle('bad',!!bad);}
+function save(){
+  try{
+    localStorage.setItem(LS,JSON.stringify(db));
+    const t=new Date();
+    setStatus('✅ اتحفظ '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0'),false);
+  }catch(e){
+    setStatus('⚠️ الحفظ على الجهاز مقفول!',true);
+  }
+  writeFH();
+}
+
+function idbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open('cashbook_fs',1);r.onupgradeneeded=()=>r.result.createObjectStore('st');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function idbSet(k,v){try{const d=await idbOpen();await new Promise((res,rej)=>{const t=d.transaction('st','readwrite');t.objectStore('st').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});}catch(e){}}
+async function idbGet(k){try{const d=await idbOpen();return await new Promise((res,rej)=>{const t=d.transaction('st','readonly');const q=t.objectStore('st').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);});}catch(e){return null;}}
+
+async function writeFH(){
+  if(!fh)return;
+  try{const w=await fh.createWritable();await w.write(JSON.stringify(db,null,2));await w.close();}catch(e){}
+}
+(async()=>{
+  const btn=$('#btnLinkFile');
+  if(!window.showSaveFilePicker){btn.style.display='none';return;}
+  const h=await idbGet('fh');
+  if(h){fh=h;btn.textContent='📂 استرجاع من ملف الحفظ';}
+})();
+ $('#btnLinkFile').onclick=async()=>{
+  if(!window.showSaveFilePicker)return;
+  if(!fh){
+    try{
+      fh=await window.showSaveFilePicker({suggestedName:'cashbook-data.json',types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+      await idbSet('fh',fh);
+      await writeFH();
+      $('#btnLinkFile').textContent='💾 ملف الحفظ متصل ✅';
+      alert('تم الربط ✅\nمن دلوقتي أي تغيير هيتكتب تلقائيًا في الملف على جهازك.\nالمرة الجاية لما تفتح البرنامج دوس نفس الزرار عشان ترجّع بياناتك من الملف.');
+    }catch(e){}
+    return;
+  }
+  try{
+    let p=await fh.queryPermission({mode:'readwrite'});
+    if(p!=='granted')p=await fh.requestPermission({mode:'readwrite'});
+    if(p!=='granted')return;
+    const d=JSON.parse(await (await fh.getFile()).text());
+    if(!d||!Array.isArray(d.clients))throw 0;
+    if(JSON.stringify(d)===JSON.stringify(db))return alert('البيانات محدّثة بالفعل ✅');
+    if(confirm('هترجّع بيانات البرنامج من ملف الحفظ وتستبدل الحالية. متأكد؟')){
+      db=d;save();renderClients();
+      if(current){const c=db.clients.find(x=>x.id===current.id);if(c)renderClient();else $('#btnBack').click();}
+      alert('تم الاسترجاع ✅');
+    }
+  }catch(e){alert('مش قادر أقرا ملف الحفظ ❌');}
+};
+
+const money=n=>nf.format(n)+' '+(db.currency||'');
+const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const fmtD=iso=>{if(!iso)return'';const p=iso.split('-');return p[2]+'/'+p[1]+'/'+p[0];};
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const balanceOf=c=>c.tx.reduce((s,t)=>s+(t.type==='out'?t.amount:-t.amount),0);
+const sortedTx=c=>[...c.tx].sort((a,b)=>(a.date+' '+a.at).localeCompare(b.date+' '+b.at));
+const totals=c=>{const o=c.tx.filter(t=>t.type==='out').reduce((s,t)=>s+t.amount,0);const i=c.tx.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);return{o,i};};
+const phoneKey=p=>String(p||'').replace(/\D/g,'');
+function findClientByPhone(ph){
+  const k=phoneKey(ph);if(!k)return null;
+  return db.clients.find(c=>{
+    const ck=phoneKey(c.phone);
+    return ck===k||(k.length>=9&&ck.endsWith(k.slice(-9)))||(ck.length>=9&&k.endsWith(ck.slice(-9)));
+  })||null;
+}
+
+function normDigits(s){
+  const ar='٠١٢٣٤٥٦٧٨٩',fa='۰۱۲۳۴۵۶۷۸۹';
+  return String(s).replace(/[٠-٩]/g,d=>String(ar.indexOf(d))).replace(/[۰-۹]/g,d=>String(fa.indexOf(d)));
+}
+function splitSmsBlocks(text){
+  const t=normDigits(text).replace(/\r/g,'');
+  return t.split(/(?=تم\s*تحويل|تم\s*ايداع|تم\s*إيداع|تم\s*أيداع|استلمت)/)
+          .map(p=>p.trim()).filter(p=>p.replace(/\s/g,'').length>8);
+}
+function parseSmsBlock(raw){
+  let t=normDigits(raw).replace(/[‎‏‪-‮]/g,' ').replace(/\s+/g,' ');
+  const out={ok:false,amount:0,phone:'',fee:null,type:'out'};
+  if(!/تحويل|ايداع|إيداع|استلم/.test(t))return out;
+  if(/من رقم|استلمت|وصلني|ايداع|إيداع/.test(t))out.type='in';
+  const pm=t.match(/01\d{9}/);
+  if(pm)out.phone=pm[0];
+  const fm=t.match(/مصاريف\s*الخدمة\s*([\d,\.]+)/);
+  if(fm)out.fee=parseFloat(fm[1].replace(/,/g,''));
+  const bm=t.match(/الرصيد\s*([\d,\.]+)/);
+  const bal=bm?parseFloat(bm[1].replace(/,/g,'')):null;
+  let amounts=[...t.matchAll(/([\d][\d,\.]*)\s*(?:جنيه|ج\.م|EGP)/gi)].map(m=>parseFloat(m[1].replace(/,/g,'')));
+  if(!amounts.length){
+    const am2=[...t.matchAll(/(?:جنيه|ج\.م)\s*([\d][\d,\.]*)/gi)].map(m=>parseFloat(m[1].replace(/,/g,'')));
+    amounts=am2;
+  }
+  if(out.fee!=null)amounts=amounts.filter(a=>a!==out.fee);
+  if(bal!=null)amounts=amounts.filter(a=>a!==bal);
+  if(!amounts.length){
+    const am=t.match(/تحويل\s*([\d,\.]+)/);
+    if(am)amounts=[parseFloat(am[1].replace(/,/g,''))];
+  }
+  if(!amounts.length)return out;
+  out.amount=amounts[0];
+  out.ok=out.amount>0;
+  return out;
+}
+
+/* ============== تفريغ رسائل التحويلات ============== */
+let smsRows=[],smsSkipped=0;
+ $('#btnSmsOpen').onclick=()=>{
+  smsRows=[];smsSkipped=0;
+  $('#smsText').value='';$('#smsDate').value=todayISO();
+  $('#smsPreviewWrap').hidden=true;$('#btnSmsConfirm').hidden=true;
+  $('#smsSkip').textContent='';
+  $('#smsDialog').showModal();
+};
+ $('#btnParse').onclick=()=>{
+  const txt=$('#smsText').value;
+  const blocks=splitSmsBlocks(txt);
+  smsRows=[];smsSkipped=0;
+  for(const b of blocks){
+    const r=parseSmsBlock(b);
+    if(!r.ok){smsSkipped++;continue;}
+    const match=r.phone?findClientByPhone(r.phone):null;
+    smsRows.push({amount:r.amount,type:r.type,phone:r.phone,clientId:match?match.id:''});
+  }
+  renderSmsPreview();
+};
+function renderSmsPreview(){
+  const tb=$('#smsBody');tb.innerHTML='';
+  if(!smsRows.length){
+    $('#smsPreviewWrap').hidden=false;
+    $('#btnSmsConfirm').hidden=true;
+    tb.innerHTML='<tr><td colspan="5" class="empty">مفيش رسايل اتفهمت من النص ده</td></tr>';
+    $('#smsSkip').textContent=smsSkipped?('عدد الرسايل اللي اتخطّت: '+smsSkipped):'';
+    return;
+  }
+  const opts=db.clients.map(c=>'<option value="'+c.id+'">'+esc(c.name)+(c.phone?(' - '+esc(c.phone)):'')+'</option>').join('');
+  smsRows.forEach((r,i)=>{
+    const sel='<select data-i="'+i+'" class="smsSel">'+
+      '<option value="">➕ عميل جديد بالرقم</option>'+opts+'</select>';
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td><b>'+money(r.amount)+'</b></td>'+
+      '<td><span class="tag '+(r.type==='out'?'out':'in')+'">'+(r.type==='out'?'📤 محوّل له':'📥 مستلم منه')+'</span></td>'+
+      '<td>'+esc(r.phone||'—')+'</td>'+
+      '<td>'+sel+'</td>'+
+      '<td><button type="button" class="iconbtn smsDel" data-i="'+i+'" title="حذف">🗑️</button></td>';
+    tb.appendChild(tr);
+    tr.querySelector('select').value=r.clientId||'';
+  });
+  tb.querySelectorAll('.smsSel').forEach(s=>s.onchange=e=>{smsRows[+e.target.dataset.i].clientId=e.target.value;});
+  tb.querySelectorAll('.smsDel').forEach(b=>b.onclick=e=>{smsRows.splice(+e.currentTarget.dataset.i,1);renderSmsPreview();});
+  $('#smsPreviewWrap').hidden=false;
+  $('#btnSmsConfirm').hidden=false;
+  $('#smsSkip').textContent=smsSkipped?('عدد الرسايل اللي اتخطّت (مش مفهومة): '+smsSkipped):'';
+}
+ $('#smsForm').onsubmit=e=>{
+  e.preventDefault();
+  if(!smsRows.length)return;
+  const date=$('#smsDate').value||todayISO();
+  let added=0,newClients=0;
+  smsRows.forEach(r=>{
+    let c=r.clientId?db.clients.find(x=>x.id===r.clientId):null;
+    if(!c){
+      c={id:uid(),name:(r.phone||('عميل '+(db.clients.length+1))),phone:r.phone||'',tx:[]};
+      db.clients.push(c);newClients++;
+    }
+    c.tx.push({id:uid(),type:r.type,amount:r.amount,date,note:'تحويل تلقائي من رسالة',at:new Date().toISOString()});
+    added++;
+  });
+  save();renderClients();
+  $('#smsDialog').close();
+  alert('تمت إضافة '+added+' عملية'+(newClients?(' — واتعمل '+newClients+' عميل جديد'):'')+' ✅');
+};
+
+/* ============== شاشة العملاء ============== */
+function statuses(bal){
+  if(bal>0)return{cls:'neg',lbl:'مطلوب من العميل',sign:''};
+  if(bal<0)return{cls:'pos',lbl:'لصالح العميل',sign:''};
+  return{cls:'zero',lbl:'الحساب متساوي',sign:''};
+}
+function renderClients(){
+  const q=phoneKey($('#search').value);
+  const qtext=$('#search').value.trim().toLowerCase();
+  let list=[...db.clients];
+  if(qtext){
+    list=list.filter(c=>{
+      const nameHit=(c.name||'').toLowerCase().includes(qtext);
+      const phoneHit=q&&phoneKey(c.phone).includes(q);
+      return nameHit||phoneHit;
+    });
+  }
+  list.sort((a,b)=>Math.abs(balanceOf(b))-Math.abs(balanceOf(a)));
+  const tb=$('#clientsBody');tb.innerHTML='';
+  if(!list.length){
+    tb.innerHTML='<tr><td colspan="4" class="empty">'+(db.clients.length?'مفيش نتايج للبحث':'مفيش عملاء لسه — دوس «عميل جديد» أو «تفريغ رسائل تحويلات»')+'</td></tr>';
+  }else{
+    list.forEach(c=>{
+      const bal=balanceOf(c);const st=statuses(bal);
+      const tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td class="rowlink" data-id="'+c.id+'"><b>'+esc(c.name)+'</b>'+(c.phone?('<br><small style="color:var(--muted)">📞 '+esc(c.phone)+'</small>'):'')+'</td>'+
+        '<td>'+c.tx.length+'</td>'+
+        '<td><span class="badge '+st.cls+'">'+money(Math.abs(bal))+'</span></td>'+
+        '<td style="white-space:nowrap">'+
+          '<button class="iconbtn actOpen" data-id="'+c.id+'" title="فتح">👁️</button>'+
+          '<button class="iconbtn actDel" data-id="'+c.id+'" title="حذف العميل">🗑️</button>'+
+        '</td>';
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll('.rowlink,.actOpen').forEach(el=>el.onclick=()=>openClient(el.dataset.id));
+    tb.querySelectorAll('.actDel').forEach(el=>el.onclick=e=>{
+      e.stopPropagation();
+      const c=db.clients.find(x=>x.id===el.dataset.id);if(!c)return;
+      if(confirm('هتمسح العميل «'+c.name+'» وكل عملياته ('+c.tx.length+'). متأكد؟')){
+        db.clients=db.clients.filter(x=>x.id!==c.id);save();renderClients();
+      }
+    });
+  }
+  const owed=db.clients.reduce((s,c)=>{const b=balanceOf(c);return s+(b>0?b:0);},0);
+  const fav=db.clients.reduce((s,c)=>{const b=balanceOf(c);return s+(b<0?-b:0);},0);
+  $('#statClients').textContent=db.clients.length;
+  $('#statOwed').textContent=money(owed);
+  $('#statFav').textContent=money(fav);
+}
+ $('#search').oninput=renderClients;
+
+/* ============== شاشة العميل ============== */
+function openClient(id){
+  current=db.clients.find(c=>c.id===id);
+  if(!current)return;
+  $('#viewClients').hidden=true;
+  $('#viewClient').hidden=false;
+  window.scrollTo(0,0);
+  renderClient();
+}
+ $('#btnBack').onclick=()=>{
+  current=null;
+  $('#viewClient').hidden=true;
+  $('#viewClients').hidden=false;
+  renderClients();
+};
+function renderClient(){
+  const c=current;if(!c)return;
+  $('#cName').textContent=c.name;
+  const pw=$('#cPhoneWrap');
+  if(c.phone){pw.hidden=false;const a=$('#cPhone');a.textContent=c.phone;a.href='tel:'+phoneKey(c.phone);}
+  else pw.hidden=true;
+  const bal=balanceOf(c);const st=statuses(bal);
+  const card=$('#balanceCard');card.className='balance-card '+st.cls;
+  $('#balLbl').textContent=bal===0?st.lbl:(st.lbl);
+  $('#balVal').textContent=money(Math.abs(bal));
+  const t=totals(c);
+  $('#sumOut').textContent=money(t.o);
+  $('#sumIn').textContent=money(t.i);
+  const tb=$('#txBody');tb.innerHTML='';
+  const rows=sortedTx(c);
+  if(!rows.length){
+    tb.innerHTML='<tr><td colspan="6" class="empty">مفيش عمليات لسه</td></tr>';
+  }else{
+    let run=0;
+    rows.forEach(x=>{
+      run+=(x.type==='out'?x.amount:-x.amount);
+      const rst=statuses(run);
+      const tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td>'+fmtD(x.date)+'</td>'+
+        '<td><span class="tag '+(x.type==='out'?'out':'in')+'">'+(x.type==='out'?'📤 حوّلت له':'📥 استلمت منه')+'</span></td>'+
+        '<td><b>'+money(x.amount)+'</b></td>'+
+        '<td>'+esc(x.note||'')+'</td>'+
+        '<td><span class="badge '+rst.cls+'">'+money(Math.abs(run))+'</span></td>'+
+        '<td style="white-space:nowrap">'+
+          '<button class="iconbtn txEdit" data-id="'+x.id+'" title="تعديل">✏️</button>'+
+          '<button class="iconbtn txDel" data-id="'+x.id+'" title="حذف">🗑️</button>'+
+        '</td>';
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll('.txEdit').forEach(b=>b.onclick=()=>openTx(null,b.dataset.id));
+    tb.querySelectorAll('.txDel').forEach(b=>b.onclick=()=>{
+      if(confirm('تمسح العملية دي؟')){
+        c.tx=c.tx.filter(t=>t.id!==b.dataset.id);save();renderClient();
+      }
+    });
+  }
+}
+
+/* ============== إضافة/تعديل عميل ============== */
+ $('#btnAddClient').onclick=()=>{
+  editingClientId=null;
+  $('#clTitle').textContent='عميل جديد';
+  $('#clName').value='';$('#clPhone').value='';
+  $('#clDialog').showModal();
+};
+ $('#btnEditClient').onclick=()=>{
+  if(!current)return;
+  editingClientId=current.id;
+  $('#clTitle').textContent='تعديل بيانات العميل';
+  $('#clName').value=current.name||'';$('#clPhone').value=current.phone||'';
+  $('#clDialog').showModal();
+};
+ $('#clForm').onsubmit=e=>{
+  e.preventDefault();
+  const name=$('#clName').value.trim();
+  const phone=$('#clPhone').value.trim();
+  if(!name)return;
+  if(editingClientId){
+    const c=db.clients.find(x=>x.id===editingClientId);
+    if(c){c.name=name;c.phone=phone;}
+  }else{
+    const c={id:uid(),name,phone,tx:[]};
+    db.clients.push(c);
+  }
+  save();
+  $('#clDialog').close();
+  if(current){renderClient();}
+  renderClients();
+};
+
+/* ============== إضافة/تعديل عملية ============== */
+function openTx(type,txId){
+  if(!current)return;
+  editingTxId=txId||null;
+  if(txId){
+    const x=current.tx.find(t=>t.id===txId);if(!x)return;
+    $('#txTitle').textContent='تعديل العملية';
+    document.querySelector('input[name="txType"][value="'+x.type+'"]').checked=true;
+    $('#txAmount').value=x.amount;
+    $('#txDate').value=x.date||todayISO();
+    $('#txNote').value=x.note||'';
+  }else{
+    $('#txTitle').textContent=type==='out'?'📤 تحويل كاش للعميل':'📥 استلام فلوس من العميل';
+    document.querySelector('input[name="txType"][value="'+type+'"]').checked=true;
+    $('#txAmount').value='';
+    $('#txDate').value=todayISO();
+    $('#txNote').value='';
+  }
+  $('#txDialog').showModal();
+  setTimeout(()=>$('#txAmount').focus(),50);
+}
+ $('#btnTxOut').onclick=()=>openTx('out');
+ $('#btnTxIn').onclick=()=>openTx('in');
+ $('#txForm').onsubmit=e=>{
+  e.preventDefault();
+  if(!current)return;
+  const type=document.querySelector('input[name="txType"]:checked').value;
+  const amount=parseFloat($('#txAmount').value);
+  const date=$('#txDate').value||todayISO();
+  const note=$('#txNote').value.trim();
+  if(!(amount>0))return;
+  if(editingTxId){
+    const x=current.tx.find(t=>t.id===editingTxId);
+    if(x){x.type=type;x.amount=amount;x.date=date;x.note=note;}
+  }else{
+    current.tx.push({id:uid(),type,amount,date,note,at:new Date().toISOString()});
+  }
+  save();
+  $('#txDialog').close();
+  renderClient();
+};
+
+/* ============== التقرير ============== */
+function buildReportText(c){
+  const bal=balanceOf(c);const st=statuses(bal);const t=totals(c);
+  const lines=[];
+  lines.push('دفتر حسابات — كشف حساب');
+  lines.push('العميل: '+c.name+(c.phone?(' | 📞 '+c.phone):''));
+  lines.push('تاريخ التقرير: '+fmtD(todayISO()));
+  lines.push('------------------------------');
+  sortedTx(c).forEach(x=>{
+    lines.push(fmtD(x.date)+' | '+(x.type==='out'?'حوّلت له':'استلمت منه')+' | '+money(x.amount)+(x.note?(' | '+x.note):''));
+  });
+  lines.push('------------------------------');
+  lines.push('إجمالي المُحوَّل له: '+money(t.o));
+  lines.push('إجمالي المستلم منه: '+money(t.i));
+  lines.push('الرصيد: '+money(Math.abs(bal))+' ('+st.lbl+')');
+  return lines.join('\n');
+}
+ $('#btnReportClient').onclick=()=>{
+  if(!current)return;
+  const c=current;
+  const bal=balanceOf(c);const st=statuses(bal);const t=totals(c);
+  let rows=sortedTx(c).map(x=>{
+    return '<tr><td>'+fmtD(x.date)+'</td>'+
+      '<td>'+(x.type==='out'?'📤 حوّلت له':'📥 استلمت منه')+'</td>'+
+      '<td>'+money(x.amount)+'</td>'+
+      '<td>'+esc(x.note||'')+'</td></tr>';
+  }).join('');
+  if(!rows)rows='<tr><td colspan="4" class="empty">مفيش عمليات</td></tr>';
+  $('#reportPrint').innerHTML=
+    '<div class="rp-head"><h2>كشف حساب — '+esc(c.name)+'</h2>'+
+      '<div>'+(c.phone?('📞 '+esc(c.phone)+' • '):'')+'تاريخ التقرير: '+fmtD(todayISO())+'</div></div>'+
+    '<div class="rp-sum">'+
+      '<div class="rp-box"><div class="l">إجمالي المُحوَّل له</div><div class="v" style="color:var(--red)">'+money(t.o)+'</div></div>'+
+      '<div class="rp-box"><div class="l">إجمالي المستلم منه</div><div class="v" style="color:var(--green)">'+money(t.i)+'</div></div>'+
+      '<div class="rp-box"><div class="l">'+st.lbl+'</div><div class="v">'+money(Math.abs(bal))+'</div></div>'+
+    '</div>'+
+    '<table><thead><tr><th>التاريخ</th><th>نوع العملية</th><th>المبلغ</th><th>ملاحظة</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  $('#reportDialog').showModal();
+};
+ $('#btnCopy').onclick=async()=>{
+  if(!current)return;
+  const txt=buildReportText(current);
+  try{await navigator.clipboard.writeText(txt);alert('اتنسخ نص التقرير ✅');}
+  catch(e){
+    const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');alert('اتنسخ نص التقرير ✅');}catch(_){alert('مش قادر أنسخ — انسخه يدوي');}
+    ta.remove();
+  }
+};
+
+/* ============== نسخة احتياطية / استيراد ============== */
+ $('#btnExport').onclick=()=>{
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='cashbook-'+todayISO()+'.json';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+ $('#btnImport').onclick=()=>$('#fileImport').click();
+ $('#fileImport').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const d=JSON.parse(rd.result);
+      if(!d||!Array.isArray(d.clients))throw 0;
+      if(confirm('هتستبدل كل البيانات الحالية بالملف ده. متأكد؟')){
+        db=d;if(!db.currency)db.currency='جنيه';
+        save();renderClients();
+        if(current){const c=db.clients.find(x=>x.id===current.id);if(c){renderClient();}else{$('#btnBack').click();}}
+        alert('تم الاستيراد ✅');
+      }
+    }catch(_){alert('الملف مش صالح ❌');}
+    e.target.value='';
+  };
+  rd.readAsText(f);
+};
+
+/* ============== الإعدادات ============== */
+ $('#btnSettings').onclick=()=>{
+  $('#curInput').value=db.currency||'';
+  $('#setDialog').showModal();
+};
+ $('#setForm').onsubmit=e=>{
+  e.preventDefault();
+  db.currency=$('#curInput').value.trim()||'جنيه';
+  save();
+  $('#setDialog').close();
+  renderClients();
+  if(current)renderClient();
+};
+
+/* ============== بدء التشغيل ============== */
+if(!storageOK())$('#warnBar').hidden=false;
+setStatus(storageOK()?'جاهز':'⚠️ الحفظ مقفول',!storageOK());
+renderClients();
+</script>
+</body>
+</html>
