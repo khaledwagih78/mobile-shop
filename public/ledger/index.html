@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0f766e">
 <title>دفتر حسابات العملاء</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="دفتر الحسابات">
+<link rel="apple-touch-icon" href="/mobile-shop/icon-192.png">
+<link rel="icon" type="image/png" href="/mobile-shop/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -734,6 +741,11 @@ async function saveFile(filename,text){
 if(!storageOK())$('#warnBar').hidden=false;
 setStatus(storageOK()?'جاهز':'⚠️ الحفظ مقفول',!storageOK());
 renderClients();
+
+/* تسجيل service worker عشان يشتغل offline ويتثبّت كتطبيق (على http/https فقط) */
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
+}
 </script>
 </body>
 </html>
