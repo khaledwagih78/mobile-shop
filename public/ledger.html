@@ -681,14 +681,21 @@ function buildReportText(c){
 };
 
 /* ============== نسخة احتياطية / استيراد ============== */
- $('#btnExport').onclick=()=>{
-  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+// حفظ ملف: يشتغل standalone (تنزيل عادي) وكمان جوه Artifact عبر صلاحية downloads
+let _dl=null;try{if(window.claude&&claude.use)claude.use('downloads').then(d=>{_dl=d;}).catch(()=>{});}catch(e){}
+async function saveFile(filename,text){
+  if(_dl){
+    try{await _dl.save({filename,data:text});return;}
+    catch(e){if(e&&e.code==='declined')return;/* غير كده: نكمل للطريقة العادية */}
+  }
+  const blob=new Blob([text],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='cashbook-'+todayISO()+'.json';
+  a.download=filename;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-};
+}
+ $('#btnExport').onclick=()=>saveFile('cashbook-'+todayISO()+'.json',JSON.stringify(db,null,2));
  $('#btnImport').onclick=()=>$('#fileImport').click();
  $('#fileImport').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
