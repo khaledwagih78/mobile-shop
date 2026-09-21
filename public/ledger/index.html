@@ -247,8 +247,10 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 <dialog id="reportDialog">
   <div class="dlg-body">
     <div class="no-print" style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-      <button class="btn" onclick="window.print()">🖨️ طباعة / PDF</button>
-      <button class="btn green" id="btnCopy">📋 نسخ نص التقرير</button>
+      <button class="btn green" id="btnWhats">📲 إرسال واتساب</button>
+      <button class="btn" id="btnShare" hidden>📤 مشاركة</button>
+      <button class="btn ghost" onclick="window.print()">🖨️ طباعة / PDF</button>
+      <button class="btn ghost" id="btnCopy">📋 نسخ النص</button>
       <button class="btn ghost" onclick="document.getElementById('reportDialog').close()">إغلاق</button>
     </div>
     <div id="reportPrint"></div>
@@ -339,6 +341,14 @@ const balanceOf=c=>c.tx.reduce((s,t)=>s+(t.type==='out'?t.amount:-t.amount),0);
 const sortedTx=c=>[...c.tx].sort((a,b)=>(a.date+' '+a.at).localeCompare(b.date+' '+b.at));
 const totals=c=>{const o=c.tx.filter(t=>t.type==='out').reduce((s,t)=>s+t.amount,0);const i=c.tx.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);return{o,i};};
 const phoneKey=p=>String(p||'').replace(/\D/g,'');
+// تحويل الرقم لصيغة دولية للواتساب (مصر: نشيل الصفر ونحط 20)
+function waNumber(phone){
+  let k=phoneKey(phone);
+  if(!k)return'';
+  if(k.startsWith('00'))k=k.slice(2);
+  else if(k.startsWith('0'))k='20'+k.slice(1);
+  return k;
+}
 function findClientByPhone(ph){
   const k=phoneKey(ph);if(!k)return null;
   return db.clients.find(c=>{
@@ -685,6 +695,23 @@ function buildReportText(c){
     try{document.execCommand('copy');alert('اتنسخ نص التقرير ✅');}catch(_){alert('مش قادر أنسخ — انسخه يدوي');}
     ta.remove();
   }
+};
+// إرسال التقرير على واتساب للعميل
+ $('#btnWhats').onclick=()=>{
+  if(!current)return;
+  const txt=buildReportText(current);
+  const num=waNumber(current.phone);
+  const url='https://wa.me/'+num+'?text='+encodeURIComponent(txt);
+  const w=window.open(url,'_blank');
+  if(!w)location.href=url;
+};
+// مشاركة عبر أي تطبيق (متاح غالبًا على الموبايل)
+if(navigator.share)$('#btnShare').hidden=false;
+ $('#btnShare').onclick=async()=>{
+  if(!current)return;
+  const txt=buildReportText(current);
+  try{await navigator.share({title:'كشف حساب - '+current.name,text:txt});}
+  catch(e){/* المستخدم لغى المشاركة */}
 };
 
 /* ============== نسخة احتياطية / استيراد ============== */
