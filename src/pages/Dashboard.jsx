@@ -1,78 +1,88 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, getSetting, requestNotificationPermission, checkLowStock } from '../db';
+import { db, today, getSetting, requestNotificationPermission, checkLowStock, stockOf } from '../db';
 import { money, fmt, fmtDate, can } from '../utils';
 import { useAuth } from '../auth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Dashboard() {
   const nav = useNavigate();
-  const { user } = useAuth();
+  const { user, activeBranch } = useAuth();
   const day = today();
+  const inBranch = (r) => (r.branchId || 1) === activeBranch;
 
   const todaySales = useLiveQuery(
-    () => db.invoices.where('day').equals(day).and((i) => i.type === 'sale' && i.status === 'active').toArray(),
-    [day], []
+    () => db.invoices.where('day').equals(day).and((i) => i.type === 'sale' && i.status === 'active' && (i.branchId || 1) === activeBranch).toArray(),
+    [day, activeBranch], []
   );
   const customersCount = useLiveQuery(() => db.customers.count(), [], 0);
   const items = useLiveQuery(() => db.items.toArray(), [], []);
   const recent = useLiveQuery(
-    () => db.invoices.orderBy('createdAt').reverse().limit(8).toArray(),
-    [], []
+    () => db.invoices.orderBy('createdAt').reverse().filter((i) => (i.branchId || 1) === activeBranch).limit(8).toArray(),
+    [activeBranch], []
   );
-  const todayExpenses = useLiveQuery(() => db.expenses.where('day').equals(day).toArray(), [day], []);
+  const todayExpenses = useLiveQuery(() => db.expenses.where('day').equals(day).and((e) => (e.branchId || 1) === activeBranch).toArray(), [day, activeBranch], []);
   const debts = useLiveQuery(() => db.customers.filter((c) => (c.balance || 0) > 0).toArray(), [], []);
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
 
   const salesTotal = todaySales.reduce((s, i) => s + i.total, 0);
   const profitTotal = todaySales.reduce((s, i) => s + (i.profit || 0), 0);
   const expTotal = todayExpenses.reduce((s, e) => s + e.amount, 0);
-  const stockValue = items.reduce((s, it) => s + (it.stock || 0) * (it.costPrice || 0), 0);
-  const lowStock = items.filter((it) => (it.stock || 0) <= (it.minStock || 0));
+  const stockValue = items.reduce((s, it) => s + stockOf(it, activeBranch) * (it.costPrice || 0), 0);
+  const lowStock = items.filter((it) => stockOf(it, activeBranch) <= (it.minStock || 0));
   const debtsTotal = debts.reduce((s, c) => s + c.balance, 0);
 
   useEffect(() => {
     requestNotificationPermission();
-    if (items.length > 0) checkLowStock(items);
-  }, [items]);
+    if (items.length > 0) checkLowStock(items, activeBranch);
+  }, [items, activeBranch]);
+
+  // customizable dashboard: per-device hidden KPI widgets
+  const [customize, setCustomize] = useState(false);
+  const [hidden, setHidden] = useState(() => { try { return JSON.parse(localStorage.getItem('kerp_dash_hidden') || '[]'); } catch { return []; } });
+  const toggleWidget = (k) => setHidden((h) => {
+    const next = h.includes(k) ? h.filter((x) => x !== k) : [...h, k];
+    try { localStorage.setItem('kerp_dash_hidden', JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
+
+  const KPIS = [
+    { key: 'sales', cls: 'kpi', label: 'مبيعات اليوم', content: <><div className="label">مبيعات اليوم</div><div className="value">{money(salesTotal)}</div><div className="sub">{todaySales.length} فاتورة</div></> },
+    { key: 'profit', cls: 'kpi tone-green', label: 'أرباح اليوم', content: <><div className="label">أرباح اليوم</div><div className="value">{money(profitTotal - expTotal)}</div><div className="sub">بعد خصم مصروفات {money(expTotal)}</div></> },
+    { key: 'customers', cls: 'kpi', label: 'العملاء', content: <><div className="label">العملاء</div><div className="value">{fmt(customersCount)}</div><div className="sub">ديون آجلة: {money(debtsTotal)}</div></> },
+    { key: 'stock', cls: 'kpi', label: 'قيمة المخزون', content: <><div className="label">قيمة المخزون</div><div className="value">{money(stockValue)}</div><div className="sub">{items.length} صنف</div></> },
+    ...(Number(usdRate) > 0 ? [{ key: 'usd', cls: 'kpi tone-accent', label: 'سعر الدولار', content: <><div className="label">💵 سعر الدولار</div><div className="value">{fmt(usdRate)}</div><div className="sub">يُعدّل من الإعدادات</div></> }] : []),
+  ];
 
   return (
     <>
       <div className="page-head">
         <h1>الرئيسية</h1>
-        {can(user.role, 'pos') && (
-          <button className="btn accent big" onClick={() => nav('/pos')}>＋ بيع جديد</button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn ghost" onClick={() => setCustomize((v) => !v)} title="تخصيص المؤشرات">⚙️</button>
+          {can(user.role, 'pos') && (
+            <button className="btn accent big" onClick={() => nav('/pos')}>＋ بيع جديد</button>
+          )}
+        </div>
       </div>
 
-      <div className="kpis">
-        <div className="kpi">
-          <div className="label">مبيعات اليوم</div>
-          <div className="value">{money(salesTotal)}</div>
-          <div className="sub">{todaySales.length} فاتورة</div>
-        </div>
-        <div className="kpi tone-green">
-          <div className="label">أرباح اليوم</div>
-          <div className="value">{money(profitTotal - expTotal)}</div>
-          <div className="sub">بعد خصم مصروفات {money(expTotal)}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">العملاء</div>
-          <div className="value">{fmt(customersCount)}</div>
-          <div className="sub">ديون آجلة: {money(debtsTotal)}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">قيمة المخزون</div>
-          <div className="value">{money(stockValue)}</div>
-          <div className="sub">{items.length} صنف</div>
-        </div>
-        {Number(usdRate) > 0 && (
-          <div className="kpi tone-accent">
-            <div className="label">💵 سعر الدولار</div>
-            <div className="value">{fmt(usdRate)}</div>
-            <div className="sub">يُعدّل من الإعدادات</div>
+      {customize && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <b>تخصيص مؤشرات الرئيسية</b>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
+            {KPIS.map((k) => (
+              <label key={k.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!hidden.includes(k.key)} onChange={() => toggleWidget(k.key)} /> {k.label}
+              </label>
+            ))}
           </div>
-        )}
+        </div>
+      )}
+
+      <div className="kpis">
+        {KPIS.filter((k) => !hidden.includes(k.key)).map((k) => (
+          <div className={k.cls} key={k.key}>{k.content}</div>
+        ))}
       </div>
 
       {lowStock.length > 0 && (
@@ -81,7 +91,7 @@ export default function Dashboard() {
           <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {lowStock.slice(0, 10).map((it) => (
               <Link key={it.id} to="/items" className="badge amber">
-                {it.name} — متبقي {fmt(it.stock)}
+                {it.name} — متبقي {fmt(stockOf(it, activeBranch))}
               </Link>
             ))}
           </div>

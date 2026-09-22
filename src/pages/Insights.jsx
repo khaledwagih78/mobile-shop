@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSetting, dayOf } from '../db';
+import { db, getSetting, dayOf, totalStock } from '../db';
 import { money, fmt } from '../utils';
 
 const daysAgo = (n) => dayOf(new Date(Date.now() - n * 86400000).toISOString());
@@ -43,7 +43,7 @@ export default function Insights() {
           max_tokens: 1500,
           messages: [{
             role: 'user',
-            content: `أنت مستشار تجاري خبير لمحلات قطع غيار الموبايل في مصر. هذه بيانات المحل:\n${JSON.stringify(summary, null, 1)}\n\nاكتب بالعربية المصرية البسيطة: 1) تقييم سريع للوضع في سطرين 2) أهم 5 توصيات عملية مرتبة بالأولوية 3) أكبر فرصة لزيادة الربح. بدون مقدمات طويلة.`,
+            content: `أنت مستشار تجاري خبير للأنشطة التجارية في مصر. هذه بيانات المحل:\n${JSON.stringify(summary, null, 1)}\n\nاكتب بالعربية المصرية البسيطة: 1) تقييم سريع للوضع في سطرين 2) أهم 5 توصيات عملية مرتبة بالأولوية 3) أكبر فرصة لزيادة الربح. بدون مقدمات طويلة.`,
           }],
         }),
       });
@@ -149,6 +149,8 @@ function InsightCard({ title, rows, empty, tone }) {
 }
 
 function analyze(invoices, items, customers) {
+  // Company-wide insights: use each item's total stock across all branches.
+  items = items.map((it) => ({ ...it, stock: totalStock(it) }));
   const d7 = daysAgo(7), d14 = daysAgo(14), d30 = daysAgo(30);
   const sales = invoices.filter((i) => i.type === 'sale' && i.status === 'active');
   const s7 = sales.filter((i) => i.day >= d7);

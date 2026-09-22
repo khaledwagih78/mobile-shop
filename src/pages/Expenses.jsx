@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, today, queueSync } from '../db';
+import { db, nowISO, today, queueSync, recordExpense } from '../db';
 import { money, fmt } from '../utils';
 import { Modal } from '../components/UI';
 import { useAuth } from '../auth';
@@ -71,14 +71,13 @@ async function applyRecurring() {
       if (rec.maxOccurrences && postedCount >= rec.maxOccurrences) break;
 
       if (!postedMonths.has(ym)) {
-        await db.expenses.add({
+        await recordExpense({
           day: `${ym}-${String(rec.dayOfMonth).padStart(2, '0')}`,
           category: rec.category,
           description: rec.name,
           amount: rec.amount,
           userName: 'تلقائي',
           recurringId: rec.id,
-          createdAt: nowISO(),
         });
         postedCount++;
       }
@@ -165,9 +164,7 @@ export default function Expenses() {
       await db.expenses.update(form.id, doc);
       await queueSync('expenses', 'update', { ...doc, id: form.id });
     } else {
-      doc.createdAt = nowISO();
-      const id = await db.expenses.add(doc);
-      await queueSync('expenses', 'add', { ...doc, id });
+      await recordExpense(doc); // adds the expense + posts its accounting entry
     }
     setForm(null);
   };

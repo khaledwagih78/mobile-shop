@@ -16,7 +16,8 @@ DECLARE
     'payments', 'stockMoves', 'expenses', 'recurringExpenses',
     'employees', 'empRecords', 'users',
     'lines', 'transactions', 'profiles',
-    'auditLog', 'deliveries'
+    'auditLog', 'deliveries', 'branches', 'requests', 'productions',
+    'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects', 'workOrders', 'repVisits'
   ];
 BEGIN
   FOREACH tbl IN ARRAY tbls LOOP

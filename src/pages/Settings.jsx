@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { db, getSetting, setSetting } from '../db';
+import { sendReportNow } from '../periodicReports';
 import { Toast } from '../components/UI';
 
 export default function Settings() {
@@ -7,24 +8,150 @@ export default function Settings() {
   const [usdRate, setUsdRate] = useState('');
   const [margin, setMargin] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [opPassword, setOpPassword] = useState('');
+  const [email, setEmail] = useState({ to: '', serviceId: '', templateId: '', publicKey: '' });
+  const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
+  const [waAuto, setWaAuto] = useState(false);
+  const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
+  const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0' });
+  const [reports, setReports] = useState({ daily: false, weekly: false, monthly: false });
   const [toast, setToast] = useState('');
 
   useEffect(() => {
     (async () => {
-      setBizName(await getSetting('bizName', 'خالد لقطع غيار المحمول'));
+      setBizName(await getSetting('bizName', 'نظام المبيعات والمخزون'));
       setUsdRate(await getSetting('usdRate', '') || '');
       setMargin(await getSetting('defaultMargin', '') || '');
       setApiKey(await getSetting('aiKey', '') || '');
+      setOpPassword(await getSetting('opPassword', '') || '');
+      setEmail({
+        to: await getSetting('emailTo', '') || '',
+        serviceId: await getSetting('emailServiceId', '') || '',
+        templateId: await getSetting('emailTemplateId', '') || '',
+        publicKey: await getSetting('emailPublicKey', '') || '',
+      });
+      setShop({
+        logo: await getSetting('bizLogo', '') || '',
+        address: await getSetting('bizAddress', '') || '',
+        phone: await getSetting('bizPhone', '') || '',
+        returnPolicy: await getSetting('returnPolicy', '') || '',
+        warranty: await getSetting('warranty', '') || '',
+      });
+      setWaAuto(await getSetting('waAutoSend', false) === true);
+      setTax({
+        enabled: await getSetting('taxEnabled', false) === true,
+        name: await getSetting('taxName', 'ضريبة القيمة المضافة') || 'ضريبة القيمة المضافة',
+        rate: String((await getSetting('taxRate', 0)) || ''),
+      });
+      setAlerts({
+        nearExpiryDays: String(await getSetting('nearExpiryDays', 60) ?? 60),
+        overdueDays: String(await getSetting('overdueDays', 30) ?? 30),
+        discountApprovalPct: String(await getSetting('discountApprovalPct', 0) ?? 0),
+      });
+      setReports({
+        daily: await getSetting('reportDaily', false) === true,
+        weekly: await getSetting('reportWeekly', false) === true,
+        monthly: await getSetting('reportMonthly', false) === true,
+      });
     })();
   }, []);
 
+  const saveShop = async () => {
+    await setSetting('bizLogo', shop.logo);
+    await setSetting('bizAddress', shop.address.trim());
+    await setSetting('bizPhone', shop.phone.trim());
+    await setSetting('returnPolicy', shop.returnPolicy.trim());
+    await setSetting('warranty', shop.warranty.trim());
+    setToast('✅ تم حفظ بيانات المحل');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const onLogo = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (f.size > 500 * 1024) { setToast('⚠️ اللوجو كبير — اختر صورة أصغر من 500 ك.ب'); setTimeout(() => setToast(''), 3000); return; }
+    const r = new FileReader();
+    r.onload = () => setShop((s) => ({ ...s, logo: r.result }));
+    r.readAsDataURL(f);
+  };
+
+  const toggleWaAuto = async () => {
+    const next = !waAuto;
+    setWaAuto(next);
+    await setSetting('waAutoSend', next);
+    setToast(next ? '✅ تم تفعيل الإرسال التلقائي على واتساب' : '⏹️ تم تعطيل الإرسال التلقائي على واتساب');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const saveReports = async (next) => {
+    setReports(next);
+    await setSetting('reportDaily', !!next.daily);
+    await setSetting('reportWeekly', !!next.weekly);
+    await setSetting('reportMonthly', !!next.monthly);
+  };
+
+  const sendNow = async (period) => {
+    if (!email.to.trim()) { setToast('⚠️ اضبط إعدادات الإيميل أولاً'); setTimeout(() => setToast(''), 3000); return; }
+    setToast('📧 جاري إرسال التقرير...');
+    try { await sendReportNow(period); setToast('✅ تم إرسال التقرير — راجع بريدك'); }
+    catch { setToast('⚠️ تعذّر الإرسال'); }
+    setTimeout(() => setToast(''), 3500);
+  };
+
+  const saveAlerts = async () => {
+    await setSetting('nearExpiryDays', Number(alerts.nearExpiryDays) || 60);
+    await setSetting('overdueDays', Number(alerts.overdueDays) || 30);
+    await setSetting('discountApprovalPct', Number(alerts.discountApprovalPct) || 0);
+    setToast('✅ تم حفظ إعدادات التنبيهات والموافقات');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const saveTax = async () => {
+    await setSetting('taxEnabled', !!tax.enabled);
+    await setSetting('taxName', (tax.name || '').trim() || 'ضريبة القيمة المضافة');
+    await setSetting('taxRate', Number(tax.rate) || 0);
+    setToast('✅ تم حفظ إعدادات الضريبة');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const saveEmail = async () => {
+    await setSetting('emailTo', email.to.trim());
+    await setSetting('emailServiceId', email.serviceId.trim());
+    await setSetting('emailTemplateId', email.templateId.trim());
+    await setSetting('emailPublicKey', email.publicKey.trim());
+  };
+
+  const testEmail = async () => {
+    await saveEmail();
+    if (!email.to.trim() || !email.serviceId.trim() || !email.templateId.trim() || !email.publicKey.trim()) {
+      setToast('⚠️ املأ كل خانات الإيميل الأربعة أولاً'); setTimeout(() => setToast(''), 3000); return;
+    }
+    const m = await import('../notify');
+    await m.notifyEvent({ action: 'test', title: '📧 اختبار تنبيه', body: 'ده إيميل تجريبي من تطبيقك للتأكد إن تنبيهات الحذف/الإلغاء شغّالة ✅' });
+    setToast('📧 تم إرسال إيميل تجريبي — راجع بريدك');
+    setTimeout(() => setToast(''), 3500);
+  };
+
   const save = async () => {
-    await setSetting('bizName', bizName.trim() || 'خالد لقطع غيار المحمول');
+    await setSetting('bizName', bizName.trim() || 'نظام المبيعات والمخزون');
     await setSetting('usdRate', Number(usdRate) || 0);
     await setSetting('defaultMargin', Number(margin) || 0);
     await setSetting('aiKey', apiKey.trim());
+    await setSetting('opPassword', opPassword.trim());
+    await saveEmail();
     setToast('✅ تم حفظ الإعدادات');
     setTimeout(() => setToast(''), 2500);
+  };
+
+  const checkUpdate = async () => {
+    setToast('🔄 جاري التحقق من التحديثات...');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.update()));
+      }
+    } catch { /* ignore */ }
+    setTimeout(() => window.location.reload(), 900);
   };
 
   return (
@@ -35,7 +162,7 @@ export default function Settings() {
         <div className="field">
           <label>اسم النشاط (يظهر في الفواتير وشاشة الدخول)</label>
           <input className="input lg" value={bizName} onChange={(e) => setBizName(e.target.value)}
-            placeholder="مثال: خالد لقطع غيار المحمول / جزيرة فون / أي نشاط آخر" />
+            placeholder="مثال: نظام المبيعات والمخزون / جزيرة فون / أي نشاط آخر" />
         </div>
 
         <div className="row">
@@ -67,6 +194,175 @@ export default function Settings() {
         </div>
 
         <button className="btn big" onClick={save}>💾 حفظ الإعدادات</button>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🧾 بيانات المحل في الفاتورة المطبوعة</label>
+          <p className="muted" style={{ marginTop: 4 }}>كل الخانات دي اختيارية — اللي تسيبه فاضي مش هيظهر في الفاتورة.</p>
+        </div>
+        <div className="field">
+          <label>لوجو المحل</label>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            {shop.logo
+              ? <img src={shop.logo} alt="logo" style={{ height: 60, borderRadius: 6, border: '1px solid var(--line,#ddd)' }} />
+              : <span className="muted">لا يوجد لوجو</span>}
+            <input type="file" accept="image/*" onChange={onLogo} />
+            {shop.logo && <button className="btn ghost sm" onClick={() => setShop({ ...shop, logo: '' })}>حذف اللوجو</button>}
+          </div>
+        </div>
+        <div className="row">
+          <div className="field"><label>عنوان المحل</label>
+            <input className="input" value={shop.address} onChange={(e) => setShop({ ...shop, address: e.target.value })} placeholder="المنيا - شارع الحسيني" /></div>
+          <div className="field"><label>هاتف المحل</label>
+            <input className="input" inputMode="tel" value={shop.phone} onChange={(e) => setShop({ ...shop, phone: e.target.value })} placeholder="01000000000" /></div>
+        </div>
+        <div className="field"><label>مدة/سياسة الاسترجاع</label>
+          <input className="input" value={shop.returnPolicy} onChange={(e) => setShop({ ...shop, returnPolicy: e.target.value })} placeholder="مثال: الاسترجاع خلال 14 يوم بشرط وجود الفاتورة والمنتج بحالته" /></div>
+        <div className="field"><label>الضمان</label>
+          <input className="input" value={shop.warranty} onChange={(e) => setShop({ ...shop, warranty: e.target.value })} placeholder="مثال: ضمان 6 شهور على العيوب الصناعية" /></div>
+        <button className="btn" onClick={saveShop}>💾 حفظ بيانات المحل</button>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🔒 كلمة سر الحذف والإلغاء (اختياري)</label>
+          <input className="input lg" type="password" value={opPassword} onChange={(e) => setOpPassword(e.target.value)}
+            placeholder="اتركها فارغة لتعطيلها" />
+          <p className="muted" style={{ marginTop: 6 }}>
+            لو حطّيت كلمة سر هنا، أي <b>إلغاء فاتورة</b> أو <b>استرجاع</b> هيطلب كلمة السر دي قبل التنفيذ —
+            حماية إضافية عشان محدش يلغي فاتورة بالغلط أو بدون إذن. الفواتير الملغاة <b>بتفضل محفوظة</b>
+            وتقدر ترجّعها في أي وقت من صفحة الفاتورة. (اضغط 💾 حفظ الإعدادات بعد التغيير)
+          </p>
+          <button className="btn" onClick={save}>💾 حفظ كلمة السر</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>📧 تنبيه بالإيميل عند الحذف / الإلغاء</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            يبعت لك إيميل تلقائي أول ما حد يلغي أو يسترجع فاتورة. بيشتغل عن طريق خدمة
+            <b> EmailJS </b> المجانية (بتبعت من غير سيرفر). الخطوات مرة واحدة:
+          </p>
+          <ol className="muted" style={{ paddingRight: 18, lineHeight: 1.9, margin: '4px 0 10px' }}>
+            <li>اعمل حساب مجاني على <b>emailjs.com</b> ووصّل إيميلك (Gmail مثلاً).</li>
+            <li>أنشئ <b>Email Service</b> وخد الـ <b>Service ID</b>.</li>
+            <li>أنشئ <b>Email Template</b> فيه المتغيرات: <code>{'{{subject}}'}</code> و<code>{'{{message}}'}</code> و<code>{'{{to_email}}'}</code>، وخد الـ <b>Template ID</b>.</li>
+            <li>من Account خد الـ <b>Public Key</b>.</li>
+            <li>الصقهم تحت + إيميل الاستقبال، واضغط "اختبار".</li>
+          </ol>
+          <div className="field"><label>إيميل الاستقبال</label>
+            <input className="input" type="email" value={email.to} onChange={(e) => setEmail({ ...email, to: e.target.value })} placeholder="you@gmail.com" /></div>
+          <div className="row">
+            <div className="field"><label>Service ID</label>
+              <input className="input" value={email.serviceId} onChange={(e) => setEmail({ ...email, serviceId: e.target.value })} placeholder="service_xxx" /></div>
+            <div className="field"><label>Template ID</label>
+              <input className="input" value={email.templateId} onChange={(e) => setEmail({ ...email, templateId: e.target.value })} placeholder="template_xxx" /></div>
+          </div>
+          <div className="field"><label>Public Key</label>
+            <input className="input" value={email.publicKey} onChange={(e) => setEmail({ ...email, publicKey: e.target.value })} placeholder="xxxxxxxxxxxxx" /></div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={save}>💾 حفظ</button>
+            <button className="btn ghost" onClick={testEmail}>📧 إرسال إيميل تجريبي</button>
+          </div>
+          <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>ملاحظة: الإرسال بيحتاج إنترنت. سيب الخانات فاضية لتعطيل التنبيهات.</p>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>💬 إرسال الفاتورة تلقائياً على واتساب</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            لما تعمل فاتورة بيع أو عرض سعر لعميل مسجّل رقم واتساب، التطبيق بيفتح واتساب
+            بنص الفاتورة جاهز للإرسال للعميل على طول. لو مفيش إنترنت، الفاتورة بتفضل
+            <b> جاهزة للإرسال</b> وتقدر تبعتها بضغطة من صفحة الفاتورة أول ما النت يرجع.
+            الميزة دي <b>اختيارية</b> وتقدر تعطّلها في أي وقت.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 6 }}>
+            <input type="checkbox" checked={waAuto} onChange={toggleWaAuto} style={{ width: 20, height: 20 }} />
+            <b>{waAuto ? 'مُفعّل ✅' : 'مُعطّل'}</b>
+          </label>
+          <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+            ملاحظة: العميل لازم يكون له رقم واتساب مسجّل في بياناته. الفواتير النقدية بدون
+            عميل مش هيتبعت لها رسالة.
+          </p>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🧾 الضريبة (VAT)</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            فعّل الضريبة عشان تتحسب تلقائياً على فواتير البيع والشراء وتظهر في الفاتورة
+            والتقارير الضريبية. الأصناف تقدر تعملها <b>معفاة</b> من صفحة المخزون
+            (خانة "خاضع للضريبة"). الخصم بيتوزّع على القيمة الخاضعة قبل حساب الضريبة.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', margin: '6px 0' }}>
+            <input type="checkbox" checked={tax.enabled} onChange={(e) => setTax({ ...tax, enabled: e.target.checked })} style={{ width: 20, height: 20 }} />
+            <b>{tax.enabled ? 'الضريبة مُفعّلة ✅' : 'الضريبة مُعطّلة'}</b>
+          </label>
+          <div className="row">
+            <div className="field"><label>اسم الضريبة</label>
+              <input className="input" value={tax.name} onChange={(e) => setTax({ ...tax, name: e.target.value })} placeholder="ضريبة القيمة المضافة" /></div>
+            <div className="field"><label>النسبة %</label>
+              <input className="input lg" type="number" min="0" step="0.01" value={tax.rate} onChange={(e) => setTax({ ...tax, rate: e.target.value })} placeholder="مثال: 14" /></div>
+          </div>
+          <button className="btn" onClick={saveTax}>💾 حفظ إعدادات الضريبة</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>📈 تقارير دورية للمدير بالإيميل</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            يرسل ملخص البيع والشراء والأرباح تلقائياً على إيميل المدير (نفس إعدادات الإيميل بالأعلى).
+            فعّل الدورية المطلوبة. الإرسال يتم عند فتح التطبيق مع وجود إنترنت (بدون سيرفر)، فلو
+            التطبيق مفتوح على جهاز المدير أو الكاشير باستمرار توصل في وقتها.
+          </p>
+          {[['daily', 'يومي'], ['weekly', 'أسبوعي'], ['monthly', 'شهري']].map(([k, lbl]) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', cursor: 'pointer' }}>
+              <input type="checkbox" checked={reports[k]} onChange={(e) => saveReports({ ...reports, [k]: e.target.checked })} />
+              تقرير {lbl}
+            </label>
+          ))}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            <button className="btn ghost sm" onClick={() => sendNow('daily')}>📧 أرسل التقرير اليومي الآن</button>
+            <button className="btn ghost sm" onClick={() => sendNow('weekly')}>📧 الأسبوعي</button>
+            <button className="btn ghost sm" onClick={() => sendNow('monthly')}>📧 الشهري</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🔔 التنبيهات والموافقات</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            تتحكم في مركز التنبيهات (صفحة "التنبيهات") وفي موافقة المدير على الخصومات الكبيرة.
+          </p>
+          <div className="row">
+            <div className="field"><label>تنبيه قرب الصلاحية (أيام)</label>
+              <input className="input" type="number" min="1" value={alerts.nearExpiryDays} onChange={(e) => setAlerts({ ...alerts, nearExpiryDays: e.target.value })} /></div>
+            <div className="field"><label>اعتبار الدين متأخراً بعد (أيام)</label>
+              <input className="input" type="number" min="1" value={alerts.overdueDays} onChange={(e) => setAlerts({ ...alerts, overdueDays: e.target.value })} /></div>
+          </div>
+          <div className="field"><label>خصم يتطلب موافقة المدير عند تجاوز % (0 = بدون)</label>
+            <input className="input" type="number" min="0" value={alerts.discountApprovalPct} onChange={(e) => setAlerts({ ...alerts, discountApprovalPct: e.target.value })} placeholder="مثال: 10" /></div>
+          <p className="muted" style={{ fontSize: 12 }}>لو الخصم في الفاتورة تجاوز النسبة دي، الموظف غير المدير مش هيقدر يحفظ الفاتورة إلا بموافقة/دخول مدير.</p>
+          <button className="btn" onClick={saveAlerts}>💾 حفظ إعدادات التنبيهات</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <div className="field">
+          <label>🔄 تحديثات التطبيق</label>
+          <p className="muted" style={{ marginTop: 4 }}>
+            التطبيق بيتحدّث <b>تلقائياً</b>: كل ما نضيف مميزات أو خصائص جديدة، بتوصل لجهازك
+            لوحدها أول ما تفتح التطبيق وأنت متصل بالإنترنت — من غير ما تعيد تثبيت أي حاجة.
+            لو حابب تجيب آخر نسخة دلوقتي حالاً، اضغط الزر ده.
+          </p>
+          <button className="btn" onClick={checkUpdate}>🔄 تحديث التطبيق الآن</button>
+        </div>
       </div>
 
       <Toast msg={toast} />

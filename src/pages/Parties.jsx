@@ -1,16 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, recordPayment, queueSync, getSetting } from '../db';
+import { db, nowISO, recordPayment, queueSync, getSetting, getCustomFields } from '../db';
 import { money, fmt, fmtDate, waLink } from '../utils';
 import { useAuth } from '../auth';
 import { Modal } from '../components/UI';
+import { CustomFieldInputs } from './CustomFields';
 
 export default function Parties({ kind = 'customer' }) {
   const isCustomer = kind === 'customer';
   const table = isCustomer ? db.customers : db.suppliers;
   const { user } = useAuth();
   const list = useLiveQuery(() => table.orderBy('name').toArray(), [kind], []);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
+  const priceLists = useLiveQuery(() => db.priceLists.toArray(), [], []);
+  const customFields = useLiveQuery(() => getCustomFields(kind), [kind], []);
+  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
   const waMsg = (c) =>
     `السلام عليكم أ/ ${c.name} 🌹\n` +
     ((c.balance || 0) > 0 ? `تذكير ودّي: إجمالي المستحق ${money(c.balance)}.\nنرجو التكرم بالسداد في أقرب وقت.\n` : '') +
@@ -45,10 +48,12 @@ export default function Parties({ kind = 'customer' }) {
   const totalPoints = isCustomer ? (list || []).reduce((s, c) => s + (c.points || 0), 0) : 0;
 
   const save = async () => {
+    const creditLimit = Number(form.creditLimit) || 0;
+    const priceListId = form.priceListId ? Number(form.priceListId) : null;
     if (form.id) {
-      await table.update(form.id, { name: form.name, phone: form.phone, address: form.address });
+      await table.update(form.id, { name: form.name, phone: form.phone, address: form.address, custom: form.custom || {}, creditLimit, priceListId });
     } else {
-      await table.add({ ...form, balance: 0, points: 0, totalSpent: 0, createdAt: nowISO() });
+      await table.add({ ...form, creditLimit, balance: 0, points: 0, totalSpent: 0, createdAt: nowISO() });
     }
     await queueSync(isCustomer ? 'customers' : 'suppliers', form.id ? 'update' : 'add', form);
     setForm(null);
@@ -118,6 +123,9 @@ export default function Parties({ kind = 'customer' }) {
                     {(c.balance || 0) > 0
                       ? <span className="badge red">{isCustomer ? 'عليه' : 'له'} {money(c.balance)}</span>
                       : <span className="badge green">خالص</span>}
+                    {isCustomer && (c.creditLimit || 0) > 0 && (c.balance || 0) > c.creditLimit && (
+                      <span className="badge amber" title={`تجاوز الحد ${money(c.creditLimit)}`} style={{ marginRight: 4 }}>⚠️ تجاوز الحد</span>
+                    )}
                   </td>
                   <td style={{ display: 'flex', gap: 6 }}>
                     {c.phone && (
@@ -143,6 +151,25 @@ export default function Parties({ kind = 'customer' }) {
             <input className="input" inputMode="tel" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="field"><label>العنوان</label>
             <input className="input" value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+          {isCustomer && (
+            <div className="row">
+              <div className="field"><label>💳 الحد الائتماني (0 = بدون حد)</label>
+                <input className="input" type="number" min="0" value={form.creditLimit || ''} onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
+                  placeholder="أقصى مديونية مسموح بها" /></div>
+              <div className="field"><label>🏷️ قائمة الأسعار</label>
+                <select className="input" value={form.priceListId || ''} onChange={(e) => setForm({ ...form, priceListId: e.target.value })}>
+                  <option value="">الأسعار الأساسية</option>
+                  {priceLists.map((pl) => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
+                </select></div>
+            </div>
+          )}
+          {customFields.length > 0 && (
+            <CustomFieldInputs
+              fields={customFields}
+              values={form.custom}
+              onChange={(fid, v) => setForm({ ...form, custom: { ...(form.custom || {}), [fid]: v } })}
+            />
+          )}
           <button className="btn block" onClick={save} disabled={!form.name?.trim()}>💾 حفظ</button>
         </Modal>
       )}

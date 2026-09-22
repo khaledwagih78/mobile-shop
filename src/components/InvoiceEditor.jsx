@@ -1,15 +1,28 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, saveInvoice, nowISO } from '../db';
-import { money, fmt } from '../utils';
+import { db, saveInvoice, saveQuote, saveReturn, savePurchaseOrder, nowISO, stockOf, getSetting, validateCoupon, redeemCoupon } from '../db';
+import { money, fmt, normAr, canUser } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
+import MicButton from './MicButton';
+
+const TITLES = {
+  sale: '🧾 فاتورة بيع جديدة',
+  purchase: '📥 فاتورة شراء جديدة',
+  quote: '📄 عرض سعر جديد',
+  po: '📝 طلب شراء جديد',
+  sale_return: '↩️ مرتجع بيع',
+  purchase_return: '↪️ مرتجع شراء',
+};
 
 export default function InvoiceEditor({ type }) {
-  const isSale = type === 'sale';
+  const isSale = type === 'sale' || type === 'quote' || type === 'sale_return';
+  const isQuote = type === 'quote';
+  const isPO = type === 'po';
+  const isReturn = type === 'sale_return' || type === 'purchase_return';
   const nav = useNavigate();
-  const { user } = useAuth();
+  const { user, activeBranch } = useAuth();
   const searchRef = useRef(null);
 
   const items = useLiveQuery(() => db.items.toArray(), [], []);
@@ -17,10 +30,16 @@ export default function InvoiceEditor({ type }) {
     () => (isSale ? db.customers.toArray() : db.suppliers.toArray()),
     [isSale], []
   );
+  const taxEnabled = useLiveQuery(() => getSetting('taxEnabled', false), [], false);
+  const taxRateSetting = useLiveQuery(() => getSetting('taxRate', 0), [], 0);
+  const taxName = useLiveQuery(() => getSetting('taxName', 'ضريبة القيمة المضافة'), [], 'ضريبة القيمة المضافة');
+  const discountApprovalPct = useLiveQuery(() => getSetting('discountApprovalPct', 0), [], 0);
 
   const [q, setQ] = useState('');
   const [lines, setLines] = useState([]);
   const [partyId, setPartyId] = useState('');
+  const [partyQ, setPartyQ] = useState('');
+  const [partyOpen, setPartyOpen] = useState(false);
   const [discount, setDiscount] = useState('');
   const [paid, setPaid] = useState('');
   const [paidTouched, setPaidTouched] = useState(false);
@@ -29,18 +48,39 @@ export default function InvoiceEditor({ type }) {
   const [toast, setToast] = useState('');
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [coupon, setCoupon] = useState(null);
+  const [couponMsg, setCouponMsg] = useState('');
+
+  // price list bound to the selected customer (sales only)
+  const priceList = useLiveQuery(async () => {
+    const p = parties.find((x) => x.id === Number(partyId));
+    if (isSale && p && p.priceListId) return db.priceLists.get(p.priceListId);
+    return null;
+  }, [partyId, parties, isSale], null);
 
   const results = useMemo(() => {
-    const t = q.trim().toLowerCase();
+    const t = normAr(q);
     if (!t) return [];
+    const raw = q.trim();
     return items
       .filter((it) =>
-        (it.name || '').toLowerCase().includes(t) ||
-        (it.code || '').toLowerCase().includes(t) ||
-        (it.barcode || '') === t
+        normAr(it.name).includes(t) ||
+        normAr(it.code).includes(t) ||
+        (it.brand && normAr(it.brand).includes(t)) ||
+        (it.barcode || '') === raw
       )
       .slice(0, 12);
   }, [q, items]);
+
+  const selectedParty = parties.find((p) => p.id === Number(partyId));
+  const partyResults = useMemo(() => {
+    const t = normAr(partyQ);
+    const list = t
+      ? parties.filter((p) => normAr(p.name).includes(t) || (p.phone || '').includes(partyQ.trim()))
+      : parties;
+    return list.slice(0, 8);
+  }, [partyQ, parties]);
 
   const addItem = (it) => {
     setLines((ls) => {
@@ -53,11 +93,20 @@ export default function InvoiceEditor({ type }) {
           name: it.name,
           code: it.code,
           qty: 1,
-          price: isSale ? it.salePrice || 0 : it.costPrice || 0,
+          price: isSale
+            ? (priceList && priceList.prices && priceList.prices[it.id] != null ? Number(priceList.prices[it.id]) : (it.salePrice || 0))
+            : it.costPrice || 0,
           cost: it.costPrice || 0,
-          stock: it.stock || 0,
+          stock: stockOf(it, activeBranch),
           wholesalePrice: it.wholesalePrice || 0,
           wholesaleMinQty: it.wholesaleMinQty || 0,
+          unit: it.baseUnit || 'قطعة',
+          factor: 1,
+          baseUnit: it.baseUnit || 'قطعة',
+          salePrice: it.salePrice || 0,
+          costPrice: it.costPrice || 0,
+          units: it.units || [],
+          taxable: it.taxable !== false,
         },
       ];
     });
@@ -83,37 +132,67 @@ export default function InvoiceEditor({ type }) {
     }));
   const removeLine = (itemId) => setLines((ls) => ls.filter((l) => l.itemId !== itemId));
 
+  const changeUnit = (itemId, unitName) => setLines((ls) => ls.map((l) => {
+    if (l.itemId !== itemId) return l;
+    const all = [{ name: l.baseUnit || 'قطعة', factor: 1 }, ...(l.units || [])];
+    const u = all.find((x) => x.name === unitName) || all[0];
+    const factor = Number(u.factor) || 1;
+    return { ...l, unit: u.name, factor, price: (isSale ? l.salePrice : l.costPrice) * factor, cost: (l.costPrice || 0) * factor };
+  }));
+
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
   const disc = Number(discount) || 0;
-  const total = Math.max(0, subtotal - disc);
+  const taxRate = (taxEnabled && !isQuote && !isPO) ? Number(taxRateSetting) || 0 : 0;
+  // tax on taxable lines only, after allocating the invoice discount proportionally
+  const discFactor = subtotal > 0 ? (subtotal - disc) / subtotal : 1;
+  const taxableBase = lines.reduce((s, l) => s + (l.taxable !== false ? l.qty * l.price : 0), 0) * discFactor;
+  const tax = taxRate > 0 ? Math.round(taxableBase * taxRate) / 100 : 0;
+  const total = Math.max(0, subtotal - disc + tax);
   const paidNum = paidTouched ? Number(paid) || 0 : total;
   const remaining = Math.max(0, total - paidNum);
   const profit = isSale ? lines.reduce((s, l) => s + l.qty * (l.price - l.cost), 0) - disc : 0;
+  const discountPct = subtotal > 0 ? (disc / subtotal) * 100 : 0;
+  const needsApproval = isSale && Number(discountApprovalPct) > 0 && discountPct > Number(discountApprovalPct) && user.role !== 'admin';
 
   const save = async () => {
     if (lines.length === 0) return;
-    if (remaining > 0 && !partyId) {
+    if (needsApproval) {
+      setToast(`الخصم يتجاوز ${discountApprovalPct}% — يتطلب موافقة المدير`);
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+    if (!isQuote && !isPO && remaining > 0 && !partyId) {
       setToast(isSale ? 'البيع الآجل يحتاج اختيار عميل' : 'الشراء الآجل يحتاج اختيار مورد');
       setTimeout(() => setToast(''), 2500);
       return;
     }
     setSaving(true);
     const party = parties.find((p) => p.id === Number(partyId));
-    const { id } = await saveInvoice({
+    const payload = {
       type,
+      branchId: activeBranch,
       partyId: party ? party.id : null,
       partyName: party ? party.name : null,
-      lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0 })),
+      lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, baseUnit, salePrice, costPrice, units, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0, factor: Number(l.factor) || 1 })),
       subtotal,
       discount: disc,
+      couponCode: coupon ? coupon.code : null,
+      priceListId: party ? (party.priceListId || null) : null,
+      tax,
+      taxRate,
+      taxName,
       total,
       paid: paidNum,
       remaining,
       profit,
       userId: user.id,
       userName: user.name,
-    });
-    nav(`/invoices/${id}?new=1`);
+    };
+    const res = isQuote ? await saveQuote(payload) : isPO ? await savePurchaseOrder(payload) : isReturn ? await saveReturn(payload) : await saveInvoice(payload);
+    if (coupon) await redeemCoupon(coupon.id).catch(() => {});
+    // Signal auto WhatsApp send for sale/quote invoices addressed to a customer with a phone
+    const wantSend = (type === 'sale' || type === 'quote') && party && (party.phone || '').trim();
+    nav(`/invoices/${res.id}?new=1${wantSend ? '&send=1' : ''}`);
   };
 
   const saveNewParty = async () => {
@@ -123,6 +202,27 @@ export default function InvoiceEditor({ type }) {
     setPartyId(String(id));
     setShowNewParty(false);
     setNewParty({ name: '', phone: '', address: '' });
+  };
+
+  // re-price sale lines when the customer's price list changes
+  useEffect(() => {
+    if (!isSale) return;
+    setLines((ls) => ls.map((l) => {
+      const lp = priceList && priceList.prices && priceList.prices[l.itemId];
+      return { ...l, price: lp != null ? Number(lp) : (l.salePrice || l.price) };
+    }));
+  }, [priceList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const applyCoupon = async () => {
+    const res = await validateCoupon(couponCode, subtotal);
+    if (res.ok) {
+      setCoupon(res.coupon);
+      setDiscount(String(res.discount));
+      setCouponMsg(`✅ خصم ${res.coupon.type === 'percent' ? res.coupon.value + '%' : res.discount} مطبّق`);
+    } else {
+      setCoupon(null);
+      setCouponMsg('⚠️ ' + res.reason);
+    }
   };
 
   const onBarcodeDetected = (code) => {
@@ -140,7 +240,7 @@ export default function InvoiceEditor({ type }) {
   return (
     <>
       <div className="page-head">
-        <h1>{isSale ? '🧾 فاتورة بيع جديدة' : '📥 فاتورة شراء جديدة'}</h1>
+        <h1>{TITLES[type] || '🧾 فاتورة'}</h1>
       </div>
 
       <div className="pos-grid">
@@ -160,6 +260,7 @@ export default function InvoiceEditor({ type }) {
               {navigator.mediaDevices && (
                 <button className="btn" onClick={() => setScanning(true)} title="مسح باركود بالكاميرا">📷</button>
               )}
+              <MicButton size={44} title="ابحث عن منتج بصوتك" onResult={(t) => { setQ(t); searchRef.current?.focus(); }} />
             </div>
             {results.length > 0 && (
               <div className="search-drop">
@@ -171,7 +272,7 @@ export default function InvoiceEditor({ type }) {
                     </div>
                     <div style={{ textAlign: 'left' }}>
                       <b className="num">{money(isSale ? it.salePrice : it.costPrice)}</b>
-                      <div className="meta">رصيد: {fmt(it.stock)}</div>
+                      <div className="meta">رصيد: {fmt(stockOf(it, activeBranch))}</div>
                     </div>
                   </div>
                 ))}
@@ -200,17 +301,28 @@ export default function InvoiceEditor({ type }) {
                       {l.name}
                       <small>
                         {l.code}
-                        {isSale && l.qty > l.stock && (
+                        {isSale && l.qty * (l.factor || 1) > l.stock && (
                           <span style={{ color: 'var(--red)', fontWeight: 700 }}> · الرصيد {fmt(l.stock)} فقط!</span>
                         )}
                         {isSale && l.wholesaleMinQty > 0 && l.qty < l.wholesaleMinQty && (
                           <span style={{ color: 'var(--amber)', fontSize: 11 }}> · جملة({l.wholesaleMinQty}+) {money(l.wholesalePrice)}</span>
                         )}
                       </small>
+                      {(l.units && l.units.length > 0) && (
+                        <select
+                          value={l.unit}
+                          onChange={(e) => changeUnit(l.itemId, e.target.value)}
+                          style={{ marginTop: 4, fontSize: 12, padding: '2px 4px', maxWidth: 150 }}
+                        >
+                          {[{ name: l.baseUnit || 'قطعة', factor: 1 }, ...l.units].map((u) => (
+                            <option key={u.name} value={u.name}>{u.name}{Number(u.factor) > 1 ? ` (${u.factor})` : ''}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     <input type="number" min="0" step="any" value={l.qty}
                       onChange={(e) => setLine(l.itemId, { qty: Number(e.target.value) })} />
-                    <input type="number" min="0" step="any" value={l.price}
+                    <input type="number" min="0" step="any" value={l.price} readOnly={!canUser(user, 'changePrice')}
                       onChange={(e) => setLine(l.itemId, { price: Number(e.target.value) })} />
                     <div className="num" style={{ textAlign: 'center' }}>{fmt(l.qty * l.price)}</div>
                     <button className="x" onClick={() => removeLine(l.itemId)}>✕</button>
@@ -224,15 +336,38 @@ export default function InvoiceEditor({ type }) {
         <div className="card">
           <div className="field">
             <label>{isSale ? 'العميل' : 'المورد'}</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <select className="input" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-                <option value="">{isSale ? 'عميل نقدي' : 'اختر المورد'}</option>
-                {parties.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}{p.points ? ` ⭐${p.points}` : ''}</option>
-                ))}
-              </select>
-              <button className="btn ghost sm" onClick={() => setShowNewParty(true)}>＋ جديد</button>
-            </div>
+            {selectedParty ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div className="input" style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <b>{selectedParty.name}</b>
+                  <span className="muted" style={{ fontSize: 12 }}>{selectedParty.phone || ''}{selectedParty.points ? ` · ⭐${selectedParty.points}` : ''}</span>
+                </div>
+                <button className="btn ghost sm" title="تغيير" onClick={() => { setPartyId(''); setPartyQ(''); setPartyOpen(false); }}>✕</button>
+              </div>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="input" style={{ flex: 1 }} value={partyQ}
+                    placeholder={isSale ? '🔍 ابحث عن عميل (أو اتركه نقدي)' : '🔍 ابحث عن مورد'}
+                    onChange={(e) => { setPartyQ(e.target.value); setPartyOpen(true); }}
+                    onFocus={() => setPartyOpen(true)}
+                  />
+                  <MicButton title={isSale ? 'ابحث عن عميل بصوتك' : 'ابحث عن مورد بصوتك'} onResult={(t) => { setPartyQ(t); setPartyOpen(true); }} />
+                  <button className="btn ghost sm" onClick={() => setShowNewParty(true)}>＋ جديد</button>
+                </div>
+                {partyOpen && partyResults.length > 0 && (
+                  <div className="search-drop">
+                    {partyResults.map((p) => (
+                      <div key={p.id} className="search-item" onClick={() => { setPartyId(String(p.id)); setPartyOpen(false); }}>
+                        <b>{p.name}</b>
+                        <span className="meta">{p.phone || '—'}{p.points ? ` · ⭐${p.points}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {isSale && partyId && (() => {
@@ -247,11 +382,23 @@ export default function InvoiceEditor({ type }) {
             return null;
           })()}
 
+          {isSale && !isReturn && (
+            <div className="field">
+              <label>🎟️ كوبون خصم</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="input" style={{ flex: 1 }} value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)} placeholder="أدخل كود الكوبون" />
+                <button className="btn ghost" type="button" onClick={applyCoupon} disabled={!couponCode.trim()}>تطبيق</button>
+              </div>
+              {couponMsg && <div style={{ fontSize: 12, color: coupon ? 'var(--green)' : 'var(--amber)', marginTop: 4 }}>{couponMsg}</div>}
+            </div>
+          )}
+
           <div className="row">
             <div className="field">
-              <label>الخصم</label>
+              <label>الخصم{coupon ? ` (كوبون ${coupon.code})` : ''}</label>
               <input className="input" type="number" min="0" value={discount}
-                onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
+                onChange={(e) => { setDiscount(e.target.value); setCoupon(null); setCouponMsg(''); }} placeholder="0" />
             </div>
             <div className="field">
               <label>المدفوع</label>
@@ -265,12 +412,15 @@ export default function InvoiceEditor({ type }) {
           <div className="totals">
             <div className="trow"><span>الإجمالي قبل الخصم</span><span className="num">{money(subtotal)}</span></div>
             <div className="trow"><span>الخصم</span><span className="num">- {money(disc)}</span></div>
+            {tax > 0 && (
+              <div className="trow"><span>{taxName} ({fmt(taxRate)}%)</span><span className="num">+ {money(tax)}</span></div>
+            )}
             {remaining > 0 && (
               <div className="trow" style={{ color: 'var(--amber)' }}>
                 <span>المتبقي (آجل)</span><span className="num">{money(remaining)}</span>
               </div>
             )}
-            {isSale && (
+            {isSale && canUser(user, 'viewProfit') && (
               <div className="trow" style={{ color: 'var(--green)' }}>
                 <span>ربح الفاتورة</span><span className="num">{money(profit)}</span>
               </div>
@@ -278,9 +428,21 @@ export default function InvoiceEditor({ type }) {
             <div className="trow grand"><span>الصافي</span><span className="num">{money(total)}</span></div>
           </div>
 
+          {isSale && !isQuote && selectedParty && (selectedParty.creditLimit || 0) > 0 &&
+            ((selectedParty.balance || 0) + remaining) > selectedParty.creditLimit && (
+            <div className="card" style={{ borderColor: 'var(--amber)', color: 'var(--amber)', fontWeight: 700, marginTop: 12, padding: 10, fontSize: 13 }}>
+              ⚠️ تنبيه: هذه الفاتورة تتجاوز الحد الائتماني للعميل ({money(selectedParty.creditLimit)}).
+              الرصيد بعد البيع سيكون {money((selectedParty.balance || 0) + remaining)}.
+            </div>
+          )}
+          {needsApproval && (
+            <div className="card" style={{ borderColor: 'var(--red)', color: 'var(--red)', fontWeight: 700, marginTop: 12, padding: 10, fontSize: 13 }}>
+              🔒 الخصم ({fmt(Math.round(discountPct))}%) يتجاوز الحد المسموح ({fmt(discountApprovalPct)}%) — يتطلب موافقة/دخول المدير لإتمام الفاتورة.
+            </div>
+          )}
           <button className="btn accent big block" style={{ marginTop: 14 }}
-            onClick={save} disabled={lines.length === 0 || saving}>
-            {saving ? '...جاري الحفظ' : '💾 حفظ الفاتورة'}
+            onClick={save} disabled={lines.length === 0 || saving || needsApproval}>
+            {saving ? '...جاري الحفظ' : isQuote ? '💾 حفظ عرض السعر' : isPO ? '💾 حفظ طلب الشراء' : isReturn ? '💾 حفظ المرتجع' : '💾 حفظ الفاتورة'}
           </button>
         </div>
       </div>

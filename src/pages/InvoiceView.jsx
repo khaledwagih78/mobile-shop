@@ -1,42 +1,101 @@
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, cancelInvoice, getSetting } from '../db';
-import { money, fmt, fmtDate, can, waLink } from '../utils';
+import { db, cancelInvoice, restoreInvoice, convertQuote, convertPurchaseOrder, getSetting } from '../db';
+import { money, fmt, fmtDate, can, canUser, waLink } from '../utils';
 import { useAuth } from '../auth';
+import PasswordGate from '../components/PasswordGate';
+import { Modal } from '../components/UI';
+
+// Build the WhatsApp message text for an invoice (no hooks — safe to call anywhere).
+function buildWaText(inv, bizName) {
+  const isSale = inv.type === 'sale' || inv.type === 'quote';
+  const head = inv.type === 'quote' ? 'عرض سعر' : isSale ? 'بيع' : 'شراء';
+  let t = `*${bizName}*\nفاتورة ${head} رقم: ${inv.number}\n`;
+  t += `التاريخ: ${fmtDate(inv.createdAt)}\n`;
+  if (inv.partyName) t += `${isSale ? 'العميل' : 'المورد'}: ${inv.partyName}\n`;
+  t += `------------------\n`;
+  inv.lines.forEach((l) => { t += `${l.name} × ${fmt(l.qty)} = ${fmt(l.qty * l.price)}\n`; });
+  t += `------------------\n`;
+  if (inv.discount > 0) t += `الخصم: ${money(inv.discount)}\n`;
+  if (inv.tax > 0) t += `${inv.taxName || 'ضريبة'}: ${money(inv.tax)}\n`;
+  t += `*الإجمالي: ${money(inv.total)}*\n`;
+  if (inv.remaining > 0) t += `المتبقي: ${money(inv.remaining)}\n`;
+  t += `شكراً لتعاملكم معنا 🌹`;
+  return t;
+}
 
 export default function InvoiceView() {
   const { id } = useParams();
   const nav = useNavigate();
   const [sp] = useSearchParams();
   const { user } = useAuth();
+  const [gate, setGate] = useState(null); // { title, message, onConfirm }
+  const [poConv, setPoConv] = useState(null); // { extraCosts, allocation, paid }
+  const [waPending, setWaPending] = useState(false); // offline: invoice queued for WhatsApp send
+  const sentRef = useRef(false);
   const inv = useLiveQuery(() => db.invoices.get(Number(id)), [id]);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'خالد لقطع غيار المحمول'), [], 'خالد لقطع غيار المحمول');
+  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
+  const waAutoSend = useLiveQuery(() => getSetting('waAutoSend', false), [], false);
+  const logo = useLiveQuery(() => getSetting('bizLogo', ''), [], '');
+  const address = useLiveQuery(() => getSetting('bizAddress', ''), [], '');
+  const shopPhone = useLiveQuery(() => getSetting('bizPhone', ''), [], '');
+  const returnPolicy = useLiveQuery(() => getSetting('returnPolicy', ''), [], '');
+  const warranty = useLiveQuery(() => getSetting('warranty', ''), [], '');
   const party = useLiveQuery(
-    () => (inv?.partyId ? (inv.type === 'sale' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
+    () => (inv?.partyId ? (inv.type === 'sale' || inv.type === 'quote' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
     [inv?.partyId, inv?.type]
   );
+
+  // Auto-send to WhatsApp when arriving with ?send=1 from a freshly-saved sale/quote.
+  useEffect(() => {
+    if (sentRef.current) return;
+    if (sp.get('send') !== '1' || waAutoSend !== true) return;
+    if (!inv || party === undefined) return; // still loading
+    const phone = (party && party.phone || '').trim();
+    if (!phone) return;
+    sentRef.current = true;
+    if (navigator.onLine) {
+      window.open(waLink(phone, buildWaText(inv, bizName)), '_blank');
+    } else {
+      setWaPending(true); // no internet — keep it ready to send from the button
+    }
+  }, [inv, party, waAutoSend, bizName, sp]);
 
   if (!inv) return <div className="card empty">جاري التحميل...</div>;
 
   const isSale = inv.type === 'sale';
 
-  const waText = () => {
-    let t = `*${bizName}*\nفاتورة ${isSale ? 'بيع' : 'شراء'} رقم: ${inv.number}\n`;
-    t += `التاريخ: ${fmtDate(inv.createdAt)}\n`;
-    if (inv.partyName) t += `${isSale ? 'العميل' : 'المورد'}: ${inv.partyName}\n`;
-    t += `------------------\n`;
-    inv.lines.forEach((l) => { t += `${l.name} × ${fmt(l.qty)} = ${fmt(l.qty * l.price)}\n`; });
-    t += `------------------\n`;
-    if (inv.discount > 0) t += `الخصم: ${money(inv.discount)}\n`;
-    t += `*الإجمالي: ${money(inv.total)}*\n`;
-    if (inv.remaining > 0) t += `المتبقي: ${money(inv.remaining)}\n`;
-    t += `شكراً لتعاملكم معنا 🌹`;
-    return t;
+  const waText = () => buildWaText(inv, bizName);
+
+  const doCancel = () => {
+    setGate({
+      title: `إلغاء الفاتورة ${inv.number}`,
+      message: 'سيتم عكس حركة المخزون والأرصدة. الفاتورة تفضل محفوظة وتقدر ترجّعها في أي وقت.',
+      onConfirm: () => cancelInvoice(inv.id, user.name),
+    });
   };
 
-  const doCancel = async () => {
-    if (!confirm(`إلغاء الفاتورة ${inv.number}؟ سيتم عكس حركة المخزون والأرصدة.`)) return;
-    await cancelInvoice(inv.id, user.name);
+  const doRestore = () => {
+    setGate({
+      title: `استرجاع الفاتورة ${inv.number}`,
+      message: 'هيتم إرجاع الفاتورة وتطبيق حركة المخزون والأرصدة من جديد.',
+      onConfirm: () => restoreInvoice(inv.id, user.name),
+    });
+  };
+
+  const doConvert = async () => {
+    const res = await convertQuote(inv.id, user.name);
+    if (res) nav(`/invoices/${res.id}?new=1`);
+  };
+
+  const doConvertPO = async () => {
+    const res = await convertPurchaseOrder(inv.id, {
+      extraCosts: Number(poConv.extraCosts) || 0, allocation: poConv.allocation,
+      paid: poConv.paid === '' ? null : Number(poConv.paid), userName: user.name,
+    });
+    setPoConv(null);
+    if (res) nav(`/invoices/${res.id}?new=1`);
   };
 
   const exportPDF = () => {
@@ -62,7 +121,10 @@ export default function InvoiceView() {
       </style>
     </head><body>
       <div class="header">
+        ${logo ? `<img src="${logo}" style="max-height:70px;margin-bottom:6px"/><br/>` : ''}
         <h1>${bizName}</h1>
+        ${address ? `<p>${address}</p>` : ''}
+        ${shopPhone ? `<p>📞 ${shopPhone}</p>` : ''}
         <p>فاتورة ${isSale ? 'بيع' : 'شراء'} رقم: ${inv.number}</p>
       </div>
       <div class="info">
@@ -84,12 +146,17 @@ export default function InvoiceView() {
       <div class="totals">
         <div class="row"><span>الإجمالي</span><span>${money(inv.subtotal)}</span></div>
         ${inv.discount > 0 ? `<div class="row"><span>الخصم</span><span>-${money(inv.discount)}</span></div>` : ''}
+        ${inv.tax > 0 ? `<div class="row"><span>${inv.taxName || 'ضريبة'} (${fmt(inv.taxRate)}%)</span><span>${money(inv.tax)}</span></div>` : ''}
         <div class="row"><span>المدفوع</span><span>${money(inv.paid)}</span></div>
         ${inv.remaining > 0 ? `<div class="row" style="color:#e67e22"><span>المتبقي</span><span>${money(inv.remaining)}</span></div>` : ''}
-        ${isSale ? `<div class="row" style="color:#27ae60"><span>الربح</span><span>${money(inv.profit)}</span></div>` : ''}
+        ${isSale && canUser(user, 'viewProfit') ? `<div class="row" style="color:#27ae60"><span>الربح</span><span>${money(inv.profit)}</span></div>` : ''}
         <div class="row grand"><span>الصافي</span><span>${money(inv.total)}</span></div>
       </div>
-      <div class="footer">شكراً لتعاملكم معنا — ${bizName}</div>
+      <div class="footer">
+        ${returnPolicy ? `<div style="margin-bottom:3px">↩️ ${returnPolicy}</div>` : ''}
+        ${warranty ? `<div style="margin-bottom:3px">🛡️ ${warranty}</div>` : ''}
+        <div style="margin-top:6px">شكراً لتعاملكم معنا — ${bizName}</div>
+      </div>
       <script>window.onload = () => { window.print(); }</script>
     </body></html>`);
     win.document.close();
@@ -105,8 +172,17 @@ export default function InvoiceView() {
           <a className="btn ghost" href={waLink(party?.phone, waText())} target="_blank" rel="noreferrer">
             📲 واتساب{party?.phone ? ' العميل' : ''}
           </a>
-          {inv.status === 'active' && can(user.role, 'cancelInvoice') && (
+          {inv.type === 'quote' && inv.status === 'quote' && (
+            <button className="btn accent" onClick={doConvert}>✅ تحويل لفاتورة بيع</button>
+          )}
+          {inv.type === 'po' && inv.status === 'po' && (
+            <button className="btn accent" onClick={() => setPoConv({ extraCosts: '', allocation: 'value', paid: '' })}>✅ تحويل لفاتورة شراء</button>
+          )}
+          {inv.status === 'active' && (inv.type === 'sale' || inv.type === 'purchase') && can(user.role, 'cancelInvoice') && (
             <button className="btn danger" onClick={doCancel}>إلغاء الفاتورة</button>
+          )}
+          {inv.status === 'cancelled' && can(user.role, 'cancelInvoice') && (
+            <button className="btn" style={{ background: 'var(--green, #27ae60)' }} onClick={doRestore}>♻️ استرجاع الفاتورة</button>
           )}
         </div>
       </div>
@@ -116,9 +192,36 @@ export default function InvoiceView() {
           ✅ تم حفظ الفاتورة بنجاح
         </div>
       )}
+      {waPending && (
+        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span>📵 لا يوجد إنترنت — الفاتورة جاهزة للإرسال على واتساب. اضغط الزر أول ما النت يرجع.</span>
+          <a className="btn accent sm" href={waLink(party?.phone, waText())} target="_blank" rel="noreferrer"
+            onClick={() => setWaPending(false)}>📲 إرسال الآن</a>
+        </div>
+      )}
       {inv.status === 'cancelled' && (
         <div className="card" style={{ borderColor: 'var(--red)', marginBottom: 14, color: 'var(--red)', fontWeight: 800 }}>
           ⛔ فاتورة ملغاة — بواسطة {inv.cancelledBy} في {fmtDate(inv.cancelledAt)}
+        </div>
+      )}
+      {inv.type === 'quote' && inv.status === 'quote' && (
+        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700 }}>
+          📄 عرض سعر — لا يؤثر على المخزون. اضغط "تحويل لفاتورة بيع" عند موافقة العميل.
+        </div>
+      )}
+      {inv.type === 'po' && inv.status === 'po' && (
+        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700 }}>
+          📝 طلب شراء — لا يؤثر على المخزون. عند الاستلام اضغط "تحويل لفاتورة شراء" (تقدر تضيف مصاريف شحن/جمارك توزّع على التكلفة).
+        </div>
+      )}
+      {inv.status === 'converted' && (
+        <div className="card" style={{ borderColor: 'var(--green)', marginBottom: 14, color: 'var(--green)', fontWeight: 700 }}>
+          ✅ تم تحويل عرض السعر إلى فاتورة بيع.
+        </div>
+      )}
+      {(inv.type === 'sale_return' || inv.type === 'purchase_return') && (
+        <div className="card" style={{ marginBottom: 14, fontWeight: 700 }}>
+          {inv.type === 'sale_return' ? '↩️ مرتجع بيع' : '↪️ مرتجع شراء'} — تم تعديل المخزون والأرصدة.
         </div>
       )}
 
@@ -132,9 +235,10 @@ export default function InvoiceView() {
           <div className="totals">
             <div className="trow"><span>قبل الخصم</span><span className="num">{money(inv.subtotal)}</span></div>
             <div className="trow"><span>الخصم</span><span className="num">- {money(inv.discount)}</span></div>
+            {inv.tax > 0 && <div className="trow"><span>{inv.taxName || 'ضريبة'} ({fmt(inv.taxRate)}%)</span><span className="num">+ {money(inv.tax)}</span></div>}
             <div className="trow"><span>المدفوع</span><span className="num">{money(inv.paid)}</span></div>
             {inv.remaining > 0 && <div className="trow" style={{ color: 'var(--amber)' }}><span>المتبقي</span><span className="num">{money(inv.remaining)}</span></div>}
-            {isSale && <div className="trow" style={{ color: 'var(--green)' }}><span>الربح</span><span className="num">{money(inv.profit)}</span></div>}
+            {isSale && canUser(user, 'viewProfit') && <div className="trow" style={{ color: 'var(--green)' }}><span>الربح</span><span className="num">{money(inv.profit)}</span></div>}
             <div className="trow grand"><span>الصافي</span><span className="num">{money(inv.total)}</span></div>
           </div>
         </div>
@@ -162,7 +266,13 @@ export default function InvoiceView() {
       {/* print layout (80mm receipt friendly) */}
       <div className="print-area">
         <div className="invoice-print" dir="rtl">
+          {logo && <img src={logo} alt="" style={{ maxHeight: 56, display: 'block', margin: '0 auto 6px' }} />}
           <h2>{bizName}</h2>
+          {(address || shopPhone) && (
+            <div className="ph" style={{ marginTop: 0 }}>
+              {address}{address && shopPhone ? ' · ' : ''}{shopPhone ? `📞 ${shopPhone}` : ''}
+            </div>
+          )}
           <div className="ph">
             فاتورة {isSale ? 'بيع' : 'شراء'} رقم {inv.number}<br />
             {fmtDate(inv.createdAt)}<br />
@@ -178,13 +288,45 @@ export default function InvoiceView() {
           </table>
           <div className="tot">
             {inv.discount > 0 && <>الخصم: {money(inv.discount)}<br /></>}
+            {inv.tax > 0 && <>{inv.taxName || 'ضريبة'}: {money(inv.tax)}<br /></>}
             الإجمالي: {money(inv.total)}<br />
             المدفوع: {money(inv.paid)}
             {inv.remaining > 0 && <><br />المتبقي: {money(inv.remaining)}</>}
           </div>
+          {(returnPolicy || warranty) && (
+            <div className="ph" style={{ marginTop: 8, fontSize: 11 }}>
+              {returnPolicy && <div>↩️ {returnPolicy}</div>}
+              {warranty && <div>🛡️ {warranty}</div>}
+            </div>
+          )}
           <div className="ph" style={{ marginTop: 8 }}>شكراً لتعاملكم معنا</div>
         </div>
       </div>
+
+      {gate && (
+        <PasswordGate
+          title={gate.title} message={gate.message}
+          onConfirm={gate.onConfirm} onClose={() => setGate(null)}
+        />
+      )}
+
+      {poConv && (
+        <Modal title={`تحويل طلب الشراء ${inv.number} لفاتورة`} onClose={() => setPoConv(null)}>
+          <div className="field"><label>مصاريف إضافية (شحن / جمارك / نقل)</label>
+            <input className="input" type="number" min="0" value={poConv.extraCosts}
+              onChange={(e) => setPoConv({ ...poConv, extraCosts: e.target.value })} placeholder="0" autoFocus /></div>
+          <div className="field"><label>توزيع المصاريف على الأصناف</label>
+            <select className="input" value={poConv.allocation} onChange={(e) => setPoConv({ ...poConv, allocation: e.target.value })}>
+              <option value="value">حسب قيمة الصنف</option>
+              <option value="qty">حسب الكمية</option>
+            </select></div>
+          <div className="field"><label>المدفوع للمورد (اتركه فارغاً = دفع كامل)</label>
+            <input className="input" type="number" min="0" value={poConv.paid}
+              onChange={(e) => setPoConv({ ...poConv, paid: e.target.value })} placeholder={String(inv.total)} /></div>
+          <p className="muted" style={{ fontSize: 12 }}>المصاريف الإضافية تُضاف لتكلفة الأصناف (تكلفة فعلية) وتُسجّل قيد محاسبي.</p>
+          <button className="btn accent block" onClick={doConvertPO}>✅ تأكيد التحويل</button>
+        </Modal>
+      )}
     </>
   );
 }

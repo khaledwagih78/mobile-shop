@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, today } from '../db';
 import { money, fmt, fmtDate, monthOf } from '../utils';
+import { useAuth } from '../auth';
 
 const TABS = [
   { id: 'daily', label: 'مبيعات يومية' },
@@ -14,14 +15,18 @@ const TABS = [
 ];
 
 export default function Reports() {
+  const { user, branches, activeBranch } = useAuth();
+  const isAdmin = user.role === 'admin';
   const [tab, setTab] = useState('daily');
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [month, setMonth] = useState(monthOf(today()));
+  const [branchFilter, setBranchFilter] = useState(isAdmin ? 'all' : activeBranch);
+  const matchBranch = (r) => branchFilter === 'all' || (r.branchId || 1) === Number(branchFilter);
 
   const invoices = useLiveQuery(() => db.invoices.toArray(), [], []);
   const expenses = useLiveQuery(() => db.expenses.toArray(), [], []);
-  const moves = useLiveQuery(() => db.stockMoves.orderBy('createdAt').reverse().limit(300).toArray(), [], []);
+  const moves = useLiveQuery(() => db.stockMoves.orderBy('createdAt').reverse().limit(500).toArray(), [], []);
   const customers = useLiveQuery(() => db.customers.toArray(), [], []);
 
   const range = tab === 'monthly'
@@ -29,12 +34,12 @@ export default function Reports() {
     : { from, to };
 
   const sales = useMemo(
-    () => invoices.filter((i) => i.type === 'sale' && i.status === 'active' && i.day >= range.from && i.day <= range.to),
-    [invoices, range.from, range.to]
+    () => invoices.filter((i) => i.type === 'sale' && i.status === 'active' && matchBranch(i) && i.day >= range.from && i.day <= range.to),
+    [invoices, range.from, range.to, branchFilter]
   );
   const exp = useMemo(
-    () => expenses.filter((e) => e.day >= range.from && e.day <= range.to),
-    [expenses, range.from, range.to]
+    () => expenses.filter((e) => matchBranch(e) && e.day >= range.from && e.day <= range.to),
+    [expenses, range.from, range.to, branchFilter]
   );
 
   const totSales = sales.reduce((s, i) => s + i.total, 0);
@@ -84,6 +89,12 @@ export default function Reports() {
         <select className="input" style={{ maxWidth: 200 }} value={tab} onChange={(e) => setTab(e.target.value)}>
           {TABS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
+        {branches.length > 1 && (
+          <select className="input" style={{ maxWidth: 170 }} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} disabled={!isAdmin}>
+            {isAdmin && <option value="all">🏢 كل الفروع</option>}
+            {branches.filter((b) => isAdmin || b.id === activeBranch).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        )}
         {tab === 'monthly' ? (
           <input className="input" style={{ maxWidth: 170 }} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
         ) : tab !== 'moves' && tab !== 'debts' ? (
@@ -140,7 +151,7 @@ export default function Reports() {
       {tab === 'moves' && (
         <ReportTable
           head={['الصنف', 'الحركة', 'الكمية', 'المرجع', 'التاريخ']}
-          rows={moves.map((m) => [m.itemName, m.direction === 'in' ? 'دخل ⬇' : 'خرج ⬆', fmt(m.qty), m.refNumber, fmtDate(m.createdAt)])}
+          rows={moves.filter(matchBranch).map((m) => [m.itemName, m.direction === 'in' ? 'دخل ⬇' : 'خرج ⬆', fmt(m.qty), m.refNumber, fmtDate(m.createdAt)])}
         />
       )}
 

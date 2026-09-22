@@ -5,9 +5,9 @@ import { db, nowISO } from './db';
 const SYNC_TABLES = [
   'items', 'customers', 'suppliers', 'invoices',
   'payments', 'stockMoves', 'expenses', 'recurringExpenses',
-  'employees', 'empRecords', 'users',
+  'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'profiles',
-  'auditLog', 'deliveries',
+  'auditLog', 'deliveries', 'requests', 'productions',
 ];
 
 let _status = { state: 'idle', at: null, error: null };

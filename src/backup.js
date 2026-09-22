@@ -1,6 +1,6 @@
 import { db, nowISO } from './db';
 
-const TABLES = ['items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves', 'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'settings'];
+const TABLES = ['items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves', 'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches', 'settings'];
 
 async function deriveKey(password, salt) {
   const enc = new TextEncoder();
