@@ -273,9 +273,19 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   paid/partial — so a plan never double-counts the debt.
 - Customers gained a `creditLimit` (Parties form); `InvoiceEditor` shows a soft
   over-limit warning on credit sales, and Parties/aging flag over-limit customers.
+- **Due dates:** a credit sale carries a `dueDate` (invoice field). `InvoiceEditor`
+  defaults it to today + the `creditDays` setting (default 30, configured in
+  Settings→التنبيهات), overridable per invoice, and only for sales with a remaining
+  balance. `InvoiceView` shows the due date on screen/print/WhatsApp.
 - The page's **أعمار الديون** tab buckets each customer's outstanding balance
-  (0–30/31–60/61–90/90+) by allocating their payments FIFO to their oldest unpaid
-  sale invoices; untracked/opening balances fall in the 0–30 bucket.
+  (0–30/31–60/61–90/90+) by **days past the invoice `dueDate`** (falling back to
+  `day + creditDays` for older invoices with no stored due date), allocating their
+  payments FIFO to their oldest-due unpaid sale invoices; untracked/opening balances
+  fall in the 0–30 bucket.
+- The **المتأخرون** tab filters overdue customers by min days late + min outstanding
+  amount, showing oldest due date / max days late / overdue invoice count / overdue
+  amount, and exports the list to CSV (UTF-8 BOM for Arabic Excel) or a print/PDF
+  view via `src/overdueExport.js`.
 
 ### CRM — leads & pipeline (`src/pages/CRM.jsx`)
 

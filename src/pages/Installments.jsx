@@ -1,7 +1,8 @@
 import { useMemo, useState, Fragment } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, createInstallmentPlan, payInstallment } from '../db';
+import { db, today, getSetting, createInstallmentPlan, payInstallment } from '../db';
 import { money, fmt, fmtDay } from '../utils';
+import { exportOverdueCustomers, printOverdueCustomers } from '../overdueExport';
 import { Modal, Toast } from '../components/UI';
 import { useAuth } from '../auth';
 
@@ -11,8 +12,12 @@ export default function Installments() {
   const plans = useLiveQuery(() => db.installmentPlans.orderBy('createdAt').reverse().toArray(), [], []);
   const invoices = useLiveQuery(() => db.invoices.where('type').equals('sale').toArray(), [], []);
   const payments = useLiveQuery(() => db.payments.toArray(), [], []);
+  const creditDays = useLiveQuery(() => getSetting('creditDays', 30), [], 30);
+  const bizName = useLiveQuery(() => getSetting('bizName', 'النشاط'), [], 'النشاط');
 
   const [tab, setTab] = useState('plans');
+  const [minDays, setMinDays] = useState('');
+  const [minAmount, setMinAmount] = useState('');
   const [toast, setToast] = useState('');
   const [form, setForm] = useState(null);
   const [payFor, setPayFor] = useState(null); // { plan, inst }
@@ -56,7 +61,14 @@ export default function Installments() {
     return { paid, remaining: Math.round((p.financed - paid) * 100) / 100, paidCount, overdue, next };
   };
 
-  // ---- aging (FIFO allocation of payments to oldest invoices) ----
+  // effective due date of a sale invoice: explicit dueDate, else day + creditDays
+  const dueOf = (inv) => {
+    if (inv.dueDate) return inv.dueDate;
+    if (!inv.day) return t;
+    return new Date(new Date(inv.day).getTime() + (Number(creditDays) || 0) * 86400000).toISOString().slice(0, 10);
+  };
+
+  // ---- aging (FIFO allocation of payments to oldest invoices, bucketed by days past DUE date) ----
   const aging = useMemo(() => {
     const salesByCust = {};
     for (const inv of invoices) {
@@ -69,24 +81,47 @@ export default function Installments() {
     for (const c of customers) {
       const bal = c.balance || 0;
       if (bal <= 0) continue;
-      const invs = (salesByCust[c.id] || []).slice().sort((a, b) => (a.day || '').localeCompare(b.day || ''));
+      // allocate payments FIFO to oldest invoices (by due date)
+      const invs = (salesByCust[c.id] || []).slice().sort((a, b) => dueOf(a).localeCompare(dueOf(b)));
       let pay = payByCust[c.id] || 0;
       const b = { b0: 0, b30: 0, b60: 0, b90: 0 };
+      let oldestDue = null, overdueInvoices = 0, overdueAmount = 0, maxOverdueDays = 0;
       for (const inv of invs) {
         let rem = inv.remaining || 0;
         const applied = Math.min(pay, rem); pay -= applied; rem -= applied;
         if (rem <= 0.001) continue;
-        const days = Math.floor((new Date(t) - new Date(inv.day)) / 86400000);
-        if (days <= 30) b.b0 += rem; else if (days <= 60) b.b30 += rem; else if (days <= 90) b.b60 += rem; else b.b90 += rem;
+        const due = dueOf(inv);
+        const overdueDays = Math.floor((new Date(t) - new Date(due)) / 86400000);
+        // bucket by days past due (not-yet-due amounts fall in the current 0–30 bucket)
+        if (overdueDays <= 30) b.b0 += rem; else if (overdueDays <= 60) b.b30 += rem; else if (overdueDays <= 90) b.b60 += rem; else b.b90 += rem;
+        if (overdueDays > 0) {
+          overdueInvoices += 1; overdueAmount += rem;
+          if (overdueDays > maxOverdueDays) maxOverdueDays = overdueDays;
+          if (!oldestDue || due < oldestDue) oldestDue = due;
+        }
       }
       let total = b.b0 + b.b30 + b.b60 + b.b90;
       if (total <= 0.001) { b.b0 = bal; total = bal; } // opening/untracked balance → current bucket
-      rows.push({ c, ...b, total });
+      rows.push({ c, ...b, total, oldestDue, overdueInvoices, overdueAmount, maxOverdueDays });
     }
     return rows.sort((a, b) => b.total - a.total);
-  }, [customers, invoices, payments, t]);
+  }, [customers, invoices, payments, t, creditDays]);
 
   const agingTotals = aging.reduce((s, r) => ({ b0: s.b0 + r.b0, b30: s.b30 + r.b30, b60: s.b60 + r.b60, b90: s.b90 + r.b90, total: s.total + r.total }), { b0: 0, b30: 0, b60: 0, b90: 0, total: 0 });
+
+  // ---- overdue filter (min days late + min outstanding amount) ----
+  const overdue = useMemo(() => {
+    const md = Number(minDays) || 0, ma = Number(minAmount) || 0;
+    return aging
+      .filter((r) => r.maxOverdueDays >= (md || 1) && r.overdueAmount >= ma && r.overdueAmount > 0)
+      .sort((a, b) => b.maxOverdueDays - a.maxOverdueDays || b.overdueAmount - a.overdueAmount);
+  }, [aging, minDays, minAmount]);
+
+  const overdueRows = overdue.map((r) => ({
+    name: r.c.name, phone: r.c.phone || '', oldestDue: r.oldestDue || '',
+    overdueDays: r.maxOverdueDays, overdueInvoices: r.overdueInvoices,
+    overdueAmount: r.overdueAmount, balance: r.total,
+  }));
 
   const activePlans = plans.filter((p) => p.status === 'active');
 
@@ -100,6 +135,7 @@ export default function Installments() {
       <div className="list-tools">
         <button className={`btn ${tab === 'plans' ? '' : 'ghost'}`} onClick={() => setTab('plans')}>📅 خطط الأقساط</button>
         <button className={`btn ${tab === 'aging' ? '' : 'ghost'}`} onClick={() => setTab('aging')}>⏳ أعمار الديون</button>
+        <button className={`btn ${tab === 'overdue' ? '' : 'ghost'}`} onClick={() => setTab('overdue')}>🔴 المتأخرون</button>
       </div>
 
       {/* ── Plans ── */}
@@ -186,10 +222,53 @@ export default function Installments() {
               </tbody>
             </table>
             <p className="muted" style={{ padding: '8px 14px', fontSize: 12 }}>
-              الأعمار محسوبة بتوزيع الدفعات على أقدم الفواتير (FIFO). الأرصدة الافتتاحية غير المرتبطة بفواتير تظهر ضمن 0–30 يوم.
+              الأعمار محسوبة حسب أيام التأخير عن <b>تاريخ الاستحقاق</b> (الفواتير بلا تاريخ استحقاق تُحسب بعد {fmt(creditDays)} يوم من تاريخها)، بتوزيع الدفعات على أقدم الفواتير (FIFO). الأرصدة الافتتاحية غير المرتبطة بفواتير تظهر ضمن 0–30 يوم.
             </p>
           </div>
         )
+      )}
+
+      {/* ── Overdue customers (filter + export) ── */}
+      {tab === 'overdue' && (
+        <>
+          <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+            <div className="row">
+              <div className="field"><label>حد أدنى لأيام التأخير</label>
+                <input className="input" type="number" min="0" value={minDays} onChange={(e) => setMinDays(e.target.value)} placeholder="مثال: 1" /></div>
+              <div className="field"><label>حد أدنى للمبلغ المتأخر</label>
+                <input className="input" type="number" min="0" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} placeholder="0" /></div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn ghost sm" disabled={overdueRows.length === 0}
+                onClick={() => exportOverdueCustomers(overdueRows, { bizName, minDays: Number(minDays) || 0, minAmount: Number(minAmount) || 0 })}>⬇️ تصدير CSV</button>
+              <button className="btn ghost sm" disabled={overdueRows.length === 0}
+                onClick={() => printOverdueCustomers(overdueRows, { bizName, minDays: Number(minDays) || 0, minAmount: Number(minAmount) || 0 })}>🖨️ طباعة / PDF</button>
+              <span className="meta muted" style={{ alignSelf: 'center' }}>عدد المتأخرين: {fmt(overdueRows.length)}</span>
+            </div>
+          </div>
+          {overdue.length === 0 ? (
+            <div className="card empty"><div className="big-ico">✅</div><p>لا يوجد عملاء متأخرون مطابقون للفلترة</p></div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>العميل</th><th>الهاتف</th><th>أقدم استحقاق</th><th>أيام التأخير</th><th>فواتير متأخرة</th><th>المبلغ المتأخر</th><th>إجمالي الرصيد</th></tr></thead>
+                <tbody>
+                  {overdue.map((r) => (
+                    <tr key={r.c.id}>
+                      <td><b>{r.c.name}</b></td>
+                      <td className="muted">{r.c.phone || '—'}</td>
+                      <td className="muted">{r.oldestDue ? fmtDay(r.oldestDue) : '—'}</td>
+                      <td className="num" style={{ color: r.maxOverdueDays > 90 ? 'var(--red)' : 'var(--amber)', fontWeight: 700 }}>{fmt(r.maxOverdueDays)}</td>
+                      <td className="num">{fmt(r.overdueInvoices)}</td>
+                      <td className="num" style={{ fontWeight: 700 }}>{money(r.overdueAmount)}</td>
+                      <td className="num">{money(r.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* ── New plan modal ── */}

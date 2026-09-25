@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, cancelInvoice, restoreInvoice, convertQuote, convertPurchaseOrder, getSetting } from '../db';
-import { money, fmt, fmtDate, can, canUser, waLink } from '../utils';
+import { money, fmt, fmtDate, fmtDay, can, canUser, waLink } from '../utils';
 import { useAuth } from '../auth';
 import PasswordGate from '../components/PasswordGate';
 import { Modal } from '../components/UI';
@@ -21,6 +21,7 @@ function buildWaText(inv, bizName) {
   if (inv.tax > 0) t += `${inv.taxName || 'ضريبة'}: ${money(inv.tax)}\n`;
   t += `*الإجمالي: ${money(inv.total)}*\n`;
   if (inv.remaining > 0) t += `المتبقي: ${money(inv.remaining)}\n`;
+  if (inv.remaining > 0 && inv.dueDate) t += `تاريخ الاستحقاق: ${inv.dueDate}\n`;
   t += `شكراً لتعاملكم معنا 🌹`;
   return t;
 }
@@ -149,6 +150,7 @@ export default function InvoiceView() {
         ${inv.tax > 0 ? `<div class="row"><span>${inv.taxName || 'ضريبة'} (${fmt(inv.taxRate)}%)</span><span>${money(inv.tax)}</span></div>` : ''}
         <div class="row"><span>المدفوع</span><span>${money(inv.paid)}</span></div>
         ${inv.remaining > 0 ? `<div class="row" style="color:#e67e22"><span>المتبقي</span><span>${money(inv.remaining)}</span></div>` : ''}
+        ${inv.remaining > 0 && inv.dueDate ? `<div class="row" style="color:#e67e22"><span>تاريخ الاستحقاق</span><span>${inv.dueDate}</span></div>` : ''}
         ${isSale && canUser(user, 'viewProfit') ? `<div class="row" style="color:#27ae60"><span>الربح</span><span>${money(inv.profit)}</span></div>` : ''}
         <div class="row grand"><span>الصافي</span><span>${money(inv.total)}</span></div>
       </div>
@@ -238,6 +240,7 @@ export default function InvoiceView() {
             {inv.tax > 0 && <div className="trow"><span>{inv.taxName || 'ضريبة'} ({fmt(inv.taxRate)}%)</span><span className="num">+ {money(inv.tax)}</span></div>}
             <div className="trow"><span>المدفوع</span><span className="num">{money(inv.paid)}</span></div>
             {inv.remaining > 0 && <div className="trow" style={{ color: 'var(--amber)' }}><span>المتبقي</span><span className="num">{money(inv.remaining)}</span></div>}
+            {inv.remaining > 0 && inv.dueDate && <div className="trow" style={{ color: 'var(--amber)' }}><span>تاريخ الاستحقاق</span><span className="num">{fmtDay(inv.dueDate)}</span></div>}
             {isSale && canUser(user, 'viewProfit') && <div className="trow" style={{ color: 'var(--green)' }}><span>الربح</span><span className="num">{money(inv.profit)}</span></div>}
             <div className="trow grand"><span>الصافي</span><span className="num">{money(inv.total)}</span></div>
           </div>

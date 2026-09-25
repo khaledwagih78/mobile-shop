@@ -34,6 +34,7 @@ export default function InvoiceEditor({ type }) {
   const taxRateSetting = useLiveQuery(() => getSetting('taxRate', 0), [], 0);
   const taxName = useLiveQuery(() => getSetting('taxName', 'ضريبة القيمة المضافة'), [], 'ضريبة القيمة المضافة');
   const discountApprovalPct = useLiveQuery(() => getSetting('discountApprovalPct', 0), [], 0);
+  const creditDays = useLiveQuery(() => getSetting('creditDays', 30), [], 30);
 
   const [q, setQ] = useState('');
   const [lines, setLines] = useState([]);
@@ -43,6 +44,8 @@ export default function InvoiceEditor({ type }) {
   const [discount, setDiscount] = useState('');
   const [paid, setPaid] = useState('');
   const [paidTouched, setPaidTouched] = useState(false);
+  const [dueDate, setDueDate] = useState('');
+  const [dueTouched, setDueTouched] = useState(false);
   const [showNewParty, setShowNewParty] = useState(false);
   const [newParty, setNewParty] = useState({ name: '', phone: '', address: '' });
   const [toast, setToast] = useState('');
@@ -150,6 +153,9 @@ export default function InvoiceEditor({ type }) {
   const total = Math.max(0, subtotal - disc + tax);
   const paidNum = paidTouched ? Number(paid) || 0 : total;
   const remaining = Math.max(0, total - paidNum);
+  // due date for credit sales: user override, else today + creditDays
+  const defaultDue = new Date(Date.now() + (Number(creditDays) || 0) * 86400000).toISOString().slice(0, 10);
+  const effDueDate = dueTouched && dueDate ? dueDate : defaultDue;
   const profit = isSale ? lines.reduce((s, l) => s + l.qty * (l.price - l.cost), 0) - disc : 0;
   const discountPct = subtotal > 0 ? (disc / subtotal) * 100 : 0;
   const needsApproval = isSale && Number(discountApprovalPct) > 0 && discountPct > Number(discountApprovalPct) && user.role !== 'admin';
@@ -184,6 +190,7 @@ export default function InvoiceEditor({ type }) {
       total,
       paid: paidNum,
       remaining,
+      dueDate: isSale && !isQuote && !isPO && remaining > 0 ? effDueDate : null,
       profit,
       userId: user.id,
       userName: user.name,
@@ -427,6 +434,19 @@ export default function InvoiceEditor({ type }) {
             )}
             <div className="trow grand"><span>الصافي</span><span className="num">{money(total)}</span></div>
           </div>
+
+          {isSale && !isQuote && !isPO && remaining > 0 && (
+            <div className="field" style={{ marginTop: 12 }}>
+              <label>تاريخ استحقاق السداد (الآجل)</label>
+              <input
+                className="input"
+                type="date"
+                value={effDueDate}
+                onChange={(e) => { setDueDate(e.target.value); setDueTouched(true); }}
+              />
+              <span className="meta muted">افتراضي بعد {fmt(creditDays)} يوم من اليوم — يُستخدم في تنبيهات المتأخرات وأعمار الديون.</span>
+            </div>
+          )}
 
           {isSale && !isQuote && selectedParty && (selectedParty.creditLimit || 0) > 0 &&
             ((selectedParty.balance || 0) + remaining) > selectedParty.creditLimit && (

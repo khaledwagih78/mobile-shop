@@ -13,7 +13,7 @@ export default function Settings() {
   const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
   const [waAuto, setWaAuto] = useState(false);
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
-  const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0' });
+  const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0', creditDays: '30' });
   const [reports, setReports] = useState({ daily: false, weekly: false, monthly: false });
   const [toast, setToast] = useState('');
 
@@ -47,6 +47,7 @@ export default function Settings() {
         nearExpiryDays: String(await getSetting('nearExpiryDays', 60) ?? 60),
         overdueDays: String(await getSetting('overdueDays', 30) ?? 30),
         discountApprovalPct: String(await getSetting('discountApprovalPct', 0) ?? 0),
+        creditDays: String(await getSetting('creditDays', 30) ?? 30),
       });
       setReports({
         daily: await getSetting('reportDaily', false) === true,
@@ -102,6 +103,7 @@ export default function Settings() {
     await setSetting('nearExpiryDays', Number(alerts.nearExpiryDays) || 60);
     await setSetting('overdueDays', Number(alerts.overdueDays) || 30);
     await setSetting('discountApprovalPct', Number(alerts.discountApprovalPct) || 0);
+    await setSetting('creditDays', Number(alerts.creditDays) || 30);
     setToast('✅ تم حفظ إعدادات التنبيهات والموافقات');
     setTimeout(() => setToast(''), 2500);
   };
@@ -346,6 +348,9 @@ export default function Settings() {
             <div className="field"><label>اعتبار الدين متأخراً بعد (أيام)</label>
               <input className="input" type="number" min="1" value={alerts.overdueDays} onChange={(e) => setAlerts({ ...alerts, overdueDays: e.target.value })} /></div>
           </div>
+          <div className="field"><label>مدة الائتمان الافتراضية للبيع الآجل (أيام)</label>
+            <input className="input" type="number" min="0" value={alerts.creditDays} onChange={(e) => setAlerts({ ...alerts, creditDays: e.target.value })} placeholder="30" /></div>
+          <p className="muted" style={{ fontSize: 12 }}>تُقترح كتاريخ استحقاق افتراضي عند إنشاء فاتورة بيع آجلة، وتُستخدم في حساب أعمار الديون وقائمة المتأخرين.</p>
           <div className="field"><label>خصم يتطلب موافقة المدير عند تجاوز % (0 = بدون)</label>
             <input className="input" type="number" min="0" value={alerts.discountApprovalPct} onChange={(e) => setAlerts({ ...alerts, discountApprovalPct: e.target.value })} placeholder="مثال: 10" /></div>
           <p className="muted" style={{ fontSize: 12 }}>لو الخصم في الفاتورة تجاوز النسبة دي، الموظف غير المدير مش هيقدر يحفظ الفاتورة إلا بموافقة/دخول مدير.</p>
