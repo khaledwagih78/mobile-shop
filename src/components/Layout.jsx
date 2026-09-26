@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSetting, stockOf } from '../db';
+import { db, getSetting, setSetting, stockOf } from '../db';
 import { useAuth } from '../auth';
 import { can, ROLES } from '../utils';
 import { useSyncStatus } from '../sync';
 import { getSector } from '../sectors';
 import { featAllowed } from '../plans';
+import { Modal } from './UI';
+
+// nav items that can never be hidden (so the user can always get back / reconfigure)
+const ALWAYS_SHOWN = ['/', '/settings'];
 
 function relTime(iso) {
   if (!iso) return null;
@@ -76,6 +81,9 @@ export default function Layout() {
   const modOverrides = useLiveQuery(() => getSetting('moduleOverrides', {}), [], {}) || {};
   // active edition/plan (soft, marketing gating): free | basic | full
   const plan = useLiveQuery(() => getSetting('plan', 'full'), [], 'full');
+  // per-shop nav declutter: routes the user chose to hide from the menu
+  const navHidden = useLiveQuery(() => getSetting('navHidden', []), [], []) || [];
+  const [customizing, setCustomizing] = useState(false);
   const lowStockCount = useLiveQuery(async () => {
     const items = await db.items.toArray();
     return items.filter((it) => stockOf(it, activeBranch) > 0 && stockOf(it, activeBranch) <= (it.minStock || 0)).length;
@@ -85,15 +93,24 @@ export default function Layout() {
     if (Object.prototype.hasOwnProperty.call(modOverrides, mod)) return modOverrides[mod] === true;
     return sector.allMods || (sector.mods || []).includes(mod);
   };
-  const visible = MENU
-    // permission + sector gating (a `mod` shows when the sector reveals it, unless
-    // overridden) + plan gating (a `feat` shows only when the plan unlocks it)
+  // items allowed by permission + sector + plan (before the user's declutter choice)
+  const permitted = MENU
     .filter((m) => (!m.action || can(user.role, m.action)) && (!m.mod || modShown(m.mod)) && featAllowed(plan, m.feat))
     // apply sector-specific labels (e.g. المخزون -> "المواد والمنتجات")
     .map((m) => (sector.relabel && sector.relabel[m.to]) ? { ...m, label: sector.relabel[m.to] } : m);
+  const isHidden = (to) => navHidden.includes(to) && !ALWAYS_SHOWN.includes(to);
+  const visible = permitted.filter((m) => !isHidden(m.to));
   const mobileItems = visible.filter((m) => MOBILE.includes(m.to)).slice(0, 5);
   const isAdmin = user.role === 'admin';
   const curBranch = branches.find((b) => b.id === activeBranch);
+
+  const toggleHidden = async (to) => {
+    if (ALWAYS_SHOWN.includes(to)) return;
+    const next = navHidden.includes(to) ? navHidden.filter((x) => x !== to) : [...navHidden, to];
+    await setSetting('navHidden', next);
+    import('../sync').then((m) => m.triggerSync()).catch(() => {});
+  };
+  const resetNav = async () => { await setSetting('navHidden', []); import('../sync').then((m) => m.triggerSync()).catch(() => {}); };
 
   return (
     <div className="shell">
@@ -128,6 +145,10 @@ export default function Layout() {
               )}
             </NavLink>
           ))}
+          <button type="button" className="nav-customize" onClick={() => setCustomizing(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 0, color: 'inherit', opacity: 0.75, cursor: 'pointer', padding: '10px 14px', font: 'inherit', textAlign: 'right' }}>
+            <span className="ico">🎛️</span> تخصيص الأيقونات
+          </button>
         </nav>
         <div className="sidebar-user">
           <b>{user.name}</b>
@@ -157,6 +178,33 @@ export default function Layout() {
           </NavLink>
         ))}
       </nav>
+
+      {customizing && (
+        <Modal title="🎛️ تخصيص أيقونات القائمة" onClose={() => setCustomizing(false)}>
+          <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+            اختَر الأيقونات اللي تظهر في القائمة. الأقسام اللي بتستخدمها كل فترة (زي الجرد) تقدر تخفيها لتقليل الزحمة —
+            وتفضل موجودة وترجّعها من هنا أي وقت.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 6, maxHeight: '55vh', overflowY: 'auto' }}>
+            {permitted.map((m) => {
+              const locked = ALWAYS_SHOWN.includes(m.to);
+              const shown = !isHidden(m.to);
+              return (
+                <label key={m.to} className="card" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, margin: 0, cursor: locked ? 'default' : 'pointer', opacity: locked ? 0.6 : 1 }}>
+                  <input type="checkbox" checked={shown} disabled={locked} onChange={() => toggleHidden(m.to)} style={{ width: 18, height: 18 }} />
+                  <span className="ico">{m.ico}</span>
+                  <span style={{ flex: 1, fontSize: 13 }}>{m.label}</span>
+                  {locked && <span className="badge gray" style={{ fontSize: 10 }}>دائم</span>}
+                </label>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button className="btn ghost sm" onClick={resetNav}>↺ إظهار الكل</button>
+            <button className="btn accent sm" style={{ marginRight: 'auto' }} onClick={() => setCustomizing(false)}>تم</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

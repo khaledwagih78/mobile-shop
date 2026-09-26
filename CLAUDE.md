@@ -259,6 +259,15 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   (`MOD_LABELS`). To add a sector-specific feature: give its `MENU` entry a `mod`,
   add that key to the relevant sector(s), add a `MOD_LABELS` entry, and guard its
   route/permission as usual.
+- **Nav declutter (`navHidden`):** a **🎛️ تخصيص الأيقونات** button at the bottom of
+  the sidebar nav opens a modal listing every currently-permitted menu item with a
+  show/hide checkbox. Hidden routes are stored in the `navHidden` setting (array of
+  `to` paths) and filtered out of both the sidebar and bottom nav; `ALWAYS_SHOWN`
+  (`/`, `/settings`) can't be hidden so the user can always get back and reopen the
+  customizer. "↺ إظهار الكل" clears it. This only hides nav links — routes stay
+  reachable and no data is affected. (Distinct from sector `mod` gating and plan
+  `feat` gating, which decide what's *permitted*; `navHidden` is the user's personal
+  declutter on top of that.)
 - **Per-shop overrides:** the `moduleOverrides` setting (`{ [mod]: true|false }`)
   overlays the sector default — the admin toggles any specialized section on/off
   for their shop from the **🧰 تخصيص الأقسام الظاهرة** panel on the Sector page.
