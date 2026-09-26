@@ -31,24 +31,24 @@ const MENU = [
   { to: '/purchase-return', ico: '↪️', label: 'مرتجع شراء', action: 'returns' },
   { to: '/invoices', ico: '🗂️', label: 'الفواتير', action: 'invoices' },
   { to: '/items', ico: '📦', label: 'المخزون', action: 'items' },
-  { to: '/pricing', ico: '🏷️', label: 'قوائم الأسعار', action: 'pricing' },
+  { to: '/pricing', ico: '🏷️', label: 'قوائم الأسعار', action: 'pricing', mod: 'wholesale' },
   { to: '/production', ico: '🏭', label: 'التصنيع', action: 'production', mod: 'production' },
   { to: '/inventory-ops', ico: '📋', label: 'الجرد والتسويات', action: 'invops' },
   { to: '/transfer', ico: '🔄', label: 'تحويل بضاعة', action: 'transfer' },
-  { to: '/crm', ico: '🤝', label: 'العملاء المحتملون', action: 'crm' },
+  { to: '/crm', ico: '🤝', label: 'العملاء المحتملون', action: 'crm', mod: 'crm' },
   { to: '/customers', ico: '👥', label: 'العملاء', action: 'customers' },
   { to: '/suppliers', ico: '🚚', label: 'الموردين', action: 'suppliers' },
-  { to: '/deliveries', ico: '🚗', label: 'التوصيل', action: 'pos' },
-  { to: '/reps', ico: '🚶', label: 'المندوبون', action: 'reps' },
+  { to: '/deliveries', ico: '🚗', label: 'التوصيل', action: 'pos', mod: 'delivery' },
+  { to: '/reps', ico: '🚶', label: 'المندوبون', action: 'reps', mod: 'reps' },
   { to: '/expenses',   ico: '💸', label: 'المصروفات',  action: 'expenses'   },
   { to: '/employees',  ico: '👷', label: 'الموظفين',   action: 'employees'  },
   { to: '/payroll',    ico: '💵', label: 'الرواتب',    action: 'payroll'    },
   { to: '/accounting', ico: '📒', label: 'المحاسبة', action: 'accounting' },
   { to: '/treasury', ico: '🏦', label: 'الخزائن والبنوك', action: 'treasury' },
-  { to: '/assets', ico: '🏛️', label: 'الأصول الثابتة', action: 'assets' },
-  { to: '/installments', ico: '💳', label: 'الأقساط والديون', action: 'installments' },
-  { to: '/projects', ico: '📁', label: 'المشاريع', action: 'projects' },
-  { to: '/maintenance', ico: '🔧', label: 'الصيانة', action: 'maintenance' },
+  { to: '/assets', ico: '🏛️', label: 'الأصول الثابتة', action: 'assets', mod: 'assets' },
+  { to: '/installments', ico: '💳', label: 'الأقساط والديون', action: 'installments', mod: 'installments' },
+  { to: '/projects', ico: '📁', label: 'المشاريع', action: 'projects', mod: 'projects' },
+  { to: '/maintenance', ico: '🔧', label: 'الصيانة', action: 'maintenance', mod: 'repair' },
   { to: '/reports', ico: '📈', label: 'التقارير', action: 'reports' },
   { to: '/report-builder', ico: '🧱', label: 'منشئ التقارير', action: 'reportbuilder' },
   { to: '/audit', ico: '📋', label: 'سجل النشاطات', action: 'reports' },
@@ -76,8 +76,9 @@ export default function Layout() {
     return items.filter((it) => stockOf(it, activeBranch) > 0 && stockOf(it, activeBranch) <= (it.minStock || 0)).length;
   }, [activeBranch], 0);
   const visible = MENU
-    // permission + sector gating: items with a `mod` show only when the chosen sector reveals it
-    .filter((m) => (!m.action || can(user.role, m.action)) && (!m.mod || (sector.mods || []).includes(m.mod)))
+    // permission + sector gating: items with a `mod` show only when the chosen
+    // sector reveals it (or the sector is the general "show all" one)
+    .filter((m) => (!m.action || can(user.role, m.action)) && (!m.mod || sector.allMods || (sector.mods || []).includes(m.mod)))
     // apply sector-specific labels (e.g. المخزون -> "المواد والمنتجات")
     .map((m) => (sector.relabel && sector.relabel[m.to]) ? { ...m, label: sector.relabel[m.to] } : m);
   const mobileItems = visible.filter((m) => MOBILE.includes(m.to)).slice(0, 5);

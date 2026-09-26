@@ -4,6 +4,19 @@ import { getSetting, setSetting } from '../db';
 import { SECTORS } from '../sectors';
 import { Toast } from '../components/UI';
 
+// Human labels for the specialized modules a sector can reveal.
+const MOD_LABELS = {
+  production: 'التصنيع 🏭',
+  repair: 'الصيانة 🔧',
+  installments: 'الأقساط والديون 💳',
+  assets: 'الأصول الثابتة 🏛️',
+  projects: 'المشاريع 📁',
+  crm: 'العملاء المحتملون 🤝',
+  wholesale: 'قوائم الأسعار 🏷️',
+  reps: 'المندوبون 🚶',
+  delivery: 'التوصيل 🚗',
+};
+
 export default function Sector() {
   const current = useLiveQuery(() => getSetting('bizSector', 'general'), [], 'general');
   const [toast, setToast] = useState('');
@@ -51,9 +64,17 @@ export default function Sector() {
                 {active && <span className="badge green" style={{ marginRight: 'auto' }}>مُختار ✓</span>}
               </div>
               <span className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>{s.desc}</span>
-              {s.mods && s.mods.includes('production') && (
-                <span className="badge amber" style={{ alignSelf: 'flex-start', fontSize: 11 }}>يفعّل: التصنيع 🏭</span>
-              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                {s.allMods ? (
+                  <span className="badge green" style={{ fontSize: 11 }}>كل الأقسام ظاهرة</span>
+                ) : (s.mods || []).length ? (
+                  (s.mods || []).map((mod) => (
+                    <span key={mod} className="badge amber" style={{ fontSize: 11 }}>{MOD_LABELS[mod] || mod}</span>
+                  ))
+                ) : (
+                  <span className="badge gray" style={{ fontSize: 11 }}>الأقسام الأساسية فقط</span>
+                )}
+              </div>
             </button>
           );
         })}

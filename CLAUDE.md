@@ -183,12 +183,25 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 
 - The shop picks a **sector** (`bizSector` setting, default `general`) from a
   card picker. `sectors.js` is config-only: each sector lists `mods` (module keys
-  it reveals) and a `relabel` map (`{ [route]: 'اسم مخصّص' }`).
-- `Layout.jsx` gates the menu: an item with a `mod` key shows **only** when the
-  chosen sector's `mods` include it (otherwise hidden), and applies the sector's
-  `relabel` overrides to generic items. Switching sector never deletes data — it
-  only changes visibility and labels. To add a sector-specific feature: give its
-  `MENU` entry a `mod`, add that key to the relevant sector(s), and guard its
+  it reveals), an optional `allMods: true` (the general sector — reveals every
+  mod-gated item), and a `relabel` map (`{ [route]: 'اسم مخصّص' }`).
+- Each sector reveals a **different set of specialized sections**. Mod keys and the
+  MENU items they gate: `production` (التصنيع), `repair` (الصيانة `/maintenance`),
+  `installments` (الأقساط), `assets` (الأصول), `projects` (المشاريع), `crm`
+  (العملاء المحتملون), `wholesale` (قوائم الأسعار `/pricing`), `reps` (المندوبون),
+  `delivery` (التوصيل). Current mapping: general=all; mobile=repair+installments;
+  factory=production+assets+projects; contracting=projects+assets+crm;
+  restaurant=production+delivery; pharmacy=(core only); clothes=installments;
+  wholesale=wholesale+reps+crm+installments; services=repair+projects+crm.
+- Core sections (بيع، مخزون، عملاء، موردين، مصروفات، محاسبة، خزائن، تقارير،
+  إعدادات…) carry **no `mod`**, so they always show. `Layout.jsx` gates the menu:
+  an item with a `mod` shows only when `sector.allMods` or `sector.mods` includes
+  it, and applies the sector's `relabel` overrides. Switching sector never deletes
+  data and never blocks a route (routes are guarded by permission only, so a hidden
+  section is still reachable by URL) — it only changes nav visibility and labels.
+  `Sector.jsx` shows each sector card with the list of sections it reveals
+  (`MOD_LABELS`). To add a sector-specific feature: give its `MENU` entry a `mod`,
+  add that key to the relevant sector(s), add a `MOD_LABELS` entry, and guard its
   route/permission as usual.
 
 ### Manufacturing / production (`src/pages/Production.jsx`)
