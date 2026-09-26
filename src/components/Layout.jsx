@@ -71,14 +71,21 @@ export default function Layout() {
   const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
   const sectorId = useLiveQuery(() => getSetting('bizSector', 'general'), [], 'general');
   const sector = getSector(sectorId);
+  // per-shop overrides on top of the sector default: { [mod]: true|false }
+  const modOverrides = useLiveQuery(() => getSetting('moduleOverrides', {}), [], {}) || {};
   const lowStockCount = useLiveQuery(async () => {
     const items = await db.items.toArray();
     return items.filter((it) => stockOf(it, activeBranch) > 0 && stockOf(it, activeBranch) <= (it.minStock || 0)).length;
   }, [activeBranch], 0);
+  // does a mod-gated section show? per-shop override wins, else the sector default
+  const modShown = (mod) => {
+    if (Object.prototype.hasOwnProperty.call(modOverrides, mod)) return modOverrides[mod] === true;
+    return sector.allMods || (sector.mods || []).includes(mod);
+  };
   const visible = MENU
-    // permission + sector gating: items with a `mod` show only when the chosen
-    // sector reveals it (or the sector is the general "show all" one)
-    .filter((m) => (!m.action || can(user.role, m.action)) && (!m.mod || sector.allMods || (sector.mods || []).includes(m.mod)))
+    // permission + sector gating: items with a `mod` show only when revealed by
+    // the sector (or the general "show all" sector), unless the shop overrode it
+    .filter((m) => (!m.action || can(user.role, m.action)) && (!m.mod || modShown(m.mod)))
     // apply sector-specific labels (e.g. المخزون -> "المواد والمنتجات")
     .map((m) => (sector.relabel && sector.relabel[m.to]) ? { ...m, label: sector.relabel[m.to] } : m);
   const mobileItems = visible.filter((m) => MOBILE.includes(m.to)).slice(0, 5);

@@ -203,6 +203,13 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   (`MOD_LABELS`). To add a sector-specific feature: give its `MENU` entry a `mod`,
   add that key to the relevant sector(s), add a `MOD_LABELS` entry, and guard its
   route/permission as usual.
+- **Per-shop overrides:** the `moduleOverrides` setting (`{ [mod]: true|false }`)
+  overlays the sector default — the admin toggles any specialized section on/off
+  for their shop from the **🧰 تخصيص الأقسام الظاهرة** panel on the Sector page.
+  `Layout.jsx` `modShown(mod)` uses the override when the key is present, else the
+  sector default. Picking a new sector clears overrides (fresh defaults); a toggle
+  that matches the sector default again drops its key to keep the map small; a
+  "رجوع لافتراضي المجال" button clears all overrides. The setting syncs like any other.
 
 ### Manufacturing / production (`src/pages/Production.jsx`)
 

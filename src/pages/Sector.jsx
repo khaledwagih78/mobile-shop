@@ -19,14 +19,42 @@ const MOD_LABELS = {
 
 export default function Sector() {
   const current = useLiveQuery(() => getSetting('bizSector', 'general'), [], 'general');
+  const overrides = useLiveQuery(() => getSetting('moduleOverrides', {}), [], {}) || {};
   const [toast, setToast] = useState('');
+
+  const sector = SECTORS.find((x) => x.id === current) || SECTORS[0];
+  // effective visibility of a mod under the current sector default (before overrides)
+  const sectorDefault = (mod) => !!(sector.allMods || (sector.mods || []).includes(mod));
+  // effective visibility now (override wins)
+  const isOn = (mod) => (Object.prototype.hasOwnProperty.call(overrides, mod) ? overrides[mod] === true : sectorDefault(mod));
+
+  const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2500); };
+  const resync = () => import('../sync').then((m) => m.triggerSync()).catch(() => {});
 
   const pick = async (id) => {
     await setSetting('bizSector', id);
-    import('../sync').then((m) => m.triggerSync()).catch(() => {});
+    // switching sector resets manual overrides so the new sector's defaults apply cleanly
+    await setSetting('moduleOverrides', {});
+    resync();
     const s = SECTORS.find((x) => x.id === id);
-    setToast(`✅ تم اختيار المجال: ${s ? s.name : ''}`);
-    setTimeout(() => setToast(''), 2500);
+    notify(`✅ تم اختيار المجال: ${s ? s.name : ''}`);
+  };
+
+  const toggleMod = async (mod) => {
+    const next = { ...overrides };
+    const target = !isOn(mod);
+    // keep the map small: drop the key when it matches the sector default again
+    if (target === sectorDefault(mod)) delete next[mod];
+    else next[mod] = target;
+    await setSetting('moduleOverrides', next);
+    resync();
+    notify(target ? '✅ تم إظهار القسم' : '✅ تم إخفاء القسم');
+  };
+
+  const resetMods = async () => {
+    await setSetting('moduleOverrides', {});
+    resync();
+    notify('✅ رجعت الأقسام لافتراضي المجال');
   };
 
   return (
@@ -78,6 +106,31 @@ export default function Sector() {
             </button>
           );
         })}
+      </div>
+
+      {/* Per-shop fine-tuning of which specialized sections appear */}
+      <div className="card" style={{ maxWidth: 820, marginTop: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: 17, margin: 0 }}>🧰 تخصيص الأقسام الظاهرة</h2>
+          <button className="btn ghost sm" style={{ marginRight: 'auto' }} onClick={resetMods}>↺ رجوع لافتراضي المجال</button>
+        </div>
+        <p className="muted" style={{ fontSize: 12 }}>
+          دي الأقسام المتخصصة. المجال بيحدد اللي يظهر افتراضياً، وتقدر تعدّل أي قسم يدوياً هنا لمحلك.
+          الأقسام الأساسية (بيع، مخزون، عملاء، محاسبة، تقارير…) بتفضل ظاهرة دايماً.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 8 }}>
+          {Object.keys(MOD_LABELS).map((mod) => {
+            const on = isOn(mod);
+            const overridden = Object.prototype.hasOwnProperty.call(overrides, mod);
+            return (
+              <label key={mod} className="card" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: 10, margin: 0 }}>
+                <input type="checkbox" checked={on} onChange={() => toggleMod(mod)} style={{ width: 18, height: 18 }} />
+                <span style={{ flex: 1 }}>{MOD_LABELS[mod]}</span>
+                {overridden && <span className="badge gray" style={{ fontSize: 10 }}>مُعدّل</span>}
+              </label>
+            );
+          })}
+        </div>
       </div>
 
       <Toast msg={toast} />
