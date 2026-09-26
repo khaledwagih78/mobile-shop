@@ -308,6 +308,16 @@ export async function ensureSeed() {
       createdAt: nowISO(),
     });
   }
+  // First-run setup wizard flag: only a brand-new install should see it. Decide
+  // by whether the DB already holds real business data (robust against the
+  // ensureSeed double-call under React StrictMode — seeding an admin is not data).
+  // An existing, already-used install is marked done so the wizard never
+  // interrupts it; a truly empty DB is left unset so the wizard runs once.
+  const setupDone = await getSetting('setupDone', null);
+  if (setupDone === null) {
+    const hasData = (await db.items.count()) > 0 || (await db.customers.count()) > 0 || (await db.invoices.count()) > 0;
+    if (hasData) await setSetting('setupDone', true);
+  }
 }
 
 // ---------- core business operations (transactional) ----------

@@ -179,6 +179,23 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   `claude-sonnet-4-20250514`) using a user-supplied key stored in settings
   (`aiKey`). This is an opt-in feature; no key ships in the repo.
 
+### First-run setup wizard (`src/components/SetupWizard.jsx`)
+
+- A one-time onboarding wizard shown to the **admin** on a brand-new install,
+  before the app renders. `App.jsx` `Shell` gates it on the `setupDone` setting
+  (via `useLiveQuery`): `undefined` → still loading (render nothing to avoid a
+  flash); `false` + admin → show the wizard; otherwise the app.
+- 4 steps: business name → sector (cards from `SECTORS`) → tax on/off + rate →
+  default credit days. **Finish** writes `bizName`, `bizSector`, `moduleOverrides`
+  (cleared), `taxEnabled`/`taxName`/`taxRate`, `creditDays`, and `setupDone: true`,
+  then triggers a sync — so the shop lands on a fully-tailored product. A **تخطّي**
+  link just sets `setupDone` and enters the app.
+- `ensureSeed` (db.js) decides who sees it: it leaves `setupDone` unset only when
+  the DB holds **no real business data** (no items/customers/invoices); an already-
+  used install is marked `setupDone: true` so the wizard never interrupts it. This
+  data check is used (not user-count) so the ensureSeed double-call under React
+  StrictMode can't wrongly flip the flag (seeding an admin isn't business data).
+
 ### Business sectors (`src/sectors.js`, `src/pages/Sector.jsx`)
 
 - The shop picks a **sector** (`bizSector` setting, default `general`) from a

@@ -1,6 +1,9 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { AuthProvider, useAuth } from './auth';
+import { getSetting } from './db';
 import Layout from './components/Layout';
+import SetupWizard from './components/SetupWizard';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import InvoiceEditor from './components/InvoiceEditor';
@@ -51,8 +54,15 @@ function Guard({ action, children }) {
 
 function Shell() {
   const { user, ready } = useAuth();
+  // first-run setup: undefined while loading, then true/false
+  const setupDone = useLiveQuery(() => getSetting('setupDone', false), [], undefined);
   if (!ready) return null;
   if (!user) return <Login />;
+  if (setupDone === undefined) return null; // wait for the flag to avoid a flash
+  // show the one-time wizard to the admin before the app (only once we know the flag)
+  if (setupDone === false && user.role === 'admin') {
+    return <SetupWizard onDone={() => { /* setupDone flips via live query → app renders */ }} />;
+  }
   return (
     <Routes>
       <Route element={<Layout />}>
