@@ -222,11 +222,13 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   before the app renders. `App.jsx` `Shell` gates it on the `setupDone` setting
   (via `useLiveQuery`): `undefined` → still loading (render nothing to avoid a
   flash); `false` + admin → show the wizard; otherwise the app.
-- 4 steps: business name → sector (cards from `SECTORS`) → tax on/off + rate →
-  default credit days. **Finish** writes `bizName`, `bizSector`, `moduleOverrides`
-  (cleared), `taxEnabled`/`taxName`/`taxRate`, `creditDays`, and `setupDone: true`,
-  then triggers a sync — so the shop lands on a fully-tailored product. A **تخطّي**
-  link just sets `setupDone` and enters the app.
+- 5 steps: business name → sector (cards from `SECTORS`) → tax on/off + rate →
+  default credit days → **plan/activation** (optional `licenseCode`; a **تحقّق**
+  button previews it via `verifyLicenseCode`). **Finish** writes `bizName`,
+  `bizSector`, `moduleOverrides` (cleared), `taxEnabled`/`taxName`/`taxRate`,
+  `creditDays`, and `setupDone: true`, then triggers a sync; if a code was entered
+  it must verify (else the wizard jumps back to the activation step) and is applied
+  via `applyLicenseCode` to upgrade the plan. A **تخطّي** link just sets `setupDone`.
 - `ensureSeed` (db.js) decides who sees it: it leaves `setupDone` unset only when
   the DB holds **no real business data** (no items/customers/invoices); an already-
   used install is marked `setupDone: true` so the wizard never interrupts it. This

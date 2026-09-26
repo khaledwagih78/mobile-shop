@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { setSetting } from '../db';
 import { SECTORS } from '../sectors';
+import { verifyLicenseCode, applyLicenseCode } from '../license';
+import { getPlan } from '../plans';
 
 // First-run setup wizard: shows once (until `setupDone` is set), walks a new
 // shop through naming, sector, tax and credit terms, then configures the app to
@@ -12,13 +14,29 @@ export default function SetupWizard({ onDone }) {
   const [taxOn, setTaxOn] = useState(false);
   const [taxRate, setTaxRate] = useState('14');
   const [creditDays, setCreditDays] = useState('30');
+  const [licenseCode, setLicenseCode] = useState('');
+  const [licenseMsg, setLicenseMsg] = useState('');   // inline feedback (ok/err)
+  const [licenseOk, setLicenseOk] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const total = 4;
+  const total = 5;
   const next = () => setStep((s) => Math.min(total - 1, s + 1));
   const back = () => setStep((s) => Math.max(0, s - 1));
 
+  // check the entered code on the activation step (optional)
+  const checkCode = async () => {
+    setLicenseMsg(''); setLicenseOk(false);
+    const res = await verifyLicenseCode(licenseCode);
+    if (res.valid) { setLicenseOk(true); setLicenseMsg(`✅ كود صالح — خطة ${getPlan(res.plan).name}${res.exp ? ` حتى ${res.exp}` : ''}`); }
+    else { setLicenseMsg('❌ ' + (res.reason || 'الكود غير صحيح')); }
+  };
+
   const finish = async () => {
+    // if a code was entered, it must be valid before finishing
+    if (licenseCode.trim()) {
+      const res = await verifyLicenseCode(licenseCode);
+      if (!res.valid) { setStep(4); setLicenseMsg('❌ ' + (res.reason || 'الكود غير صحيح')); return; }
+    }
     setSaving(true);
     await setSetting('bizName', bizName.trim() || 'نظام المبيعات والمخزون');
     await setSetting('bizSector', sector);
@@ -27,6 +45,7 @@ export default function SetupWizard({ onDone }) {
     await setSetting('taxName', 'ضريبة القيمة المضافة');
     await setSetting('taxRate', taxOn ? (Number(taxRate) || 0) : 0);
     await setSetting('creditDays', Number(creditDays) || 30);
+    if (licenseCode.trim()) await applyLicenseCode(licenseCode); // upgrades the plan
     await setSetting('setupDone', true);
     import('../sync').then((m) => m.triggerSync()).catch(() => {});
     onDone && onDone();
@@ -112,6 +131,24 @@ export default function SetupWizard({ onDone }) {
               <input className="input lg" type="number" min="0" value={creditDays} onChange={(e) => setCreditDays(e.target.value)} placeholder="30" />
             </div>
             <p className="muted" style={{ fontSize: 12 }}>بتُستخدم في تاريخ استحقاق الفواتير وتنبيهات المتأخرين.</p>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div>
+            <h2 style={{ marginTop: 0 }}>💼 خطة البرنامج</h2>
+            <p className="muted">
+              البرنامج بيبدأ بالخطة <b>المجانية</b> (البيع والمخزون والعملاء والموردين والتقارير الأساسية).
+              لو معاك <b>كود تفعيل</b> لخطة أعلى، ألصقه هنا — أو سيبه فارغ وكمّل مجاناً.
+            </p>
+            <div className="field">
+              <label>🔑 كود التفعيل (اختياري)</label>
+              <textarea className="input" rows="2" value={licenseCode}
+                onChange={(e) => { setLicenseCode(e.target.value); setLicenseMsg(''); setLicenseOk(false); }}
+                placeholder="ألصق كود التفعيل هنا لو معاك واحد..." style={{ fontFamily: 'monospace', fontSize: 12 }} />
+            </div>
+            {licenseCode.trim() && <button className="btn ghost sm" onClick={checkCode}>تحقّق من الكود</button>}
+            {licenseMsg && <p style={{ fontSize: 13, margin: '8px 0', color: licenseOk ? 'var(--green)' : 'var(--red)' }}>{licenseMsg}</p>}
           </div>
         )}
 
