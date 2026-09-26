@@ -6,6 +6,7 @@ import { money, fmt, normAr, canUser } from '../utils';
 import { useAuth } from '../auth';
 import { Modal, Toast } from './UI';
 import MicButton from './MicButton';
+import BarcodeScanner from './BarcodeScanner';
 
 const TITLES = {
   sale: '🧾 فاتورة بيع جديدة',
@@ -492,76 +493,5 @@ export default function InvoiceEditor({ type }) {
 
       <Toast msg={toast} />
     </>
-  );
-}
-
-function BarcodeScanner({ onDetected, onClose }) {
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      // Use BarcodeDetector API if available
-      if ('BarcodeDetector' in window) {
-        const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'] });
-        const detect = async () => {
-          if (!videoRef.current || videoRef.current.readyState < 2) {
-            requestAnimationFrame(detect);
-            return;
-          }
-          try {
-            const barcodes = await detector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              stopCamera();
-              onDetected(barcodes[0].rawValue);
-              return;
-            }
-          } catch {}
-          requestAnimationFrame(detect);
-        };
-        detect();
-      }
-    } catch (err) {
-      alert('لا يمكن فتح الكاميرا: ' + err.message);
-      onClose();
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-  };
-
-  const handleManual = (e) => {
-    if (e.key === 'Enter') {
-      stopCamera();
-      onDetected(e.target.value.trim());
-    }
-  };
-
-  return (
-    <Modal title="📷 مسح باركود" onClose={() => { stopCamera(); onClose(); }}>
-      <div style={{ textAlign: 'center' }}>
-        <video ref={videoRef} autoPlay playsInline muted
-          style={{ width: '100%', maxWidth: 400, borderRadius: 8, background: '#000' }}
-          onLoadedData={startCamera} />
-        <p className="muted" style={{ margin: '10px 0' }}>
-          وجّه الكاميرا نحو الباركود — يُمسح تلقائياً
-        </p>
-        <div className="field">
-          <label>أو اكتب الكود يدوياً</label>
-          <input className="input" placeholder="اكتب الكود واضغط Enter" onKeyDown={handleManual} autoFocus />
-        </div>
-      </div>
-    </Modal>
   );
 }

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { db, today, queueSync, createWorkOrder, invoiceWorkOrder, stockOf } from '../db';
 import { money, fmt, normAr } from '../utils';
 import { Modal, Toast } from '../components/UI';
+import BarcodeScanner from '../components/BarcodeScanner';
 import { useAuth } from '../auth';
 
 const STATUS = {
@@ -24,6 +25,7 @@ export default function WorkOrders() {
   const items = useLiveQuery(() => db.items.toArray(), [], []);
   const [form, setForm] = useState(null);
   const [payFor, setPayFor] = useState(null);
+  const [scanning, setScanning] = useState(false);
   const [filter, setFilter] = useState('open');
   const [toast, setToast] = useState('');
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
@@ -134,7 +136,10 @@ export default function WorkOrders() {
             <div className="field"><label>نوع الجهاز/الأصل *</label>
               <input className="input" value={form.deviceType} autoFocus onChange={(e) => setForm({ ...form, deviceType: e.target.value })} placeholder="موبايل / سيارة / مكيف / لابتوب..." /></div>
             <div className="field"><label>الموديل / السيريال</label>
-              <input className="input" value={form.deviceInfo} onChange={(e) => setForm({ ...form, deviceInfo: e.target.value })} /></div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="input" style={{ flex: 1 }} value={form.deviceInfo} onChange={(e) => setForm({ ...form, deviceInfo: e.target.value })} placeholder="امسح السيريال أو اكتبه" />
+                <button type="button" className="btn ghost" title="مسح السيريال بالكاميرا أو جهاز الاسكان" onClick={() => setScanning(true)}>📷 مسح</button>
+              </div></div>
           </div>
           <div className="field"><label>العطل / المطلوب</label>
             <textarea className="input" rows="2" value={form.reportedIssue} onChange={(e) => setForm({ ...form, reportedIssue: e.target.value })} /></div>
@@ -176,6 +181,14 @@ export default function WorkOrders() {
           <p className="muted" style={{ fontSize: 12 }}>سيتم خصم قطع الغيار من المخزون وإنشاء فاتورة بيع وتسجيلها في المحاسبة.</p>
           <PayBox total={woTotal(payFor)} onConfirm={doInvoice} />
         </Modal>
+      )}
+
+      {scanning && (
+        <BarcodeScanner
+          title="📷 مسح سيريال الجهاز"
+          onDetected={(code) => { setForm((f) => (f ? { ...f, deviceInfo: code } : f)); setScanning(false); notify('✅ تم قراءة السيريال'); }}
+          onClose={() => setScanning(false)}
+        />
       )}
 
       <Toast msg={toast} />

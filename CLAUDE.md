@@ -432,11 +432,24 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   project's money is real GL activity, and its P&L (income − cost vs budget) shows
   on the page and in an expandable detail modal with tasks + entries.
 
+### Barcode / serial scanner (`src/components/BarcodeScanner.jsx`)
+
+- Shared modal scanner used by `InvoiceEditor` (item barcode) and `WorkOrders`
+  (device serial). Starts the camera on mount via `useEffect` and reads codes with
+  the `BarcodeDetector` API when available (many 1D formats + `qr_code`/
+  `data_matrix`); cleans the stream up on unmount. Also supports a **USB/Bluetooth
+  hardware scanner** and manual entry — both type into the field and submit on
+  Enter — so it works even where the camera or BarcodeDetector is unavailable.
+  Props: `onDetected(value)`, `onClose()`, optional `title`.
+
 ### Maintenance / work orders (`src/pages/WorkOrders.jsx`)
 
 - `workOrders` (v17): generic repair/service jobs (device type/info, issue,
   technician, parts, laborCost, warranty, status received→in_progress→done→
-  delivered). `createWorkOrder` numbers them `WO<dev>-…`.
+  delivered). `createWorkOrder` numbers them `WO<dev>-…`. The device
+  model/serial field has a **📷 مسح** button that opens `BarcodeScanner`
+  (`title="📷 مسح سيريال الجهاز"`) to read the serial by camera or hardware
+  scanner into `deviceInfo`.
 - `invoiceWorkOrder(id, {paid})` turns a done order into a **sale invoice** via
   `saveInvoice` — parts consume stock + COGS, plus a **non-stock labor line**
   (itemId null). All stock loops now skip `itemId == null` lines, so labor/service
