@@ -3,6 +3,7 @@ import { db, getSetting, setSetting } from '../db';
 import { sendReportNow } from '../periodicReports';
 import { Toast } from '../components/UI';
 import { PLANS, FEAT_LABELS, getPlan } from '../plans';
+import { applyLicenseCode } from '../license';
 
 export default function Settings() {
   const [bizName, setBizName] = useState('');
@@ -17,21 +18,34 @@ export default function Settings() {
   const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0', creditDays: '30' });
   const [reports, setReports] = useState({ daily: false, weekly: false, monthly: false });
   const [plan, setPlan] = useState('full');
+  const [licenseExp, setLicenseExp] = useState(null);
+  const [licenseCode, setLicenseCode] = useState('');
+  const [activateInput, setActivateInput] = useState('');
+  const [activateMsg, setActivateMsg] = useState('');
   const [toast, setToast] = useState('');
 
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2500); };
-  const pickPlan = async (id) => {
-    setPlan(id);
-    await setSetting('plan', id);
-    import('../sync').then((m) => m.triggerSync()).catch(() => {});
-    const p = PLANS.find((x) => x.id === id);
-    notify(`✅ تم اختيار الخطة: ${p ? p.name : ''}`);
+  const activate = async () => {
+    setActivateMsg('');
+    const res = await applyLicenseCode(activateInput);
+    if (res.valid) {
+      setPlan(res.plan);
+      setLicenseExp(res.exp);
+      setLicenseCode(activateInput.trim());
+      setActivateInput('');
+      const p = getPlan(res.plan);
+      notify(`✅ تم التفعيل — خطة ${p.name}${res.exp ? ` حتى ${res.exp}` : ''}`);
+    } else {
+      setActivateMsg('❌ ' + (res.reason || 'الكود غير صحيح'));
+    }
   };
 
   useEffect(() => {
     (async () => {
       setBizName(await getSetting('bizName', 'نظام المبيعات والمخزون'));
       setPlan(await getSetting('plan', 'full'));
+      setLicenseExp(await getSetting('licenseExp', null));
+      setLicenseCode(await getSetting('licenseCode', '') || '');
       setUsdRate(await getSetting('usdRate', '') || '');
       setMargin(await getSetting('defaultMargin', '') || '');
       setApiKey(await getSetting('aiKey', '') || '');
@@ -172,33 +186,17 @@ export default function Settings() {
     <>
       <div className="page-head"><h1>⚙️ الإعدادات</h1></div>
 
-      {/* Plan / edition (soft marketing gating) */}
+      {/* Plan / edition + activation code */}
       <div className="card" style={{ maxWidth: 640 }}>
         <h2 style={{ fontSize: 17, marginTop: 0 }}>💼 الخطة / الإصدار</h2>
-        <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-          اختر إصدار البرنامج. الخطة المجانية للدعاية والتجربة، والخطط الأعلى بتفتح أقسام إضافية.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 10 }}>
-          {PLANS.map((p) => {
-            const active = plan === p.id;
-            return (
-              <button key={p.id} className="card" onClick={() => pickPlan(p.id)} style={{
-                cursor: 'pointer', textAlign: 'right', padding: 12, margin: 0, display: 'flex', flexDirection: 'column', gap: 6,
-                border: active ? '2px solid var(--accent, #0F4C5C)' : '1px solid var(--line, #ddd)',
-                background: active ? 'var(--bg, #f6f8f9)' : 'var(--card, #fff)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 24 }}>{p.ico}</span>
-                  <b style={{ fontSize: 15 }}>خطة {p.name}</b>
-                  {active && <span className="badge green" style={{ marginRight: 'auto', fontSize: 11 }}>الحالية ✓</span>}
-                </div>
-                <span className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>{p.desc}</span>
-              </button>
-            );
-          })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+          <span style={{ fontSize: 22 }}>{getPlan(plan).ico}</span>
+          <b style={{ fontSize: 16 }}>الخطة الحالية: {getPlan(plan).name}</b>
+          <span className={`badge ${getPlan(plan).badge}`} style={{ fontSize: 11 }}>{plan === 'free' ? 'مجانية' : 'مفعّلة'}</span>
+          {licenseExp && <span className="badge gray" style={{ fontSize: 11 }}>حتى {licenseExp}</span>}
         </div>
-        <div style={{ marginTop: 12 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>الأقسام الإضافية المتاحة في الخطة الحالية ({getPlan(plan).name}):</div>
+        <div style={{ marginBottom: 10 }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>الأقسام الإضافية المتاحة الآن:</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {getPlan(plan).allFeats
               ? <span className="badge green" style={{ fontSize: 11 }}>كل الأقسام</span>
@@ -207,6 +205,30 @@ export default function Settings() {
                   : <span className="badge gray" style={{ fontSize: 11 }}>الأقسام الأساسية فقط</span>)}
           </div>
         </div>
+
+        {/* Plans comparison (info only) */}
+        <details style={{ marginBottom: 10 }}>
+          <summary className="muted" style={{ cursor: 'pointer', fontSize: 13 }}>عرض مقارنة الخطط</summary>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(170px,1fr))', gap: 8, marginTop: 8 }}>
+            {PLANS.map((p) => (
+              <div key={p.id} className="card" style={{ padding: 10, margin: 0, border: plan === p.id ? '2px solid var(--accent,#0F4C5C)' : '1px solid var(--line,#ddd)' }}>
+                <b style={{ fontSize: 14 }}>{p.ico} {p.name}</b>
+                <div className="muted" style={{ fontSize: 12, lineHeight: 1.6, marginTop: 4 }}>{p.desc}</div>
+              </div>
+            ))}
+          </div>
+        </details>
+
+        <div className="field">
+          <label>🔑 كود التفعيل (للترقية لخطة أعلى)</label>
+          <textarea className="input" rows="2" value={activateInput} onChange={(e) => setActivateInput(e.target.value)}
+            placeholder="ألصق كود التفعيل هنا..." style={{ fontFamily: 'monospace', fontSize: 12 }} />
+        </div>
+        {activateMsg && <p style={{ color: 'var(--red)', fontSize: 13, margin: '4px 0' }}>{activateMsg}</p>}
+        <button className="btn accent" onClick={activate} disabled={!activateInput.trim()}>تفعيل الخطة</button>
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          للحصول على كود ترقية تواصل مع مزوّد البرنامج. الترقية بتفتح أقسام إضافية فوراً على هذا الجهاز.
+        </p>
       </div>
 
       <div className="card" style={{ maxWidth: 640 }}>

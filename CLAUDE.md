@@ -192,11 +192,29 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   reportbuilder`; full = `allFeats` (everything, incl. `ai` = insights/smart/
   smart-import/voice, plus crm, assets, payroll, projects, maintenance, reps,
   production, pricing, delivery).
-- The admin picks the plan from a card in **Settings** (`Settings.jsx`), which shows
-  each tier and the extra sections the current plan unlocks. Gating is **nav-level
-  only** (routes stay reachable, so no data lock-out and no DRM) — with no backend
-  this is honor-system gating suited to promotion, not piracy protection. A real
-  lock would need a server / activation key.
+- Gating is **nav-level only** (routes stay reachable, so no data lock-out).
+- **Default edition:** `ensureSeed` sets `plan` on first run — a brand-new (promo)
+  install with no business data starts on **`free`**; an existing install stays
+  **`full`** (never downgraded). Unlocked only by an activation code.
+
+### Activation keys (`src/license.js`, signed offline licensing)
+
+- The free copy is unlocked to `basic`/`full` with a **signed activation code** —
+  much stronger than a toggle. The app embeds only the **ECDSA P-256 public key**
+  and `verifyLicenseCode(code)` / `applyLicenseCode(code)`; it can verify a code but
+  cannot mint one. Code format: `base64url(JSON payload) + "." + base64url(sig)`,
+  payload `{ plan, exp:'YYYY-MM-DD'|null, shop?, id?, iat }`.
+- **Settings** has a "💼 الخطة / الإصدار" card: shows the current plan + expiry, a
+  plans comparison, and a **كود التفعيل** textarea → `applyLicenseCode` sets `plan`,
+  `licenseCode`, `licenseExp` on success. `main.jsx` calls `enforceLicenseOnBoot`
+  which drops the plan back to `free` if the stored code no longer verifies (e.g.
+  expired). The manual click-to-pick plan was removed so only a valid code upgrades.
+- **Minting codes** is done by the reseller in a **separate generator tool** that
+  holds the matching PRIVATE key and is **never committed or deployed** (it lives
+  outside the repo). Regenerating the keypair: create an ECDSA P-256 keypair, put
+  the public JWK (`x`,`y`) in `license.js` `PUBLIC_KEY_JWK`, keep the private JWK
+  (`+d`) only in the generator. With no backend this is honor-system-plus-signature
+  licensing (a determined attacker could still patch the app), not server DRM.
 
 ### First-run setup wizard (`src/components/SetupWizard.jsx`)
 

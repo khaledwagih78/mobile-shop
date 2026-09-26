@@ -314,9 +314,14 @@ export async function ensureSeed() {
   // An existing, already-used install is marked done so the wizard never
   // interrupts it; a truly empty DB is left unset so the wizard runs once.
   const setupDone = await getSetting('setupDone', null);
-  if (setupDone === null) {
+  const plan = await getSetting('plan', null);
+  if (setupDone === null || plan === null) {
     const hasData = (await db.items.count()) > 0 || (await db.customers.count()) > 0 || (await db.invoices.count()) > 0;
-    if (hasData) await setSetting('setupDone', true);
+    // existing, already-used installs are never interrupted or downgraded
+    if (setupDone === null && hasData) await setSetting('setupDone', true);
+    // default edition: a brand-new (promo) copy starts on the free plan and is
+    // unlocked by an activation code; an existing install stays full.
+    if (plan === null) await setSetting('plan', hasData ? 'full' : 'free');
   }
 }
 
