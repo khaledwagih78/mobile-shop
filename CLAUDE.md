@@ -179,6 +179,25 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   `claude-sonnet-4-20250514`) using a user-supplied key stored in settings
   (`aiKey`). This is an opt-in feature; no key ships in the repo.
 
+### Plans / editions (`src/plans.js`)
+
+- A soft, client-side **freemium edition** system for marketing. The active edition
+  is the `plan` setting: `free` | `basic` | `full` (default **`full`** so existing
+  installs are unaffected). `PLANS` defines each tier; `FEAT_LABELS` names the paid
+  features; `featAllowed(plan, feat)` answers whether a feature is unlocked.
+- Premium MENU items carry a `feat` key (Layout.jsx); `Layout.jsx` adds
+  `featAllowed(plan, m.feat)` to the nav gate (alongside permission + sector `mod`).
+  Items with **no `feat`** are core and show on every plan. Feature→tier map:
+  free = core only; basic adds `accounting, treasury, installments, alerts,
+  reportbuilder`; full = `allFeats` (everything, incl. `ai` = insights/smart/
+  smart-import/voice, plus crm, assets, payroll, projects, maintenance, reps,
+  production, pricing, delivery).
+- The admin picks the plan from a card in **Settings** (`Settings.jsx`), which shows
+  each tier and the extra sections the current plan unlocks. Gating is **nav-level
+  only** (routes stay reachable, so no data lock-out and no DRM) — with no backend
+  this is honor-system gating suited to promotion, not piracy protection. A real
+  lock would need a server / activation key.
+
 ### First-run setup wizard (`src/components/SetupWizard.jsx`)
 
 - A one-time onboarding wizard shown to the **admin** on a brand-new install,

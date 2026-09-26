@@ -5,6 +5,7 @@ import { useAuth } from '../auth';
 import { can, ROLES } from '../utils';
 import { useSyncStatus } from '../sync';
 import { getSector } from '../sectors';
+import { featAllowed } from '../plans';
 
 function relTime(iso) {
   if (!iso) return null;
@@ -18,37 +19,37 @@ const SYNC_ICO = { syncing: '⏳', ok: '☁️', error: '⚠️', offline: '📵
 
 const MENU = [
   { to: '/', ico: '📊', label: 'الرئيسية', action: null },
-  { to: '/alerts', ico: '🔔', label: 'التنبيهات', action: 'alerts' },
-  { to: '/insights', ico: '🤖', label: 'المساعد الذكي', action: 'insights' },
-  { to: '/smart', ico: '🧠', label: 'التحليلات الذكية', action: 'smart' },
-  { to: '/voice', ico: '🎤', label: 'تحليل بالصوت', action: 'voice' },
+  { to: '/alerts', ico: '🔔', label: 'التنبيهات', action: 'alerts', feat: 'alerts' },
+  { to: '/insights', ico: '🤖', label: 'المساعد الذكي', action: 'insights', feat: 'ai' },
+  { to: '/smart', ico: '🧠', label: 'التحليلات الذكية', action: 'smart', feat: 'ai' },
+  { to: '/voice', ico: '🎤', label: 'تحليل بالصوت', action: 'voice', feat: 'ai' },
   { to: '/pos', ico: '🧾', label: 'بيع جديد', action: 'pos' },
   { to: '/quote', ico: '📄', label: 'عرض سعر', action: 'quote' },
   { to: '/purchase', ico: '📥', label: 'فاتورة شراء', action: 'purchase' },
   { to: '/purchase-order', ico: '📝', label: 'طلب شراء', action: 'purchase' },
-  { to: '/smart-import', ico: '✨', label: 'الإضافة الذكية', action: 'smartimport' },
+  { to: '/smart-import', ico: '✨', label: 'الإضافة الذكية', action: 'smartimport', feat: 'ai' },
   { to: '/sale-return', ico: '↩️', label: 'مرتجع بيع', action: 'returns' },
   { to: '/purchase-return', ico: '↪️', label: 'مرتجع شراء', action: 'returns' },
   { to: '/invoices', ico: '🗂️', label: 'الفواتير', action: 'invoices' },
   { to: '/items', ico: '📦', label: 'المخزون', action: 'items' },
-  { to: '/pricing', ico: '🏷️', label: 'قوائم الأسعار', action: 'pricing', mod: 'wholesale' },
-  { to: '/production', ico: '🏭', label: 'التصنيع', action: 'production', mod: 'production' },
+  { to: '/pricing', ico: '🏷️', label: 'قوائم الأسعار', action: 'pricing', mod: 'wholesale', feat: 'pricing' },
+  { to: '/production', ico: '🏭', label: 'التصنيع', action: 'production', mod: 'production', feat: 'production' },
   { to: '/inventory-ops', ico: '📋', label: 'الجرد والتسويات', action: 'invops' },
   { to: '/transfer', ico: '🔄', label: 'تحويل بضاعة', action: 'transfer' },
-  { to: '/crm', ico: '🤝', label: 'العملاء المحتملون', action: 'crm', mod: 'crm' },
+  { to: '/crm', ico: '🤝', label: 'العملاء المحتملون', action: 'crm', mod: 'crm', feat: 'crm' },
   { to: '/customers', ico: '👥', label: 'العملاء', action: 'customers' },
   { to: '/suppliers', ico: '🚚', label: 'الموردين', action: 'suppliers' },
-  { to: '/deliveries', ico: '🚗', label: 'التوصيل', action: 'pos', mod: 'delivery' },
-  { to: '/reps', ico: '🚶', label: 'المندوبون', action: 'reps', mod: 'reps' },
+  { to: '/deliveries', ico: '🚗', label: 'التوصيل', action: 'pos', mod: 'delivery', feat: 'delivery' },
+  { to: '/reps', ico: '🚶', label: 'المندوبون', action: 'reps', mod: 'reps', feat: 'reps' },
   { to: '/expenses',   ico: '💸', label: 'المصروفات',  action: 'expenses'   },
   { to: '/employees',  ico: '👷', label: 'الموظفين',   action: 'employees'  },
-  { to: '/payroll',    ico: '💵', label: 'الرواتب',    action: 'payroll'    },
-  { to: '/accounting', ico: '📒', label: 'المحاسبة', action: 'accounting' },
-  { to: '/treasury', ico: '🏦', label: 'الخزائن والبنوك', action: 'treasury' },
-  { to: '/assets', ico: '🏛️', label: 'الأصول الثابتة', action: 'assets', mod: 'assets' },
-  { to: '/installments', ico: '💳', label: 'الأقساط والديون', action: 'installments', mod: 'installments' },
-  { to: '/projects', ico: '📁', label: 'المشاريع', action: 'projects', mod: 'projects' },
-  { to: '/maintenance', ico: '🔧', label: 'الصيانة', action: 'maintenance', mod: 'repair' },
+  { to: '/payroll',    ico: '💵', label: 'الرواتب',    action: 'payroll', feat: 'payroll' },
+  { to: '/accounting', ico: '📒', label: 'المحاسبة', action: 'accounting', feat: 'accounting' },
+  { to: '/treasury', ico: '🏦', label: 'الخزائن والبنوك', action: 'treasury', feat: 'treasury' },
+  { to: '/assets', ico: '🏛️', label: 'الأصول الثابتة', action: 'assets', mod: 'assets', feat: 'assets' },
+  { to: '/installments', ico: '💳', label: 'الأقساط والديون', action: 'installments', mod: 'installments', feat: 'installments' },
+  { to: '/projects', ico: '📁', label: 'المشاريع', action: 'projects', mod: 'projects', feat: 'projects' },
+  { to: '/maintenance', ico: '🔧', label: 'الصيانة', action: 'maintenance', mod: 'repair', feat: 'maintenance' },
   { to: '/reports', ico: '📈', label: 'التقارير', action: 'reports' },
   { to: '/report-builder', ico: '🧱', label: 'منشئ التقارير', action: 'reportbuilder' },
   { to: '/audit', ico: '📋', label: 'سجل النشاطات', action: 'reports' },
@@ -73,6 +74,8 @@ export default function Layout() {
   const sector = getSector(sectorId);
   // per-shop overrides on top of the sector default: { [mod]: true|false }
   const modOverrides = useLiveQuery(() => getSetting('moduleOverrides', {}), [], {}) || {};
+  // active edition/plan (soft, marketing gating): free | basic | full
+  const plan = useLiveQuery(() => getSetting('plan', 'full'), [], 'full');
   const lowStockCount = useLiveQuery(async () => {
     const items = await db.items.toArray();
     return items.filter((it) => stockOf(it, activeBranch) > 0 && stockOf(it, activeBranch) <= (it.minStock || 0)).length;
@@ -83,9 +86,9 @@ export default function Layout() {
     return sector.allMods || (sector.mods || []).includes(mod);
   };
   const visible = MENU
-    // permission + sector gating: items with a `mod` show only when revealed by
-    // the sector (or the general "show all" sector), unless the shop overrode it
-    .filter((m) => (!m.action || can(user.role, m.action)) && (!m.mod || modShown(m.mod)))
+    // permission + sector gating (a `mod` shows when the sector reveals it, unless
+    // overridden) + plan gating (a `feat` shows only when the plan unlocks it)
+    .filter((m) => (!m.action || can(user.role, m.action)) && (!m.mod || modShown(m.mod)) && featAllowed(plan, m.feat))
     // apply sector-specific labels (e.g. المخزون -> "المواد والمنتجات")
     .map((m) => (sector.relabel && sector.relabel[m.to]) ? { ...m, label: sector.relabel[m.to] } : m);
   const mobileItems = visible.filter((m) => MOBILE.includes(m.to)).slice(0, 5);
