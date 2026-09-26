@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, queueSync } from '../db';
-import { fmtDate } from '../utils';
+import { db, nowISO, queueSync, getSetting } from '../db';
+import { fmtDate, waLink } from '../utils';
 import { useAuth } from '../auth';
 import { Toast } from '../components/UI';
 
@@ -18,21 +18,67 @@ export default function Requests() {
   const requests = useLiveQuery(
     () => db.requests.orderBy('createdAt').reverse().toArray(), [], []
   );
+  const devWhatsApp = useLiveQuery(() => getSetting('devWhatsApp', ''), [], '');
+  const devEmail = useLiveQuery(() => getSetting('devEmail', ''), [], '');
+  const bizName = useLiveQuery(() => getSetting('bizName', 'النشاط'), [], 'النشاط');
   const [category, setCategory] = useState('feature');
   const [title, setTitle] = useState('');
   const [details, setDetails] = useState('');
   const [toast, setToast] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const submit = async () => {
-    if (!title.trim()) return;
-    setSaving(true);
+  const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 3000); };
+
+  // Compose the suggestion message that gets sent to the developer.
+  const buildMessage = () => {
+    const t = (title || '').trim() || '(بدون عنوان)';
+    return `اقتراح/إضافة جديدة على البرنامج\n` +
+      `النوع: ${catLabel(category)}\n` +
+      `العنوان: ${t}\n` +
+      (details.trim() ? `التفاصيل: ${details.trim()}\n` : '') +
+      `—\nمن: ${user.name} · النشاط: ${bizName}`;
+  };
+
+  const persist = async () => {
+    if (!title.trim()) return null;
     const doc = {
       title: title.trim(), details: details.trim(), category,
       status: 'new', requesterName: user.name, requesterRole: user.role, createdAt: nowISO(),
     };
     const id = await db.requests.add(doc);
     await queueSync('requests', 'add', { ...doc, id });
+    return doc;
+  };
+
+  const sendWhatsApp = async () => {
+    if (!title.trim()) return;
+    const msg = buildMessage();
+    await persist();
+    window.open(waLink(devWhatsApp, msg), '_blank'); // devWhatsApp empty → WhatsApp share picker
+    setTitle(''); setDetails(''); setCategory('feature');
+    notify('✅ تم فتح واتساب لإرسال الاقتراح');
+  };
+
+  const sendEmail = async () => {
+    if (!title.trim()) return;
+    const msg = buildMessage();
+    await persist();
+    const to = devEmail || '';
+    window.open(`mailto:${to}?subject=${encodeURIComponent('اقتراح على البرنامج: ' + title.trim())}&body=${encodeURIComponent(msg)}`, '_blank');
+    setTitle(''); setDetails(''); setCategory('feature');
+    notify('✅ تم فتح البريد لإرسال الاقتراح');
+  };
+
+  const copyMsg = async () => {
+    if (!title.trim()) return;
+    try { await navigator.clipboard.writeText(buildMessage()); notify('✅ تم نسخ الاقتراح — ابعته بأي وسيلة'); }
+    catch { notify('انسخ النص يدوياً'); }
+  };
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    const doc = await persist();
     // best-effort email to the shop owner (if EmailJS is configured)
     import('../notify').then((m) => m.notifyEvent({
       action: 'request',
@@ -40,9 +86,8 @@ export default function Requests() {
       body: `${catLabel(category)}\nمن: ${doc.requesterName}\n\n${doc.title}\n${doc.details}`,
     })).catch(() => {});
     setTitle(''); setDetails(''); setCategory('feature');
-    setToast('✅ تم إرسال طلبك — شكراً لك!');
     setSaving(false);
-    setTimeout(() => setToast(''), 3000);
+    notify('✅ تم حفظ طلبك — شكراً لك!');
   };
 
   const setStatus = async (r, status) => {
@@ -72,7 +117,18 @@ export default function Requests() {
         <div className="field"><label>التفاصيل</label>
           <textarea className="input" rows={4} value={details} onChange={(e) => setDetails(e.target.value)}
             placeholder="اشرح الميزة اللي محتاجها وإزاي تفيدك في شغلك..." style={{ resize: 'vertical' }} /></div>
-        <button className="btn big" onClick={submit} disabled={saving || !title.trim()}>📨 إرسال الطلب</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className="btn big" onClick={submit} disabled={saving || !title.trim()}>💾 حفظ الطلب</button>
+          <span className="muted" style={{ fontSize: 13 }}>أو ابعته مباشرة لمطوّر البرنامج:</span>
+          <button className="btn" style={{ background: '#25D366' }} onClick={sendWhatsApp} disabled={!title.trim()}>📱 واتساب</button>
+          <button className="btn" onClick={sendEmail} disabled={!title.trim()}>✉️ إيميل</button>
+          <button className="btn ghost" onClick={copyMsg} disabled={!title.trim()}>📋 نسخ</button>
+        </div>
+        {!devWhatsApp && !devEmail && (
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            💡 لتحديد وجهة الإرسال تلقائياً، اضبط رقم واتساب/إيميل المطوّر من الإعدادات. بدون ضبط، هيفتح واتساب لتختار المرسَل إليه.
+          </p>
+        )}
       </div>
 
       <div className="section-title">الطلبات المُرسلة ({requests.length})</div>

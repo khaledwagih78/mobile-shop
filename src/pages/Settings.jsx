@@ -18,6 +18,7 @@ export default function Settings() {
   const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0', creditDays: '30' });
   const [reports, setReports] = useState({ daily: false, weekly: false, monthly: false });
   const [plan, setPlan] = useState('full');
+  const [dev, setDev] = useState({ whatsapp: '', email: '' });
   const [licenseExp, setLicenseExp] = useState(null);
   const [licenseCode, setLicenseCode] = useState('');
   const [activateInput, setActivateInput] = useState('');
@@ -25,6 +26,12 @@ export default function Settings() {
   const [toast, setToast] = useState('');
 
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2500); };
+  const saveDev = async () => {
+    await setSetting('devWhatsApp', (dev.whatsapp || '').trim());
+    await setSetting('devEmail', (dev.email || '').trim());
+    import('../sync').then((m) => m.triggerSync()).catch(() => {});
+    notify('✅ تم حفظ بيانات تواصل المطوّر');
+  };
   const activate = async () => {
     setActivateMsg('');
     const res = await applyLicenseCode(activateInput);
@@ -46,6 +53,7 @@ export default function Settings() {
       setPlan(await getSetting('plan', 'full'));
       setLicenseExp(await getSetting('licenseExp', null));
       setLicenseCode(await getSetting('licenseCode', '') || '');
+      setDev({ whatsapp: await getSetting('devWhatsApp', '') || '', email: await getSetting('devEmail', '') || '' });
       setUsdRate(await getSetting('usdRate', '') || '');
       setMargin(await getSetting('defaultMargin', '') || '');
       setApiKey(await getSetting('aiKey', '') || '');
@@ -229,6 +237,22 @@ export default function Settings() {
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           للحصول على كود ترقية تواصل مع مزوّد البرنامج. الترقية بتفتح أقسام إضافية فوراً على هذا الجهاز.
         </p>
+      </div>
+
+      {/* Developer contact — where feature suggestions are sent (Requests page) */}
+      <div className="card" style={{ maxWidth: 640 }}>
+        <h2 style={{ fontSize: 17, marginTop: 0 }}>📮 تواصل المطوّر (وجهة الاقتراحات)</h2>
+        <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+          رقم واتساب وإيميل مطوّر البرنامج. لما مستخدم يبعت اقتراح/ميزة من صفحة «الطلبات والاقتراحات»،
+          هيتبعت للوجهة دي مباشرةً.
+        </p>
+        <div className="row">
+          <div className="field"><label>📱 واتساب المطوّر</label>
+            <input className="input" value={dev.whatsapp} onChange={(e) => setDev({ ...dev, whatsapp: e.target.value })} placeholder="مثال: 201001234567" /></div>
+          <div className="field"><label>✉️ إيميل المطوّر</label>
+            <input className="input" type="email" value={dev.email} onChange={(e) => setDev({ ...dev, email: e.target.value })} placeholder="dev@example.com" /></div>
+        </div>
+        <button className="btn" onClick={saveDev}>💾 حفظ بيانات التواصل</button>
       </div>
 
       <div className="card" style={{ maxWidth: 640 }}>

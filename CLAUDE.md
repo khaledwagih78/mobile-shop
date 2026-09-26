@@ -516,6 +516,18 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   reuses the EmailJS config. Sending is best-effort and only fires while the app is
   open + online (no backend scheduler); a manual "send now" button exists per period.
 
+### Feature suggestions (`src/pages/Requests.jsx`)
+
+- Users submit feature/field/change/bug requests into the `requests` table (v8).
+  Besides **💾 حفظ** (persist + best-effort EmailJS to the owner), the form has
+  direct-send buttons that forward the suggestion to the **developer** and also
+  persist it: **📱 واتساب** (`waLink(devWhatsApp, msg)` — empty number → WhatsApp
+  share picker), **✉️ إيميل** (`mailto:devEmail`), and **📋 نسخ**. The message is
+  built from category + title + details + requester + shop name.
+- The developer destination is configured by the reseller in **Settings → 📮 تواصل
+  المطوّر** (`devWhatsApp`, `devEmail` settings). Admins can still mark requests
+  planned/done in the list.
+
 ### WhatsApp auto-send (opt-in)
 
 - Toggle `waAutoSend` (Settings). When on, saving a **sale/quote** invoice for a
