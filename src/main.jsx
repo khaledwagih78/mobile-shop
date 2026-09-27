@@ -16,8 +16,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 // Start cloud sync after React mounts
 startAutoSync();
 
-// Request notification permission for low stock alerts
-requestNotificationPermission();
+// Request notification permission for low-stock pop-ups ONLY if the shop opted in
+// (setting `notifyLowStock`). Off by default — no surprise browser prompt/pop-ups.
+getSetting('notifyLowStock', false).then((on) => { if (on === true) requestNotificationPermission(); }).catch(() => {});
 
 // Drop expired/invalid licenses back to the free plan (best-effort)
 enforceLicenseOnBoot(getSetting);

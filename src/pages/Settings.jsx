@@ -16,6 +16,7 @@ export default function Settings() {
   const [waAuto, setWaAuto] = useState(false);
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
   const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0', creditDays: '30' });
+  const [notifyLowStock, setNotifyLowStock] = useState(false);
   const [reports, setReports] = useState({ daily: false, weekly: false, monthly: false });
   const [plan, setPlan] = useState('full');
   const [dev, setDev] = useState({ whatsapp: '', email: '' });
@@ -26,6 +27,12 @@ export default function Settings() {
   const [toast, setToast] = useState('');
 
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2500); };
+  const toggleNotify = async (on) => {
+    setNotifyLowStock(on);
+    await setSetting('notifyLowStock', on);
+    if (on) { const m = await import('../db'); await m.requestNotificationPermission(); }
+    notify(on ? '✅ تم تفعيل تنبيهات نقص المخزون' : '✅ تم إيقاف التنبيهات المنبثقة');
+  };
   const saveDev = async () => {
     await setSetting('devWhatsApp', (dev.whatsapp || '').trim());
     await setSetting('devEmail', (dev.email || '').trim());
@@ -83,6 +90,7 @@ export default function Settings() {
         discountApprovalPct: String(await getSetting('discountApprovalPct', 0) ?? 0),
         creditDays: String(await getSetting('creditDays', 30) ?? 30),
       });
+      setNotifyLowStock(await getSetting('notifyLowStock', false) === true);
       setReports({
         daily: await getSetting('reportDaily', false) === true,
         weekly: await getSetting('reportWeekly', false) === true,
@@ -450,6 +458,17 @@ export default function Settings() {
             <input className="input" type="number" min="0" value={alerts.discountApprovalPct} onChange={(e) => setAlerts({ ...alerts, discountApprovalPct: e.target.value })} placeholder="مثال: 10" /></div>
           <p className="muted" style={{ fontSize: 12 }}>لو الخصم في الفاتورة تجاوز النسبة دي، الموظف غير المدير مش هيقدر يحفظ الفاتورة إلا بموافقة/دخول مدير.</p>
           <button className="btn" onClick={saveAlerts}>💾 حفظ إعدادات التنبيهات</button>
+
+          <div style={{ borderTop: '1px solid var(--line,#eee)', marginTop: 14, paddingTop: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={notifyLowStock} onChange={(e) => toggleNotify(e.target.checked)} style={{ width: 20, height: 20 }} />
+              <b>🔔 تنبيهات نقص المخزون المنبثقة {notifyLowStock ? '(مُفعّلة)' : '(مُعطّلة)'}</b>
+            </label>
+            <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              إشعارات المتصفح لما صنف يوصل الحد الأدنى. مقفولة افتراضياً — فعّلها بس لو محتاجها.
+              (مركز التنبيهات في القائمة بيفضل شغّال في كل الأحوال.)
+            </p>
+          </div>
         </div>
       </div>
 
