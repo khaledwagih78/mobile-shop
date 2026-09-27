@@ -84,6 +84,7 @@ export default function Layout() {
   // per-shop nav declutter: routes the user chose to hide from the menu
   const navHidden = useLiveQuery(() => getSetting('navHidden', []), [], []) || [];
   const [customizing, setCustomizing] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const lowStockCount = useLiveQuery(async () => {
     const items = await db.items.toArray();
     return items.filter((it) => stockOf(it, activeBranch) > 0 && stockOf(it, activeBranch) <= (it.minStock || 0)).length;
@@ -171,13 +172,37 @@ export default function Layout() {
       </main>
 
       <nav className="bottom-nav">
-        {mobileItems.map((m) => (
+        {mobileItems.slice(0, 4).map((m) => (
           <NavLink key={m.to} to={m.to} end={m.to === '/'}>
             <span className="ico">{m.ico}</span>
             {m.label}
           </NavLink>
         ))}
+        <button type="button" className="more-btn" onClick={() => setMoreOpen(true)}
+          style={{ background: 'transparent', border: 0, color: 'inherit', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, cursor: 'pointer', flex: 1 }}>
+          <span className="ico" style={{ fontSize: 20 }}>☰</span>
+          المزيد
+        </button>
       </nav>
+
+      {/* Mobile full menu: reach every section + customize + logout */}
+      {moreOpen && (
+        <Modal title="📋 القائمة" onClose={() => setMoreOpen(false)}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 8, maxHeight: '60vh', overflowY: 'auto' }}>
+            {visible.map((m) => (
+              <NavLink key={m.to} to={m.to} end={m.to === '/'} onClick={() => setMoreOpen(false)}
+                className="card" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, margin: 0, textDecoration: 'none', color: 'inherit' }}>
+                <span className="ico" style={{ fontSize: 20 }}>{m.ico}</span>
+                <span style={{ fontSize: 13 }}>{m.label}</span>
+              </NavLink>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <button className="btn ghost" onClick={() => { setMoreOpen(false); setCustomizing(true); }}>🎛️ تخصيص الأيقونات</button>
+            <button className="btn ghost" style={{ marginRight: 'auto' }} onClick={logout}>تسجيل الخروج</button>
+          </div>
+        </Modal>
+      )}
 
       {customizing && (
         <Modal title="🎛️ تخصيص أيقونات القائمة" onClose={() => setCustomizing(false)}>
