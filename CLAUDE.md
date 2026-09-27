@@ -76,7 +76,7 @@ There are **no test or lint scripts**. Verify changes by running `npm run dev` a
 | `src/main.jsx` | Entry point; mounts React, starts auto-sync, requests notification permission |
 | `src/App.jsx` | Router + route table; wraps routes in `<Guard action=...>` for role-based access |
 | `src/auth.jsx` | `AuthProvider` / `useAuth`; PIN-based login, persists current user id in `localStorage` (`kerp_user`) |
-| `src/db.js` | Dexie schema (versioned), core transactional business ops, helpers, seeding, audit log, low-stock notifications |
+| `src/db.js` | Dexie schema (versioned), core transactional business ops, helpers, seeding, audit log |
 | `src/utils.js` | Formatting (`money`, `fmt`, dates), WhatsApp link helpers, `ROLES`, and the `can(role, action)` permission map |
 | `src/sync.js` | Supabase push/pull, `useSyncStatus`, `startAutoSync`, `triggerSync` |
 | `src/supabase.js` | Supabase client (anon/publishable key — safe to expose; secured by RLS) |
@@ -144,6 +144,10 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - Helpers: `nowISO()`, `dayOf(iso)` (→ `YYYY-MM-DD`), `today()`, `getSetting` /
   `setSetting`, `queueSync`, `logAudit`, `ensureSeed` (seeds the first admin user),
   `loadDemoData`.
+- **Browser pop-up notifications were removed** (not useful + intrusive permission
+  prompt). `requestNotificationPermission`/`checkLowStock` remain as exported no-op
+  stubs so imports don't break. Low stock still surfaces via the in-app red badge on
+  المخزون (Layout) and the Alerts center — no OS/browser notifications.
 
 ### Authentication & permissions
 

@@ -257,26 +257,12 @@ export async function logAudit(action, entityType, entityId, details = {}) {
   });
 }
 
-// ---------- low stock notifications ----------
-let _notifGranted = false;
-export async function requestNotificationPermission() {
-  if (!('Notification' in window)) return false;
-  if (Notification.permission === 'granted') { _notifGranted = true; return true; }
-  if (Notification.permission === 'denied') return false;
-  const res = await Notification.requestPermission();
-  _notifGranted = res === 'granted';
-  return _notifGranted;
-}
-export function checkLowStock(items, branchId = DEFAULT_BRANCH_ID) {
-  if (!_notifGranted) return;
-  const low = items.filter((it) => stockOf(it, branchId) > 0 && stockOf(it, branchId) <= (it.minStock || 0));
-  if (low.length > 0) {
-    new Notification('⚠️ تنبيه مخزون', {
-      body: `${low.length} أصناف وصلت للحد الأدنى`,
-      icon: '/mobile-shop/icon-192.png',
-    });
-  }
-}
+// ---------- low-stock browser notifications: removed ----------
+// Browser pop-up notifications were removed (they weren't useful and the
+// permission prompt was intrusive). These stubs stay as safe no-ops so any
+// remaining import doesn't break; low-stock still shows via the in-app badge.
+export async function requestNotificationPermission() { return false; }
+export function checkLowStock() { /* no-op: pop-up notifications removed */ }
 
 // sequential invoice numbers, tagged per device: S<dev>-00001 / P<dev>-00001.
 // A per-device sequence (localStorage) plus the device tag keeps numbers unique

@@ -1,9 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, getSetting, requestNotificationPermission, checkLowStock, stockOf } from '../db';
+import { db, today, getSetting, stockOf } from '../db';
 import { money, fmt, fmtDate, can } from '../utils';
 import { useAuth } from '../auth';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export default function Dashboard() {
   const nav = useNavigate();
@@ -31,11 +31,6 @@ export default function Dashboard() {
   const stockValue = items.reduce((s, it) => s + stockOf(it, activeBranch) * (it.costPrice || 0), 0);
   const lowStock = items.filter((it) => stockOf(it, activeBranch) <= (it.minStock || 0));
   const debtsTotal = debts.reduce((s, c) => s + c.balance, 0);
-
-  useEffect(() => {
-    requestNotificationPermission();
-    if (items.length > 0) checkLowStock(items, activeBranch);
-  }, [items, activeBranch]);
 
   // customizable dashboard: per-device hidden KPI widgets
   const [customize, setCustomize] = useState(false);
