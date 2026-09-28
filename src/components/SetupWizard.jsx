@@ -95,7 +95,7 @@ export default function SetupWizard({ onDone }) {
             <p className="muted">يلا نظبّط البرنامج لنشاطك في دقيقة. الأول، اسم المحل/النشاط:</p>
             <div className="field">
               <label>اسم النشاط</label>
-              <input className="input lg" autoFocus value={bizName} onChange={(e) => setBizName(e.target.value)} placeholder="مثال: خالد لقطع غيار المحمول" />
+              <input className="input lg" autoFocus value={bizName} onChange={(e) => setBizName(e.target.value)} placeholder="اكتب اسم شركتك أو محلك" />
             </div>
           </div>
         )}

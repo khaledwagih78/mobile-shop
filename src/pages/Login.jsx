@@ -21,7 +21,7 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <div className="logo">{bizName || 'نظام المبيعات والمخزون'}</div>
+        <div className="logo">{bizName || 'اسم المتجر'}</div>
         <div className="tag">نظام المبيعات والمخزون — يعمل بدون إنترنت</div>
 
         <div className="field">

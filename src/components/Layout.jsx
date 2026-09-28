@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getSetting, setSetting, stockOf } from '../db';
@@ -75,6 +75,8 @@ export default function Layout() {
   const syncStatus = useSyncStatus();
   const pending    = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
   const bizName = useLiveQuery(() => getSetting('bizName', ''), [], '');
+  // browser tab title follows the shop's own name once it's set
+  useEffect(() => { document.title = bizName || 'نظام المبيعات والمخزون'; }, [bizName]);
   const sectorId = useLiveQuery(() => getSetting('bizSector', 'general'), [], 'general');
   const sector = getSector(sectorId);
   // per-shop overrides on top of the sector default: { [mod]: true|false }
