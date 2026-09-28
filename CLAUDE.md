@@ -144,6 +144,12 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - Helpers: `nowISO()`, `dayOf(iso)` (→ `YYYY-MM-DD`), `today()`, `getSetting` /
   `setSetting`, `queueSync`, `logAudit`, `ensureSeed` (seeds the first admin user),
   `loadDemoData`.
+- `clearBusinessData()` — "start fresh": clears every business/transaction table
+  in `CLEARABLE_TABLES` (items, customers, suppliers, invoices, payments,
+  stockMoves, expenses, employees, journalEntries, all v10–v18 tables, syncQueue…)
+  and resets `kerp_inv_seq_*` numbering, but KEEPS `users`, `settings` (sector/plan/
+  custom fields/bizName/setupDone), `branches` and the chart of `accounts`. Local
+  only. Exposed via **Backup → 🗑️ بدء من جديد** (double-confirm, then reload).
 - **Browser pop-up notifications were removed** (not useful + intrusive permission
   prompt). `requestNotificationPermission`/`checkLowStock` remain as exported no-op
   stubs so imports don't break. Low stock still surfaces via the in-app red badge on

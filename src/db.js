@@ -1438,3 +1438,27 @@ export async function loadDemoData() {
     for (const s of suppliers) await db.suppliers.add({ ...s, createdAt: nowISO() });
   });
 }
+
+// ---------- clear all business data (start fresh) ----------
+// Wipes every business/transaction table on THIS device but KEEPS users,
+// settings (sector/plan/custom fields/etc.), branches and the chart of accounts,
+// so login and the shop's configuration stay intact. Local only — if cloud sync
+// is enabled, a later pull can restore cloud rows.
+const CLEARABLE_TABLES = [
+  'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
+  'expenses', 'recurringExpenses', 'employees', 'empRecords', 'deliveries',
+  'requests', 'productions', 'installmentPlans', 'leads', 'priceLists', 'coupons',
+  'assets', 'payslips', 'projects', 'workOrders', 'repVisits', 'auditLog',
+  'journalEntries', 'lines', 'transactions', 'profiles', 'syncQueue',
+];
+export async function clearBusinessData() {
+  for (const t of CLEARABLE_TABLES) {
+    try { if (db[t]) await db[t].clear(); } catch { /* table may not exist */ }
+  }
+  // reset per-device invoice numbering so it restarts clean
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('kerp_inv_seq_')) localStorage.removeItem(k);
+    }
+  } catch { /* ignore */ }
+}

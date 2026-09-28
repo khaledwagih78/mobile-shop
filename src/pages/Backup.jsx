@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, loadDemoData } from '../db';
+import { db, loadDemoData, clearBusinessData } from '../db';
 import { exportBackup, importBackup } from '../backup';
 import { syncAll, useSyncStatus } from '../sync';
 import { fmtDate } from '../utils';
@@ -114,6 +114,26 @@ export default function Backup() {
           </div>
         </>
       )}
+
+      <div className="section-title">🗑️ بدء من جديد</div>
+      <div className="card" style={{ borderColor: 'var(--red, #d33)' }}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          تفريغ <b>كل البيانات</b> على هذا الجهاز (الأصناف، الفواتير، العملاء، الموردين، المصروفات،
+          الحركات، القيود…) عشان تبدأ نضيف ببياناتك الحقيقية.
+          <br />يفضل محفوظ: المستخدمين، الإعدادات، المجال والحقول، الفروع.
+          <br /><b style={{ color: 'var(--red,#d33)' }}>لا يمكن التراجع — يُفضّل تعمل نسخة احتياطية الأول.</b>
+        </p>
+        <button className="btn" style={{ background: 'var(--red, #d33)' }}
+          onClick={async () => {
+            if (!confirm('تأكيد: تفريغ كل بيانات الأصناف والفواتير والعملاء... على هذا الجهاز؟ لا يمكن التراجع.')) return;
+            if (!confirm('تأكيد أخير — هيتم حذف كل السجلات. متأكد؟')) return;
+            await clearBusinessData();
+            show('✅ تم تفريغ البيانات — ابدأ بإضافة بياناتك');
+            setTimeout(() => window.location.reload(), 1000);
+          }}>
+          🗑️ تفريغ كل البيانات
+        </button>
+      </div>
 
       <Toast msg={toast} />
     </>
