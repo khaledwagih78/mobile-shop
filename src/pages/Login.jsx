@@ -6,7 +6,7 @@ import { ROLES } from '../utils';
 
 export default function Login() {
   const users = useLiveQuery(() => db.users.toArray(), [], []);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
+  const bizName = useLiveQuery(() => getSetting('bizName', ''), [], '');
   const { login } = useAuth();
   const [userId, setUserId] = useState('');
   const [pin, setPin] = useState('');
@@ -21,7 +21,7 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <div className="logo">{bizName}</div>
+        <div className="logo">{bizName || 'نظام المبيعات والمخزون'}</div>
         <div className="tag">نظام المبيعات والمخزون — يعمل بدون إنترنت</div>
 
         <div className="field">

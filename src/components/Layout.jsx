@@ -74,7 +74,7 @@ export default function Layout() {
   const { user, logout, branches, activeBranch, setActiveBranch } = useAuth();
   const syncStatus = useSyncStatus();
   const pending    = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
+  const bizName = useLiveQuery(() => getSetting('bizName', ''), [], '');
   const sectorId = useLiveQuery(() => getSetting('bizSector', 'general'), [], 'general');
   const sector = getSector(sectorId);
   // per-shop overrides on top of the sector default: { [mod]: true|false }
@@ -117,7 +117,7 @@ export default function Layout() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          {bizName}
+          {bizName || 'اسم المتجر'}
           <small>نظام المبيعات والمخزون</small>
         </div>
 

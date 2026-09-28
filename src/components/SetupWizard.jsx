@@ -55,7 +55,7 @@ export default function SetupWizard({ onDone }) {
       if (!res.valid) { setStep(4); setLicenseMsg('❌ ' + (res.reason || 'الكود غير صحيح')); return; }
     }
     setSaving(true);
-    await setSetting('bizName', bizName.trim() || 'نظام المبيعات والمخزون');
+    await setSetting('bizName', bizName.trim());
     await setSetting('bizSector', sector);
     await setSetting('moduleOverrides', {}); // start from the sector's clean defaults
     await applySectorFields(sector); // seed the sector's field requirements

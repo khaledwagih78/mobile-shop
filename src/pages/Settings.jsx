@@ -49,7 +49,7 @@ export default function Settings() {
 
   useEffect(() => {
     (async () => {
-      setBizName(await getSetting('bizName', 'نظام المبيعات والمخزون'));
+      setBizName(await getSetting('bizName', ''));
       setPlan(await getSetting('plan', 'full'));
       setLicenseExp(await getSetting('licenseExp', null));
       setLicenseCode(await getSetting('licenseCode', '') || '');
@@ -169,7 +169,7 @@ export default function Settings() {
   };
 
   const save = async () => {
-    await setSetting('bizName', bizName.trim() || 'نظام المبيعات والمخزون');
+    await setSetting('bizName', bizName.trim());
     await setSetting('usdRate', Number(usdRate) || 0);
     await setSetting('defaultMargin', Number(margin) || 0);
     await setSetting('aiKey', apiKey.trim());

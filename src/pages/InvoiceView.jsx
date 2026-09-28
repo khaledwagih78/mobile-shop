@@ -36,7 +36,9 @@ export default function InvoiceView() {
   const [waPending, setWaPending] = useState(false); // offline: invoice queued for WhatsApp send
   const sentRef = useRef(false);
   const inv = useLiveQuery(() => db.invoices.get(Number(id)), [id]);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
+  // empty company name falls back to a neutral label so printed invoices aren't blank
+  const bizNameRaw = useLiveQuery(() => getSetting('bizName', ''), [], '');
+  const bizName = bizNameRaw || 'نظام المبيعات والمخزون';
   const waAutoSend = useLiveQuery(() => getSetting('waAutoSend', false), [], false);
   const logo = useLiveQuery(() => getSetting('bizLogo', ''), [], '');
   const address = useLiveQuery(() => getSetting('bizAddress', ''), [], '');
