@@ -235,6 +235,20 @@ export async function saveCustomFields(list) {
   import('./sync').then((m) => m.triggerSync()).catch(() => {});
 }
 
+// Apply a sector's default field requirements: swap out the previous sector's
+// auto-seeded fields (origin:'sector') for the new sector's, keeping any fields
+// the user added manually. Called when the sector is chosen (wizard / Sector page).
+export async function applySectorFields(sectorId) {
+  const { sectorFieldDefs } = await import('./sectors');
+  const all = await getCustomFields();
+  const userFields = all.filter((f) => f.origin !== 'sector');
+  const seeded = sectorFieldDefs(sectorId);
+  // don't duplicate a user field that already uses the same id
+  const userIds = new Set(userFields.map((f) => f.id));
+  const merged = [...userFields, ...seeded.filter((f) => !userIds.has(f.id))];
+  await saveCustomFields(merged);
+}
+
 // queue every write for cloud sync, then kick off a debounced push/pull
 // so changes reach the cloud immediately whenever the internet is available.
 export async function queueSync(table, op, payload) {

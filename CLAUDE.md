@@ -272,6 +272,17 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   (`MOD_LABELS`). To add a sector-specific feature: give its `MENU` entry a `mod`,
   add that key to the relevant sector(s), add a `MOD_LABELS` entry, and guard its
   route/permission as usual.
+- **Per-sector field requirements (substantive difference):** each sector can carry
+  a `fields` map `{ item|customer|supplier: [{key,label,type}] }` in `sectors.js`
+  (e.g. pharmacy item → صلاحية/تشغيلة/مادة فعّالة; contracting item → وحدة القياس +
+  customer → اسم/موقع المشروع; clothes → مقاس/لون; mobile → موديل/لون/جودة …).
+  `sectorFieldDefs(id)` turns them into custom-field defs tagged `origin:'sector'`
+  with stable ids. `applySectorFields(id)` (db.js) swaps the previous sector's
+  seeded fields for the new one's while **keeping user-added fields** (those without
+  `origin:'sector'`); it's called from the setup wizard finish and the Sector
+  picker. These fields render in the Items/Parties forms via the existing
+  `CustomFieldInputs`, so each sector's data-entry screens genuinely differ (not
+  just labels/sections).
 - **Mobile menu:** the sidebar is `display:none` under 860px, so the bottom nav
   shows the first 4 `mobileItems` plus a **☰ المزيد** button that opens a modal
   listing **all** `visible` sections (tap to navigate, closes on tap) plus

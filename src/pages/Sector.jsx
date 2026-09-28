@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { getSetting, setSetting } from '../db';
+import { getSetting, setSetting, applySectorFields } from '../db';
 import { SECTORS } from '../sectors';
 import { Toast } from '../components/UI';
 
@@ -35,6 +35,7 @@ export default function Sector() {
     await setSetting('bizSector', id);
     // switching sector resets manual overrides so the new sector's defaults apply cleanly
     await setSetting('moduleOverrides', {});
+    await applySectorFields(id); // swap in the new sector's field requirements
     resync();
     const s = SECTORS.find((x) => x.id === id);
     notify(`✅ تم اختيار المجال: ${s ? s.name : ''}`);

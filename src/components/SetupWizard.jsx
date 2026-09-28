@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { setSetting } from '../db';
+import { setSetting, applySectorFields } from '../db';
 import { SECTORS } from '../sectors';
 import { verifyLicenseCode, applyLicenseCode } from '../license';
 import { getPlan } from '../plans';
@@ -58,6 +58,7 @@ export default function SetupWizard({ onDone }) {
     await setSetting('bizName', bizName.trim() || 'نظام المبيعات والمخزون');
     await setSetting('bizSector', sector);
     await setSetting('moduleOverrides', {}); // start from the sector's clean defaults
+    await applySectorFields(sector); // seed the sector's field requirements
     await setSetting('taxEnabled', !!taxOn);
     await setSetting('taxName', 'ضريبة القيمة المضافة');
     await setSetting('taxRate', taxOn ? (Number(taxRate) || 0) : 0);
