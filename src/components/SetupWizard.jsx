@@ -7,14 +7,31 @@ import { getPlan } from '../plans';
 // First-run setup wizard: shows once (until `setupDone` is set), walks a new
 // shop through naming, sector, tax and credit terms, then configures the app to
 // the tailored "final product" for that sector. Never appears again afterwards.
+// Read launch parameters from the URL so a per-sector link arrives pre-configured,
+// e.g. .../mobile-shop/?sector=contracting  (optionally &code=<activation>).
+// Works whether the params sit before the hash (?x=y#/) or inside it (#/?x=y).
+function launchParams() {
+  try {
+    const search = (typeof location !== 'undefined' && location.search) || '';
+    const hash = (typeof location !== 'undefined' && location.hash) || '';
+    const q = new URLSearchParams(search);
+    const hq = hash.includes('?') ? new URLSearchParams(hash.slice(hash.indexOf('?') + 1)) : null;
+    const get = (k) => q.get(k) || (hq && hq.get(k)) || '';
+    return { sector: get('sector'), code: get('code') };
+  } catch { return { sector: '', code: '' }; }
+}
+
 export default function SetupWizard({ onDone }) {
+  const params = launchParams();
+  const preSector = SECTORS.some((s) => s.id === params.sector) ? params.sector : '';
   const [step, setStep] = useState(0);
   const [bizName, setBizName] = useState('');
-  const [sector, setSector] = useState('general');
+  const [sector, setSector] = useState(preSector || 'general');
+  const [sectorLocked] = useState(!!preSector); // came pre-set from the link
   const [taxOn, setTaxOn] = useState(false);
   const [taxRate, setTaxRate] = useState('14');
   const [creditDays, setCreditDays] = useState('30');
-  const [licenseCode, setLicenseCode] = useState('');
+  const [licenseCode, setLicenseCode] = useState(params.code || '');
   const [licenseMsg, setLicenseMsg] = useState('');   // inline feedback (ok/err)
   const [licenseOk, setLicenseOk] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -85,22 +102,38 @@ export default function SetupWizard({ onDone }) {
         {step === 1 && (
           <div>
             <h2 style={{ marginTop: 0 }}>🧭 نشاطك إيه؟</h2>
-            <p className="muted">هنظهرلك الأقسام اللي تخص مجالك بس، ونسمّي الشاشات بأسماء مناسبة.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 8 }}>
-              {SECTORS.map((s) => {
-                const active = sector === s.id;
-                return (
-                  <button key={s.id} className="card" onClick={() => setSector(s.id)} style={{
-                    cursor: 'pointer', textAlign: 'right', padding: 10, margin: 0,
-                    border: active ? '2px solid var(--accent, #0F4C5C)' : '1px solid var(--line, #ddd)',
-                    background: active ? 'var(--bg, #f6f8f9)' : 'var(--card, #fff)',
-                  }}>
-                    <div style={{ fontSize: 22 }}>{s.ico}</div>
-                    <b style={{ fontSize: 13 }}>{s.name}</b>
-                  </button>
-                );
-              })}
-            </div>
+            {sectorLocked ? (
+              <div className="card" style={{ padding: 12, borderColor: 'var(--accent,#0F4C5C)' }}>
+                <p className="muted" style={{ marginTop: 0 }}>البرنامج مُجهّز مسبقاً لمجال:</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 30 }}>{(SECTORS.find((s) => s.id === sector) || {}).ico}</span>
+                  <b style={{ fontSize: 18 }}>{(SECTORS.find((s) => s.id === sector) || {}).name}</b>
+                  <span className="badge green" style={{ marginRight: 'auto' }}>جاهز ✓</span>
+                </div>
+                <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+                  {(SECTORS.find((s) => s.id === sector) || {}).desc}
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="muted">هنظهرلك الأقسام اللي تخص مجالك بس، ونسمّي الشاشات بأسماء مناسبة.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 8 }}>
+                  {SECTORS.map((s) => {
+                    const active = sector === s.id;
+                    return (
+                      <button key={s.id} className="card" onClick={() => setSector(s.id)} style={{
+                        cursor: 'pointer', textAlign: 'right', padding: 10, margin: 0,
+                        border: active ? '2px solid var(--accent, #0F4C5C)' : '1px solid var(--line, #ddd)',
+                        background: active ? 'var(--bg, #f6f8f9)' : 'var(--card, #fff)',
+                      }}>
+                        <div style={{ fontSize: 22 }}>{s.ico}</div>
+                        <b style={{ fontSize: 13 }}>{s.name}</b>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         )}
 

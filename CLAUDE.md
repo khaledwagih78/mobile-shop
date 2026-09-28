@@ -233,6 +233,15 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   `creditDays`, and `setupDone: true`, then triggers a sync; if a code was entered
   it must verify (else the wizard jumps back to the activation step) and is applied
   via `applyLicenseCode` to upgrade the plan. A **تخطّي** link just sets `setupDone`.
+- **Per-sector launch links (reseller distribution):** the wizard reads launch
+  params via `launchParams()` (from `location.search` and/or the hash query) —
+  `?sector=<id>` pre-selects and **locks** the sector (the step shows "مُجهّز مسبقاً"
+  instead of the picker), and `?code=<activation>` pre-fills the activation field.
+  So one shared codebase is delivered as a **different pre-configured link per
+  sector** (e.g. `.../mobile-shop/?sector=contracting#/`); the customer only enters
+  the company name. Because it's one codebase/one deploy, a feature edit pushed to
+  `source` updates **every** sector link at once. An unknown sector id is ignored
+  (normal picker shown).
 - `ensureSeed` (db.js) decides who sees it: it leaves `setupDone` unset only when
   the DB holds **no real business data** (no items/customers/invoices); an already-
   used install is marked `setupDone: true` so the wizard never interrupts it. This
