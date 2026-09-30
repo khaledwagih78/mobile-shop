@@ -174,7 +174,7 @@ export default function Parties({ kind = 'customer' }) {
         </Modal>
       )}
 
-      {view && <StatementModal party={view} kind={kind} onClose={() => setView(null)} />}
+      {view && <StatementModal party={view} kind={kind} bizName={bizName} onClose={() => setView(null)} />}
 
       {payFor && (
         <PaymentModal
@@ -186,9 +186,11 @@ export default function Parties({ kind = 'customer' }) {
   );
 }
 
-function StatementModal({ party, kind, onClose }) {
+function StatementModal({ party, kind, bizName, onClose }) {
   const isCustomer = kind === 'customer';
   const type = isCustomer ? 'sale' : 'purchase';
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const invoices = useLiveQuery(
     () => db.invoices.where('partyId').equals(party.id).and((i) => i.type === type).toArray(),
     [party.id], []
@@ -197,7 +199,7 @@ function StatementModal({ party, kind, onClose }) {
     () => db.payments.where('partyId').equals(party.id).and((p) => p.partyType === kind).toArray(),
     [party.id], []
   );
-  const rows = [
+  const allRows = [
     ...invoices.map((i) => ({
       date: i.createdAt, label: `فاتورة ${i.number}${i.status === 'cancelled' ? ' (ملغاة)' : ''}`,
       debit: i.status === 'cancelled' ? 0 : i.remaining, total: i.total, credit: 0,
@@ -205,8 +207,74 @@ function StatementModal({ party, kind, onClose }) {
     ...payments.map((p) => ({ date: p.createdAt, label: `دفعة${p.note ? ` — ${p.note}` : ''}`, debit: 0, credit: p.amount })),
   ].sort((a, b) => a.date.localeCompare(b.date));
 
+  // running balance over ALL rows; the period filter only hides rows outside it
   let running = 0;
-  const withBal = rows.map((r) => { running += (r.debit || 0) - (r.credit || 0); return { ...r, balance: running }; });
+  const withBalAll = allRows.map((r) => { running += (r.debit || 0) - (r.credit || 0); return { ...r, balance: running }; });
+  const inRange = (d) => (!from || d.slice(0, 10) >= from) && (!to || d.slice(0, 10) <= to);
+  const withBal = withBalAll.filter((r) => inRange(r.date));
+
+  const printStatement = () => {
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const period = from || to ? `<div class="per">الفترة: ${esc(from || '—')} ← ${esc(to || 'الآن')}</div>` : '';
+    const body = withBal.map((r) => `
+      <tr>
+        <td>${esc(r.label)}</td>
+        <td class="n">${r.debit ? fmt(r.debit) : '—'}</td>
+        <td class="n g">${r.credit ? fmt(r.credit) : '—'}</td>
+        <td class="n">${fmt(r.balance)}</td>
+        <td class="m">${fmtDate(r.date)}</td>
+      </tr>`).join('');
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
+      <title>كشف حساب ${esc(party.name)}</title>
+      <style>
+        *{font-family:Cairo,Tahoma,Arial,sans-serif;box-sizing:border-box}
+        body{margin:18px;color:#111}
+        h1{font-size:20px;margin:0 0 2px}
+        .sub{color:#666;font-size:12px;margin-bottom:10px}
+        .box{border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px}
+        .per{color:#444;font-size:12px;margin-top:4px}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th,td{border:1px solid #ddd;padding:6px 8px;text-align:right}
+        th{background:#f5f5f5}
+        .n{text-align:left;font-variant-numeric:tabular-nums}
+        .g{color:#0a7d32}.m{color:#777;font-size:11px}
+        .tot{font-weight:700;font-size:15px;margin-top:12px;text-align:left}
+        .red{color:#c0261a}.green{color:#0a7d32}
+        @media print{button{display:none}}
+      </style></head><body>
+      <h1>${esc(bizName || 'كشف حساب')}</h1>
+      <div class="sub">كشف حساب ${isCustomer ? 'عميل' : 'مورّد'}</div>
+      <div class="box">
+        <div><b>${esc(party.name)}</b> · هاتف: ${esc(party.phone || '—')}</div>
+        <div>الرصيد الحالي: <b class="${(party.balance || 0) > 0 ? 'red' : 'green'}">${money(party.balance)}</b>${isCustomer && party.points ? ` · نقاط: ${party.points}` : ''}</div>
+        ${period}
+      </div>
+      ${withBal.length === 0 ? '<p>لا توجد حركة في هذه الفترة</p>' : `
+      <table><thead><tr><th>البيان</th><th>آجل</th><th>دفعة</th><th>الرصيد</th><th>التاريخ</th></tr></thead>
+      <tbody>${body}</tbody></table>`}
+      <div class="tot">الرصيد ${(party.balance || 0) > 0 ? 'المستحق' : ''}: <span class="${(party.balance || 0) > 0 ? 'red' : 'green'}">${money(party.balance)}</span></div>
+      <script>window.onload=function(){window.print();}</script>
+      </body></html>`);
+    w.document.close();
+  };
+
+  const exportCsv = () => {
+    const head = ['البيان', 'آجل', 'دفعة', 'الرصيد', 'التاريخ'];
+    const lines = withBal.map((r) => [
+      r.label, r.debit || 0, r.credit || 0, r.balance, fmtDate(r.date),
+    ]);
+    const csv = [head, ...lines]
+      .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `كشف-${party.name}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
   return (
     <Modal title={`كشف حساب: ${party.name}`} onClose={onClose}>
@@ -214,6 +282,15 @@ function StatementModal({ party, kind, onClose }) {
         الهاتف: {party.phone || '—'} · الرصيد الحالي: <b style={{ color: (party.balance || 0) > 0 ? 'var(--red)' : 'var(--green)' }}>{money(party.balance)}</b>
         {isCustomer && party.points ? <> · ⭐ نقاط: <b>{party.points}</b></> : ''}
       </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 10 }}>
+        <div className="field" style={{ margin: 0 }}><label>من</label>
+          <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+        <div className="field" style={{ margin: 0 }}><label>إلى</label>
+          <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+        {(from || to) && <button className="btn ghost sm" onClick={() => { setFrom(''); setTo(''); }}>↺ الكل</button>}
+        <button className="btn ghost sm" onClick={printStatement} disabled={withBal.length === 0}>🖨️ طباعة / PDF</button>
+        <button className="btn ghost sm" onClick={exportCsv} disabled={withBal.length === 0}>📊 Excel/CSV</button>
+      </div>
       {withBal.length === 0 ? (
         <div className="empty">لا توجد حركة</div>
       ) : (

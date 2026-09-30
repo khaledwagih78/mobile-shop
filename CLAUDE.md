@@ -404,6 +404,17 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   suppliers: pick a dataset, toggle columns, filter by date range + search, see
   totals for numeric columns, print, and export CSV (UTF-8 BOM for Arabic Excel).
 
+### Account statements (`src/pages/Parties.jsx`)
+
+- Each customer/supplier row has a **كشف حساب** button opening `StatementModal`: it
+  merges the party's invoices (آجل/remaining as debit) and payments (credit) into a
+  dated ledger with a **running balance**, plus a WhatsApp balance-reminder link on
+  the list. The statement has a **period filter** (من/إلى — filters the visible rows,
+  the running balance is still computed over all history), a **🖨️ طباعة / PDF** button
+  (opens a print window with the shop header from `bizName`, party info, the filtered
+  ledger and the closing balance, auto-`print()`), and a **📊 Excel/CSV** export
+  (UTF-8 BOM). Works for both customers and suppliers (same modal, `kind`-driven).
+
 ### Installments & debt (`src/pages/Installments.jsx`)
 
 - `installmentPlans` (v11) is a monthly schedule over an existing customer debt
