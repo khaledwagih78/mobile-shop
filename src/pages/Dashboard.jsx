@@ -1,7 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, today, getSetting, stockOf } from '../db';
-import { money, fmt, fmtDate, can } from '../utils';
+import { money, fmt, fmtDate, monthOf, can } from '../utils';
+import { getSector } from '../sectors';
 import { useAuth } from '../auth';
 import { useState } from 'react';
 
@@ -24,6 +25,30 @@ export default function Dashboard() {
   const todayExpenses = useLiveQuery(() => db.expenses.where('day').equals(day).and((e) => (e.branchId || 1) === activeBranch).toArray(), [day, activeBranch], []);
   const debts = useLiveQuery(() => db.customers.filter((c) => (c.balance || 0) > 0).toArray(), [], []);
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
+
+  // ---- sector-aware KPIs ----
+  const sectorId = useLiveQuery(() => getSetting('bizSector', 'general'), [], 'general');
+  const sector = getSector(sectorId);
+  const nearExpiryDays = useLiveQuery(() => getSetting('nearExpiryDays', 60), [], 60);
+  const woOpen = useLiveQuery(() => db.workOrders.filter((w) => inBranch(w) && w.status !== 'delivered' && w.status !== 'cancelled').count(), [activeBranch], 0);
+  const projOpen = useLiveQuery(() => db.projects.filter((p) => inBranch(p) && p.status !== 'done' && p.status !== 'closed').count(), [activeBranch], 0);
+  const prodMonth = useLiveQuery(() => db.productions.filter((p) => inBranch(p) && (p.day || p.createdAt || '').slice(0, 7) === monthOf(day)).count(), [activeBranch, day], 0);
+  const instActive = useLiveQuery(() => db.installmentPlans.filter((p) => p.status === 'active').count(), [], 0);
+  const repsMonth = useLiveQuery(() => db.repVisits.filter((v) => (v.day || '').slice(0, 7) === monthOf(day)).count(), [day], 0);
+  const leadsOpen = useLiveQuery(() => db.leads.filter((l) => l.stage !== 'won' && l.stage !== 'lost').count(), [], 0);
+  const nearExp = items.filter((it) => { if (!it.expiry) return false; const d = Math.floor((new Date(it.expiry) - new Date(day)) / 86400000); return d >= 0 && d <= (Number(nearExpiryDays) || 60); }).length;
+  const expired = items.filter((it) => it.expiry && it.expiry < day).length;
+
+  const hasMod = (k) => sector.allMods || (sector.mods || []).includes(k);
+  const sectorCards = [
+    { k: 'repair', show: hasMod('repair') && (!sector.allMods || woOpen > 0), ico: '🔧', label: 'أوامر صيانة مفتوحة', value: fmt(woOpen), to: '/maintenance', tone: 'kpi tone-accent' },
+    { k: 'projects', show: hasMod('projects') && (!sector.allMods || projOpen > 0), ico: '📁', label: 'مشاريع جارية', value: fmt(projOpen), to: '/projects', tone: 'kpi' },
+    { k: 'production', show: hasMod('production') && (!sector.allMods || prodMonth > 0), ico: '🏭', label: 'إنتاج هذا الشهر', value: fmt(prodMonth), to: '/production', tone: 'kpi' },
+    { k: 'installments', show: hasMod('installments') && (!sector.allMods || instActive > 0), ico: '💳', label: 'خطط أقساط نشطة', value: fmt(instActive), to: '/installments', tone: 'kpi' },
+    { k: 'reps', show: hasMod('reps') && (!sector.allMods || repsMonth > 0), ico: '🚶', label: 'زيارات مندوبين (الشهر)', value: fmt(repsMonth), to: '/reps', tone: 'kpi' },
+    { k: 'crm', show: hasMod('crm') && (!sector.allMods || leadsOpen > 0), ico: '🤝', label: 'عملاء محتملون مفتوحون', value: fmt(leadsOpen), to: '/crm', tone: 'kpi' },
+    { k: 'expiry', show: (sectorId === 'pharmacy' || nearExp > 0 || expired > 0) && (nearExp > 0 || expired > 0), ico: '📅', label: expired > 0 ? `قرب/انتهاء صلاحية (${expired} منتهي)` : 'أصناف قرب الصلاحية', value: fmt(nearExp + expired), to: '/inventory-ops', tone: 'kpi tone-amber' },
+  ].filter((c) => c.show);
 
   const salesTotal = todaySales.reduce((s, i) => s + i.total, 0);
   const profitTotal = todaySales.reduce((s, i) => s + (i.profit || 0), 0);
@@ -79,6 +104,21 @@ export default function Dashboard() {
           <div className={k.cls} key={k.key}>{k.content}</div>
         ))}
       </div>
+
+      {sectorCards.length > 0 && (
+        <>
+          <div className="section-title">مؤشرات {sector.name || 'المجال'}</div>
+          <div className="kpis">
+            {sectorCards.map((c) => (
+              <Link key={c.k} to={c.to} className={c.cls || c.tone} style={{ textDecoration: 'none' }}>
+                <div className="label">{c.ico} {c.label}</div>
+                <div className="value">{c.value}</div>
+                <div className="sub">اضغط للتفاصيل</div>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       {lowStock.length > 0 && (
         <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 16 }}>

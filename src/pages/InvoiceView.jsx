@@ -166,6 +166,59 @@ export default function InvoiceView() {
     win.document.close();
   };
 
+  // Thermal receipt for 58mm / 80mm roll printers (compact, monospace numbers).
+  const printReceipt = (mm) => {
+    const win = window.open('', '_blank');
+    if (!win) return alert('اسمح النافذة المنبثقة للطباعة');
+    const w = mm === 58 ? 58 : 80;
+    const line = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
+    win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+      <title>إيصال ${inv.number}</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        @page { size: ${w}mm auto; margin: 0; }
+        body { width:${w}mm; font-family:'Cairo',Tahoma,monospace; color:#000; padding:4px 6px; font-size:${w === 58 ? 11 : 12}px; }
+        .c { text-align:center; }
+        h1 { font-size:${w === 58 ? 14 : 16}px; }
+        .muted { color:#333; font-size:${w === 58 ? 9 : 10}px; }
+        hr { border:0; border-top:1px dashed #000; margin:5px 0; }
+        table { width:100%; border-collapse:collapse; }
+        td { padding:2px 0; vertical-align:top; }
+        .qty { text-align:center; width:22px; } .amt { text-align:left; white-space:nowrap; }
+        .l { display:flex; justify-content:space-between; padding:1px 0; }
+        .grand { font-weight:800; font-size:${w === 58 ? 13 : 15}px; border-top:1px solid #000; padding-top:3px; margin-top:3px; }
+      </style></head><body>
+      <div class="c">
+        ${logo ? `<img src="${logo}" style="max-height:46px"/><br/>` : ''}
+        <h1>${bizName}</h1>
+        ${address ? `<div class="muted">${address}</div>` : ''}
+        ${shopPhone ? `<div class="muted">📞 ${shopPhone}</div>` : ''}
+      </div>
+      <hr/>
+      <div class="muted">فاتورة ${isSale ? 'بيع' : 'شراء'} رقم: <b>${inv.number}</b></div>
+      <div class="muted">${fmtDate(inv.createdAt)} — ${inv.partyName || 'نقدي'}</div>
+      <hr/>
+      <table><tbody>
+        ${inv.lines.map((l) => `<tr><td>${l.name}</td><td class="qty">${fmt(l.qty)}×</td><td class="amt">${fmt(l.qty * l.price)}</td></tr>`).join('')}
+      </tbody></table>
+      <hr/>
+      ${line('الإجمالي', money(inv.subtotal))}
+      ${inv.discount > 0 ? line('الخصم', '-' + money(inv.discount)) : ''}
+      ${inv.tax > 0 ? line((inv.taxName || 'ضريبة') + ` ${fmt(inv.taxRate)}%`, money(inv.tax)) : ''}
+      <div class="l grand"><span>الصافي</span><span>${money(inv.total)}</span></div>
+      ${line('المدفوع', money(inv.paid))}
+      ${inv.remaining > 0 ? line('المتبقي', money(inv.remaining)) : ''}
+      ${inv.remaining > 0 && inv.dueDate ? line('الاستحقاق', inv.dueDate) : ''}
+      <hr/>
+      <div class="c muted">
+        ${warranty ? `<div>🛡️ ${warranty}</div>` : ''}
+        <div>شكراً لتعاملكم معنا 🌹</div>
+      </div>
+      <script>window.onload = () => { window.print(); setTimeout(() => window.close(), 300); }</script>
+    </body></html>`);
+    win.document.close();
+  };
+
   return (
     <>
       <div className="page-head">
@@ -173,6 +226,8 @@ export default function InvoiceView() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn ghost" onClick={exportPDF}>📄 تصدير PDF</button>
           <button className="btn ghost" onClick={() => window.print()}>🖨️ طباعة</button>
+          <button className="btn ghost" onClick={() => printReceipt(80)} title="طابعة رول حرارية 80مم">🧾 إيصال 80مم</button>
+          <button className="btn ghost" onClick={() => printReceipt(58)} title="طابعة رول حرارية 58مم">🧾 إيصال 58مم</button>
           <a className="btn ghost" href={waLink(party?.phone, waText())} target="_blank" rel="noreferrer">
             📲 واتساب{party?.phone ? ' العميل' : ''}
           </a>

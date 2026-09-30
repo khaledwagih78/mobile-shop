@@ -142,6 +142,11 @@ db.version(18).stores({
   repVisits: '++id, repName, customerId, day, branchId, createdAt',
 });
 
+// ---------- daily cash close / drawer (تقفيل اليومية) ----------
+db.version(19).stores({
+  cashCloses: '++id, day, branchId, createdAt',
+});
+
 
 // ---------- globally-unique IDs for multi-device offline sync ----------
 // Auto-increment ids restart at 1 on every device, so two devices that create
@@ -179,7 +184,7 @@ const ID_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects', 'workOrders', 'repVisits',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects', 'workOrders', 'repVisits', 'cashCloses',
 ];
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
@@ -233,6 +238,53 @@ export async function getCustomFields(entity) {
 export async function saveCustomFields(list) {
   await setSetting('customFields', list);
   import('./sync').then((m) => m.triggerSync()).catch(() => {});
+}
+
+// ---------- daily cash close (تقفيل اليومية / درج الكاش) ----------
+// Compute the day's cash movement for a branch. Treats invoice `paid` and cash
+// payments/expenses as drawer cash (simple single-drawer model).
+export async function computeDayCash(day, branchId = DEFAULT_BRANCH_ID) {
+  const b = branchId || DEFAULT_BRANCH_ID;
+  const inBranch = (r) => (r.branchId || DEFAULT_BRANCH_ID) === b;
+  const [invoices, payments, expenses, closes] = await Promise.all([
+    db.invoices.where('day').equals(day).toArray(),
+    db.payments.where('day').equals(day).toArray(),
+    db.expenses.where('day').equals(day).toArray(),
+    db.cashCloses.where('day').equals(day).toArray(),
+  ]);
+  const active = invoices.filter((i) => inBranch(i) && i.status === 'active');
+  const salesCash = active.filter((i) => i.type === 'sale').reduce((s, i) => s + (i.paid || 0), 0);
+  const saleReturnsCash = active.filter((i) => i.type === 'sale_return').reduce((s, i) => s + (i.paid || 0), 0);
+  const purchaseCash = active.filter((i) => i.type === 'purchase').reduce((s, i) => s + (i.paid || 0), 0);
+  const custPayIn = payments.filter((p) => inBranch(p) && p.partyType === 'customer').reduce((s, p) => s + (p.amount || 0), 0);
+  const supPayOut = payments.filter((p) => inBranch(p) && p.partyType === 'supplier').reduce((s, p) => s + (p.amount || 0), 0);
+  const expensesOut = expenses.filter(inBranch).reduce((s, e) => s + (e.amount || 0), 0);
+  const cashIn = salesCash + custPayIn;
+  const cashOut = purchaseCash + supPayOut + expensesOut + saleReturnsCash;
+  // opening = the most recent PRIOR close's counted amount for this branch
+  const prior = (await db.cashCloses.where('branchId').equals(b).toArray())
+    .filter((c) => (c.day || '') < day)
+    .sort((a, z) => (z.day || '').localeCompare(a.day || ''))[0];
+  const opening = prior ? Number(prior.counted) || 0 : 0;
+  const expected = opening + cashIn - cashOut;
+  const existing = closes.filter(inBranch).sort((a, z) => (z.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
+  return { day, branchId: b, opening, salesCash, custPayIn, purchaseCash, supPayOut, expensesOut, saleReturnsCash, cashIn, cashOut, expected, existing };
+}
+
+export async function saveCashClose({ day, branchId, opening, counted, expected, note, userName }) {
+  return db.transaction('rw', [db.cashCloses, db.auditLog, db.syncQueue], async () => {
+    const b = branchId || DEFAULT_BRANCH_ID;
+    const createdAt = nowISO();
+    const doc = {
+      day, branchId: b, opening: Number(opening) || 0, counted: Number(counted) || 0,
+      expected: Number(expected) || 0, difference: (Number(counted) || 0) - (Number(expected) || 0),
+      note: note || '', userName: userName || '', createdAt,
+    };
+    const id = await db.cashCloses.add(doc);
+    await logAudit('cashClose', 'cashCloses', id, { userName, extra: `تقفيل ${day}: عدّ ${doc.counted} / متوقع ${doc.expected}` });
+    await queueSync('cashCloses', 'add', { ...doc, id });
+    return id;
+  });
 }
 
 // Apply a sector's default field requirements: swap out the previous sector's

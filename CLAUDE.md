@@ -97,8 +97,11 @@ The schema is **versioned** — `db.version(N).stores({...})`. Versions 1–6 ex
 Core tables: `items`, `customers`, `suppliers`, `invoices`, `payments`,
 `stockMoves`, `expenses`, `recurringExpenses`, `employees`, `empRecords`, `users`,
 `settings` (key/value), `syncQueue`, `auditLog`, `deliveries`, `branches` (v7),
-`requests` (v8), `productions` (v9). (`lines`, `transactions`, `profiles` also
-exist from v5.) Schema is at **v9**.
+`requests` (v8), `productions` (v9). Later versions add `accounts`/`journalEntries`
+(v10), `installmentPlans` (v11), `leads` (v12), `priceLists`/`coupons` (v13),
+`assets` (v14), `payslips` (v15), `projects` (v16), `workOrders` (v17), `repVisits`
+(v18), `cashCloses` (v19). (`lines`, `transactions`, `profiles` also exist from v5.)
+Schema is at **v19**.
 
 Only **indexed** fields are declared in `stores()`; full objects carry many more
 un-indexed fields (e.g. `costPrice`, `salePrice`, `stock`, `balance`, `points`).
@@ -358,6 +361,25 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - The page shows per-cashbox balances, a statement (ledger) per cashbox, and a
   simple bank reconciliation (enter the actual bank balance → shows the difference).
 
+### Daily cash close / drawer (`src/pages/CashClose.jsx`)
+
+- `cashCloses` (v9 stores added as **v19** — `db.version(19)`) records the end-of-day
+  drawer count per day per branch. `computeDayCash(day, branchId)` (db.js) tallies the
+  day's actual cash movement: opening (the prior close's `counted` for that branch,
+  else 0), cash **in** (cash-paid sale invoices + customer payments), cash **out**
+  (cash-paid purchases + supplier payments + expenses + cash sale-returns), and
+  `expected = opening + cashIn − cashOut`; it also returns any `existing` close for
+  that day. `saveCashClose({day, branchId, opening, counted, expected, note, userName})`
+  is transactional — adds the `cashCloses` row, writes an audit entry
+  (`logAudit('cashClose', 'cashCloses', id, {userName, extra})`), and queues sync.
+- The page recomputes reactively (a `useLiveQuery` tick over the day's invoices/
+  payments/expenses/closes), shows opening + cash-in (green) + cash-out (red) +
+  expected, takes the physically-counted amount, and shows a difference badge
+  (زيادة / عجز / مطابق). It keeps a history table of past closes. Permission action
+  `cashclose` (admin + sales); route `/cash-close`, menu **🧮 تقفيل اليومية** (core —
+  no `feat`/`mod`, shows on every plan/sector). Added to `SYNC_TABLES` (sync.js) and
+  `supabase/schema.sql`.
+
 ### Tax / VAT (opt-in)
 
 - Settings hold `taxEnabled`, `taxName`, `taxRate` (single configurable rate).
@@ -537,6 +559,23 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   items. Presented as estimates, not guarantees.
 - `Dashboard.jsx` KPI widgets are customizable per device: a ⚙️ panel toggles each
   card, persisted in `localStorage.kerp_dash_hidden`.
+- **Sector-specific dashboard KPIs.** Below the core KPI row, `Dashboard.jsx` renders
+  a **مؤشرات <sector>** strip of clickable cards driven by the active sector
+  (`getSector(bizSector)`): open work orders (`repair`), running projects (`projects`),
+  this-month production (`production`), active installment plans (`installments`),
+  this-month rep visits (`reps`), open leads (`crm`), and near-/expired-stock counts
+  (pharmacy or whenever any item has an `expiry`). Each card shows only when its `mod`
+  is revealed for the sector — and for the general (`allMods`) sector only when its
+  count is non-zero, to avoid clutter. Each links to its module route.
+
+### Thermal receipt printing (`src/pages/InvoiceView.jsx`)
+
+- Besides the A4 print/PDF, `InvoiceView` has `printReceipt(mm)` (mm = 58 or 80) which
+  opens a narrow print window sized `@page { size: <mm>mm auto }` with a compact
+  receipt layout (shop header from `bizName`/address/phone, lines table, totals via a
+  `line(a,b)` helper, grand total, warranty text, thank-you) and auto-fires
+  `window.print()`. Two toolbar buttons — **🧾 إيصال 80مم** and **🧾 إيصال 58مم** —
+  drive it, for POS roll thermal printers.
 
 ### Smart invoice import (`src/pages/SmartImport.jsx`)
 
