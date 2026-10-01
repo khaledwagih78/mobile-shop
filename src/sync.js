@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { db, nowISO } from './db';
+import { db, nowISO, setApplyingRemote } from './db';
 
+// Must stay in sync with supabase/schema.sql. Previously this list omitted the
+// v10–v18 tables (accounting, installments, CRM, pricing, assets, payroll,
+// projects, work orders, reps), so that data never reached the cloud — fixed.
 const SYNC_TABLES = [
   'items', 'customers', 'suppliers', 'invoices',
   'payments', 'stockMoves', 'expenses', 'recurringExpenses',
   'employees', 'empRecords', 'users', 'branches',
   'lines', 'transactions', 'profiles',
-  'auditLog', 'deliveries', 'requests', 'productions', 'cashCloses',
+  'auditLog', 'deliveries', 'requests', 'productions',
+  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists',
+  'coupons', 'assets', 'payslips', 'projects', 'workOrders', 'repVisits', 'cashCloses',
 ];
+
+// Newer-wins helper: a record's edit time (falls back to creation time).
+const editTime = (r) => (r && (r.updatedAt || r.createdAt)) || '';
 
 let _status = { state: 'idle', at: null, error: null };
 const _listeners = new Set();
@@ -47,7 +55,7 @@ async function pushAll() {
     const records = await db[tableName].toArray();
     if (!records.length) continue;
     for (let i = 0; i < records.length; i += 500) {
-      const batch = records.slice(i, i + 500).map((r) => ({ id: r.id, data: r }));
+      const batch = records.slice(i, i + 500).map((r) => ({ id: r.id, data: r, _at: editTime(r) || null }));
       const { error } = await supabase.from(tableName).upsert(batch, { onConflict: 'id' });
       if (error) {
         const msg = `upsert ${tableName}: ${error.message}`;
@@ -74,12 +82,13 @@ async function pushAll() {
   return errors;
 }
 
-async function pullAll() {
+async function pullAll(canDelete) {
   const errors = [];
 
   for (const tableName of SYNC_TABLES) {
     let serverRecords = [];
     let offset = 0;
+    let pageErr = false;
     while (true) {
       const { data, error } = await supabase
         .from(tableName)
@@ -89,6 +98,7 @@ async function pullAll() {
         const msg = `pull ${tableName}: ${error.message}`;
         console.warn('[sync]', msg);
         errors.push(msg);
+        pageErr = true;
         break;
       }
       if (!data?.length) break;
@@ -96,13 +106,34 @@ async function pullAll() {
       if (data.length < 1000) break;
       offset += 1000;
     }
+    if (pageErr) continue; // don't touch local data for a table we couldn't fully read
 
+    // Merge newer-wins: only overwrite a local row when the server copy is at least
+    // as new, so a pull never reverts an edit made more recently on THIS device.
     if (serverRecords.length) {
-      await db[tableName].bulkPut(serverRecords);
+      const local = await db[tableName].toArray();
+      const localMap = new Map(local.map((r) => [r.id, r]));
+      const toPut = serverRecords.filter((sr) => {
+        const lr = localMap.get(sr.id);
+        return !lr || editTime(sr) >= editTime(lr);
+      });
+      if (toPut.length) {
+        setApplyingRemote(true);
+        try { await db[tableName].bulkPut(toPut); } finally { setApplyingRemote(false); }
+      }
+    }
+
+    // Propagate deletions (row gone from the server) — but only on a clean cycle:
+    // if the push failed or local changes are still pending, a missing row might be
+    // one we simply haven't uploaded yet, so we must NOT delete it.
+    if (canDelete) {
       const serverIds = new Set(serverRecords.map((r) => r.id));
       const localIds  = await db[tableName].toCollection().primaryKeys();
       const toDelete  = localIds.filter((id) => !serverIds.has(id));
-      if (toDelete.length) await db[tableName].bulkDelete(toDelete);
+      if (toDelete.length) {
+        setApplyingRemote(true);
+        try { await db[tableName].bulkDelete(toDelete); } finally { setApplyingRemote(false); }
+      }
     }
   }
 
@@ -144,7 +175,8 @@ export async function syncAll() {
     const allErrors = await withTimeout(
       (async () => {
         const pushErrors = await pushAll();
-        const pullErrors = await pullAll();
+        // only let a pull delete local rows when the push was fully clean
+        const pullErrors = await pullAll(pushErrors.length === 0);
         return [...pushErrors, ...pullErrors];
       })(),
       SYNC_TIMEOUT_MS,

@@ -186,9 +186,21 @@ const ID_TABLES = [
   'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
   'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects', 'workOrders', 'repVisits', 'cashCloses',
 ];
+// When true, writes come from a cloud pull — don't re-stamp `updatedAt`, so the
+// record keeps the origin device's edit time and timestamp-merge stays correct.
+let _applyingRemote = false;
+export function setApplyingRemote(v) { _applyingRemote = v; }
+
 for (const t of ID_TABLES) {
   db[t].hook('creating', (primKey, obj) => {
     if (obj.id == null) obj.id = nextId();
+    if (!_applyingRemote && obj.updatedAt == null) obj.updatedAt = nowISO();
+  });
+  // stamp a fresh edit time on every local modification (used by sync merge)
+  db[t].hook('updating', (mods) => {
+    if (_applyingRemote) return;
+    if (mods.updatedAt !== undefined) return; // caller set it explicitly
+    return { updatedAt: nowISO() };
   });
 }
 

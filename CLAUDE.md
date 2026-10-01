@@ -188,8 +188,20 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - Each Supabase table stores rows as `{ id, data: jsonb, _at }` (a generic
   JSON-blob shape so app fields can change without SQL migrations). `settings`
   uses a `key` text PK. See `supabase/schema.sql`.
-- Sync is **last-write-wins, whole-table push + pull** (no field-level merge).
-  Keep this in mind — it is not conflict-resolving CRDT sync.
+- `SYNC_TABLES` (sync.js) **must mirror `supabase/schema.sql`**. It previously omitted
+  the v10–v18 tables (accounting, installments, CRM, pricing, assets, payroll,
+  projects, work orders, reps) so that data never synced — **now fixed** (full list).
+- **Timestamp merge (multi-device safety).** Every local write stamps `updatedAt`
+  (Dexie `creating`/`updating` hooks in db.js; a `setApplyingRemote(true)` guard makes
+  cloud-pull writes keep the origin time instead of re-stamping). `pushAll` upserts each
+  row with `_at = updatedAt`. `pullAll` merges **newer-wins**: it overwrites a local row
+  only when the server copy's `editTime` (`updatedAt||createdAt`) is ≥ the local one, so
+  a pull never reverts a more-recent local edit. It is **not** field-level CRDT — whole
+  records win — but it no longer blindly lets the last pusher clobber newer data.
+- **Safe delete propagation.** `pullAll` deletes local rows missing from the server
+  (a real remote delete) **only on a clean cycle** (`pushAll` returned no errors) and
+  skips any table whose page read failed — so un-pushed local rows are never wiped by a
+  partial/failed sync.
 - The anon key in `src/supabase.js` is meant to be public.
 
 ### Backup & data safety (`src/backup.js`, `src/pages/Backup.jsx`)
