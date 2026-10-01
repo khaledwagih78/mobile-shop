@@ -32,6 +32,7 @@ import Production from './pages/Production';
 import Accounting from './pages/Accounting';
 import Treasury from './pages/Treasury';
 import CashClose from './pages/CashClose';
+import OpeningBalances from './pages/OpeningBalances';
 import Installments from './pages/Installments';
 import CRM from './pages/CRM';
 import Pricing from './pages/Pricing';
@@ -109,6 +110,7 @@ function Shell() {
         <Route path="accounting" element={<Guard action="accounting"><Accounting /></Guard>} />
         <Route path="treasury" element={<Guard action="treasury"><Treasury /></Guard>} />
         <Route path="cash-close" element={<Guard action="cashclose"><CashClose /></Guard>} />
+        <Route path="opening-balances" element={<Guard action="opening"><OpeningBalances /></Guard>} />
         <Route path="installments" element={<Guard action="installments"><Installments /></Guard>} />
         <Route path="crm" element={<Guard action="crm"><CRM /></Guard>} />
         <Route path="pricing" element={<Guard action="pricing"><Pricing /></Guard>} />

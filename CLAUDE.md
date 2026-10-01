@@ -404,6 +404,23 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   no `feat`/`mod`, shows on every plan/sector). Added to `SYNC_TABLES` (sync.js) and
   `supabase/schema.sql`.
 
+### Opening balances (`src/pages/OpeningBalances.jsx`)
+
+- Adoption aid for a shop that already had figures before using the app. A dedicated
+  admin page (`opening` permission, route `/opening-balances`, menu **⚖️ أرصدة افتتاحية**)
+  with tabs for customers / suppliers / inventory / cash.
+- `setPartyOpening({partyType, partyId, amount, userName})` (db.js) is **idempotent &
+  editable**: each party stores its last `openingBalance`, so re-saving posts only the
+  **delta** (never double-counts). It adjusts the party `balance` and posts a balanced
+  opening entry — customer debt Dr `ar` / Cr `capital`; supplier payable Dr `capital` /
+  Cr `ap` (sides reversed when lowering).
+- `postOpeningInventory({value, userName})` posts Dr `inventory` / Cr `capital` for the
+  **difference** between the current inventory value (Σ `totalStock × costPrice`) and the
+  previously-posted `openingInventoryValue` setting, so it can be re-run after adding more
+  opening stock. Item **quantities** are still entered on the Items page.
+- Cash/bank opening is unchanged (entered as a cashbox opening balance on the Treasury
+  page → Dr cashbox / Cr capital); the cash tab just links there and lists cashboxes.
+
 ### Tax / VAT (opt-in)
 
 - Settings hold `taxEnabled`, `taxName`, `taxRate` (single configurable rate).

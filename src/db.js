@@ -1527,9 +1527,67 @@ const CLEARABLE_TABLES = [
   'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
   'expenses', 'recurringExpenses', 'employees', 'empRecords', 'deliveries',
   'requests', 'productions', 'installmentPlans', 'leads', 'priceLists', 'coupons',
-  'assets', 'payslips', 'projects', 'workOrders', 'repVisits', 'auditLog',
+  'assets', 'payslips', 'projects', 'workOrders', 'repVisits', 'cashCloses', 'auditLog',
   'journalEntries', 'lines', 'transactions', 'profiles', 'syncQueue',
 ];
+// ---------- opening balances (adoption: starting figures from before the app) ----------
+// Idempotent & editable: each party stores its last `openingBalance`; re-saving posts
+// only the delta, so running it twice never double-counts. Customer opening debt →
+// Dr AR / Cr capital; supplier opening payable → Dr capital / Cr AP (reversed if lowered).
+export async function setPartyOpening({ partyType, partyId, amount, userName }) {
+  amount = Number(amount) || 0;
+  const isCust = partyType === 'customer';
+  const table = isCust ? db.customers : db.suppliers;
+  return db.transaction('rw', [db.customers, db.suppliers, db.journalEntries, db.accounts, db.auditLog, db.syncQueue], async () => {
+    const p = await table.get(partyId);
+    if (!p) return;
+    const prev = Number(p.openingBalance || 0);
+    const delta = amount - prev;
+    if (delta === 0) return;
+    const newBalance = (p.balance || 0) + delta;
+    await table.update(partyId, { balance: newBalance, openingBalance: amount });
+    const amt = Math.abs(delta);
+    const inc = delta > 0;
+    const lines = isCust
+      ? (inc ? [{ role: 'ar', debit: amt }, { role: 'capital', credit: amt }]
+             : [{ role: 'capital', debit: amt }, { role: 'ar', credit: amt }])
+      : (inc ? [{ role: 'capital', debit: amt }, { role: 'ap', credit: amt }]
+             : [{ role: 'ap', debit: amt }, { role: 'capital', credit: amt }]);
+    const accounts = await db.accounts.toArray();
+    await writeJournalEntry({
+      date: today(), description: `رصيد افتتاحي — ${p.name}`,
+      refType: 'opening', refId: partyId, branchId: DEFAULT_BRANCH_ID,
+      lines, accounts, userName,
+    });
+    await logAudit('opening', isCust ? 'customer' : 'supplier', partyId, { userName, extra: `رصيد افتتاحي ${amount}` });
+    await queueSync(isCust ? 'customers' : 'suppliers', 'update', { id: partyId, balance: newBalance, openingBalance: amount });
+  });
+}
+
+// Post the opening inventory value (Dr inventory / Cr capital). Stores the posted
+// total in `openingInventoryValue`; re-running posts only the difference.
+export async function postOpeningInventory({ value, userName }) {
+  value = Number(value) || 0;
+  return db.transaction('rw', [db.settings, db.journalEntries, db.accounts, db.auditLog, db.syncQueue], async () => {
+    const prev = Number(await getSetting('openingInventoryValue', 0)) || 0;
+    const delta = value - prev;
+    if (delta === 0) return;
+    const amt = Math.abs(delta);
+    const inc = delta > 0;
+    const lines = inc
+      ? [{ role: 'inventory', debit: amt }, { role: 'capital', credit: amt }]
+      : [{ role: 'capital', debit: amt }, { role: 'inventory', credit: amt }];
+    const accounts = await db.accounts.toArray();
+    await writeJournalEntry({
+      date: today(), description: 'رصيد افتتاحي — المخزون',
+      refType: 'opening', refId: 'inventory', branchId: DEFAULT_BRANCH_ID,
+      lines, accounts, userName,
+    });
+    await setSetting('openingInventoryValue', value);
+    await logAudit('opening', 'inventory', 0, { userName, extra: `قيمة مخزون افتتاحية ${value}` });
+  });
+}
+
 export async function clearBusinessData() {
   for (const t of CLEARABLE_TABLES) {
     try { if (db[t]) await db[t].clear(); } catch { /* table may not exist */ }

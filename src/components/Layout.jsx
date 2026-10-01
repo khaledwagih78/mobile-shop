@@ -52,6 +52,7 @@ const MENU = [
   { to: '/accounting', ico: '📒', label: 'المحاسبة', action: 'accounting', feat: 'accounting' },
   { to: '/treasury', ico: '🏦', label: 'الخزائن والبنوك', action: 'treasury', feat: 'treasury' },
   { to: '/cash-close', ico: '🧮', label: 'تقفيل اليومية', action: 'cashclose' },
+  { to: '/opening-balances', ico: '⚖️', label: 'أرصدة افتتاحية', action: 'opening' },
   { to: '/assets', ico: '🏛️', label: 'الأصول الثابتة', action: 'assets', mod: 'assets', feat: 'assets' },
   { to: '/installments', ico: '💳', label: 'الأقساط والديون', action: 'installments', mod: 'installments', feat: 'installments' },
   { to: '/projects', ico: '📁', label: 'المشاريع', action: 'projects', mod: 'projects', feat: 'projects' },
