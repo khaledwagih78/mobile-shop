@@ -58,6 +58,7 @@ const MENU = [
   { to: '/projects', ico: '📁', label: 'المشاريع', action: 'projects', mod: 'projects', feat: 'projects' },
   { to: '/maintenance', ico: '🔧', label: 'الصيانة', action: 'maintenance', mod: 'repair', feat: 'maintenance' },
   { to: '/reports', ico: '📈', label: 'التقارير', action: 'reports' },
+  { to: '/profit-reports', ico: '💰', label: 'تقارير الأرباح', action: 'reports' },
   { to: '/report-builder', ico: '🧱', label: 'منشئ التقارير', action: 'reportbuilder' },
   { to: '/audit', ico: '📋', label: 'سجل النشاطات', action: 'reports' },
   { to: '/import', ico: '📑', label: 'استيراد Excel', action: 'import' },

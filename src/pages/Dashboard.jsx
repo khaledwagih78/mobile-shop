@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, getSetting, stockOf } from '../db';
-import { money, fmt, fmtDate, monthOf, can } from '../utils';
+import { db, today, getSetting, stockOf, computeDayCash } from '../db';
+import { money, fmt, fmtDate, fmtDay, monthOf, can, waLink } from '../utils';
 import { getSector } from '../sectors';
 import { useAuth } from '../auth';
 import { useState } from 'react';
@@ -64,6 +64,36 @@ export default function Dashboard() {
   const lowStock = items.filter((it) => stockOf(it, activeBranch) <= (it.minStock || 0));
   const debtsTotal = debts.reduce((s, c) => s + c.balance, 0);
 
+  const bizName = useLiveQuery(() => getSetting('bizName', ''), [], '');
+  // compose and share today's summary to WhatsApp (owner picks the recipient)
+  const shareDaySummary = async () => {
+    let cashLine = '';
+    try {
+      const c = await computeDayCash(day, activeBranch);
+      cashLine = `\n💵 كاش الدرج المتوقع: ${money(c.expected)}`;
+    } catch { /* ignore */ }
+    // top-selling item today (by base qty)
+    const qty = {};
+    for (const inv of todaySales) for (const l of (inv.lines || [])) {
+      if (l.itemId == null) continue;
+      qty[l.name] = (qty[l.name] || 0) + (Number(l.qty) || 0) * (Number(l.factor) || 1);
+    }
+    const top = Object.entries(qty).sort((a, b) => b[1] - a[1])[0];
+    const lines = [
+      `📊 ملخص يوم ${fmtDay(day)}`,
+      bizName ? `🏪 ${bizName}` : '',
+      `———————————`,
+      `🧾 مبيعات: ${money(salesTotal)} (${todaySales.length} فاتورة)`,
+      `📈 أرباح اليوم: ${money(profitTotal - expTotal)}`,
+      `💸 مصروفات: ${money(expTotal)}`,
+      top ? `🏆 الأكثر مبيعاً: ${top[0]} (${fmt(top[1])})` : '',
+      cashLine.trim(),
+      `👥 إجمالي ديون العملاء: ${money(debtsTotal)}`,
+      lowStock.length ? `⚠️ أصناف قاربت على النفاد: ${lowStock.length}` : '',
+    ].filter(Boolean);
+    window.open(waLink('', lines.join('\n')), '_blank');
+  };
+
   // customizable dashboard: per-device hidden KPI widgets
   const [customize, setCustomize] = useState(false);
   const [hidden, setHidden] = useState(() => { try { return JSON.parse(localStorage.getItem('kerp_dash_hidden') || '[]'); } catch { return []; } });
@@ -86,6 +116,9 @@ export default function Dashboard() {
       <div className="page-head">
         <h1>الرئيسية</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          {can(user.role, 'reports') && (
+            <button className="btn ghost" onClick={shareDaySummary} title="إرسال ملخص اليوم على واتساب">📱 ملخص اليوم</button>
+          )}
           <button className="btn ghost" onClick={() => setCustomize((v) => !v)} title="تخصيص المؤشرات">⚙️</button>
           {can(user.role, 'pos') && (
             <button className="btn accent big" onClick={() => nav('/pos')}>＋ بيع جديد</button>

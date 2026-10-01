@@ -627,10 +627,26 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   qty), a sales forecast (last-30 total adjusted by the 15-vs-prev-15 trend),
   expense anomaly (this month vs prior-3-month average), top sellers and stagnant
   items. Presented as estimates, not guarantees.
+- **Reorder → purchase order:** the reorder-suggestions table has per-row checkboxes +
+  editable order quantities and a supplier picker; **🛒 إنشاء أمر شراء** builds the lines
+  (at each item's `costPrice`) and calls `savePurchaseOrder`, then opens the new PO in
+  `InvoiceView` (where it can be converted to a purchase with landed cost).
 - `Dashboard.jsx` KPI widgets are customizable per device: a ⚙️ panel toggles each
   card, persisted in `localStorage.kerp_dash_hidden`.
 - **Quick actions:** a shortcut row near the top (بيع/شراء/تحصيل/مصروف/صنف جديد/تقفيل
   اليومية), each filtered by `can(user.role, action)` so only permitted shortcuts show.
+- **Daily WhatsApp summary:** a **📱 ملخص اليوم** button (reports permission) composes
+  today's figures (sales/profit/expenses/top item/expected drawer cash via
+  `computeDayCash`/debts/low-stock) and opens `waLink('', text)` so the owner shares it
+  to any WhatsApp recipient.
+
+### Profit reports (`src/pages/ProfitReports.jsx`)
+
+- Dedicated **💰 تقارير الأرباح** page (reports permission, `/profit-reports`): over active
+  sale invoices in a date range, aggregates profit **by item** (qty/revenue/cost/profit/
+  margin%) and **by customer** (count/revenue/profit), with summary KPIs (revenue, cost,
+  net profit, margin%) and CSV export. Profit per line = `qty × (price − cost)` using the
+  line's stored unit `cost`; labor/service lines (`itemId == null`) are skipped.
 - **Sector-specific dashboard KPIs.** Below the core KPI row, `Dashboard.jsx` renders
   a **مؤشرات <sector>** strip of clickable cards driven by the active sector
   (`getSector(bizSector)`): open work orders (`repair`), running projects (`projects`),

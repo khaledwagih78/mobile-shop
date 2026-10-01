@@ -1,18 +1,57 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
-import { db, stockOf } from '../db';
+import { db, stockOf, savePurchaseOrder } from '../db';
 import { money, fmt } from '../utils';
 import { useAuth } from '../auth';
+import { Toast } from '../components/UI';
 
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
 export default function SmartAnalytics() {
-  const { activeBranch } = useAuth();
+  const { user, activeBranch } = useAuth();
   const nav = useNavigate();
   const invoices = useLiveQuery(() => db.invoices.where('type').equals('sale').toArray(), [], []);
   const items = useLiveQuery(() => db.items.toArray(), [], []);
   const expenses = useLiveQuery(() => db.expenses.toArray(), [], []);
+  const suppliers = useLiveQuery(() => db.suppliers.orderBy('name').toArray(), [], []);
+
+  // reorder → purchase order
+  const [picks, setPicks] = useState({}); // { [itemId]: qtyString }
+  const [supplierId, setSupplierId] = useState('');
+  const [poBusy, setPoBusy] = useState(false);
+  const [toast, setToast] = useState('');
+  const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 3000); };
+  const togglePick = (it, suggest) => setPicks((p) => {
+    const n = { ...p };
+    if (n[it.id] != null) delete n[it.id]; else n[it.id] = String(suggest);
+    return n;
+  });
+  const createPO = async () => {
+    const chosen = Object.entries(picks)
+      .map(([id, q]) => ({ it: items.find((x) => x.id === Number(id)), qty: Number(q) || 0 }))
+      .filter((r) => r.it && r.qty > 0);
+    if (!chosen.length) { notify('اختر صنف واحد على الأقل بكمية صحيحة'); return; }
+    setPoBusy(true);
+    try {
+      const sup = suppliers.find((s) => s.id === Number(supplierId));
+      const lines = chosen.map(({ it, qty }) => ({
+        itemId: it.id, name: it.name, qty, price: it.costPrice || 0,
+        unit: it.baseUnit || 'قطعة', factor: 1, cost: it.costPrice || 0, taxable: it.taxable !== false,
+      }));
+      const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
+      const res = await savePurchaseOrder({
+        type: 'po', branchId: activeBranch,
+        partyId: sup ? sup.id : null, partyName: sup ? sup.name : null,
+        lines, subtotal, discount: 0, tax: 0, total: subtotal,
+        paid: 0, remaining: subtotal, profit: 0, userId: user.id, userName: user.name,
+      });
+      setPicks({});
+      notify(`✅ تم إنشاء أمر شراء ${res.number}`);
+      setTimeout(() => nav(`/invoices/${res.id}`), 900);
+    } catch (e) { notify('❌ ' + e.message); }
+    setPoBusy(false);
+  };
 
   const A = useMemo(() => {
     const inBranch = (r) => (r.branchId || 1) === activeBranch;
@@ -103,23 +142,51 @@ export default function SmartAnalytics() {
       {A.reorder.length === 0 ? (
         <div className="card empty"><p>لا توجد أصناف تحتاج إعادة طلب حالياً 👍</p></div>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>الصنف</th><th>الرصيد</th><th>معدل البيع/يوم</th><th>يكفي لـ</th><th>الكمية المقترحة</th></tr></thead>
-            <tbody>
-              {A.reorder.slice(0, 20).map(({ it, stock, velocity, daysLeft, suggest }) => (
-                <tr key={it.id} className="clickable" onClick={() => nav('/items')}>
-                  <td><b>{it.name}</b><div className="meta muted">{it.code}</div></td>
-                  <td className="num">{fmt(stock)}</td>
-                  <td className="num muted">{velocity > 0 ? velocity.toFixed(1) : '—'}</td>
-                  <td className="num">{daysLeft === Infinity ? '—' : <span style={{ color: daysLeft < 7 ? 'var(--red)' : 'var(--amber)' }}>{fmt(Math.round(daysLeft))} يوم</span>}</td>
-                  <td className="num" style={{ fontWeight: 700, color: 'var(--accent, #0F4C5C)' }}>{fmt(suggest)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <p className="muted" style={{ fontSize: 13, marginTop: -4 }}>حدّد الأصناف وعدّل الكميات، واختر المورد، ثم أنشئ أمر شراء جاهز.</p>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th style={{ width: 28 }}></th><th>الصنف</th><th>الرصيد</th><th>معدل البيع/يوم</th><th>يكفي لـ</th><th>كمية الطلب</th></tr></thead>
+              <tbody>
+                {A.reorder.slice(0, 40).map(({ it, stock, velocity, daysLeft, suggest }) => {
+                  const picked = picks[it.id] != null;
+                  return (
+                    <tr key={it.id} style={picked ? { background: 'rgba(15,76,92,0.06)' } : undefined}>
+                      <td><input type="checkbox" checked={picked} onChange={() => togglePick(it, suggest)} /></td>
+                      <td><b>{it.name}</b><div className="meta muted">{it.code}</div></td>
+                      <td className="num">{fmt(stock)}</td>
+                      <td className="num muted">{velocity > 0 ? velocity.toFixed(1) : '—'}</td>
+                      <td className="num">{daysLeft === Infinity ? '—' : <span style={{ color: daysLeft < 7 ? 'var(--red)' : 'var(--amber)' }}>{fmt(Math.round(daysLeft))} يوم</span>}</td>
+                      <td className="num">
+                        {picked ? (
+                          <input className="input" type="number" min="1" style={{ width: 80 }} value={picks[it.id]}
+                            onChange={(e) => setPicks((p) => ({ ...p, [it.id]: e.target.value }))} />
+                        ) : (
+                          <span style={{ fontWeight: 700, color: 'var(--accent, #0F4C5C)' }}>{fmt(suggest)}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="card" style={{ marginTop: 10, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="field" style={{ margin: 0, minWidth: 200 }}>
+              <label>المورد (اختياري)</label>
+              <select className="input" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                <option value="">— بدون مورد محدد —</option>
+                {(suppliers || []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <button className="btn accent" disabled={poBusy || Object.keys(picks).length === 0} onClick={createPO}>
+              🛒 إنشاء أمر شراء ({Object.keys(picks).length})
+            </button>
+          </div>
+        </>
       )}
+
+      <Toast msg={toast} />
 
       <div className="grid-2" style={{ marginTop: 14 }}>
         <div>
