@@ -80,7 +80,7 @@ There are **no test or lint scripts**. Verify changes by running `npm run dev` a
 | `src/utils.js` | Formatting (`money`, `fmt`, dates), WhatsApp link helpers, `ROLES`, and the `can(role, action)` permission map |
 | `src/sync.js` | Supabase push/pull, `useSyncStatus`, `startAutoSync`, `triggerSync` |
 | `src/supabase.js` | Supabase client (anon/publishable key — safe to expose; secured by RLS) |
-| `src/backup.js` | Encrypted (AES-GCM) export/import of all tables to a `.kerp`/`.json` file |
+| `src/backup.js` | Encrypted (AES-GCM) export/import of **all** tables to a `.kerp`/`.json` file; records `lastBackupAt` |
 | `src/components/Layout.jsx` | Sidebar + mobile bottom nav; menu filtered by permissions; sync/low-stock indicators |
 | `src/components/InvoiceEditor.jsx` | The POS / purchase invoice editor (search, lines, discount, credit, print, WhatsApp) |
 | `src/components/UI.jsx` | Shared `Modal` and `Toast` primitives |
@@ -191,6 +191,23 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - Sync is **last-write-wins, whole-table push + pull** (no field-level merge).
   Keep this in mind — it is not conflict-resolving CRDT sync.
 - The anon key in `src/supabase.js` is meant to be public.
+
+### Backup & data safety (`src/backup.js`, `src/pages/Backup.jsx`)
+
+- `exportBackup(password?)` snapshots **every** table (computed from the live schema,
+  `db.tables` minus `syncQueue`) into a `.kerp` (AES-GCM encrypted) or `.json` file,
+  then stamps the `lastBackupAt` setting. **Historically this list was hard-coded to
+  the v1 tables and silently omitted accounting/installments/assets/payroll/etc. —
+  now fixed** so a restore on a new device is complete. `importBackup(file, password?)`
+  clears every current table and reloads the file's rows with `bulkPut` (provided ids
+  preserved — the `creating` hook only stamps when `id == null`).
+- **Reminder:** the Dashboard shows a red "protect your data" banner when there is no
+  `lastBackupAt` or it is older than the `backupReminderDays` setting (default 7). The
+  Backup page shows the last-backup time and edits `backupReminderDays`.
+- **Opt-in auto-backup:** the `autoBackup` setting (default off) makes `main.jsx`
+  download a fresh unencrypted copy on startup when overdue (best-effort — a browser
+  may block a download without a user gesture, so the banner remains the reliable nudge;
+  true automation is cloud sync).
 
 ### AI Insights (`src/pages/Insights.jsx`)
 

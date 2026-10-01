@@ -1,6 +1,9 @@
-import { db, nowISO } from './db';
+import { db, nowISO, setSetting } from './db';
 
-const TABLES = ['items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves', 'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches', 'settings'];
+// Back up EVERY table (except the device-local sync queue) so a restore on a new
+// device is complete — accounting, installments, assets, payroll, cash closes, …
+// Computed from the live schema so new tables are covered automatically.
+const backupTables = () => db.tables.map((t) => t.name).filter((n) => n !== 'syncQueue');
 
 async function deriveKey(password, salt) {
   const enc = new TextEncoder();
@@ -15,7 +18,8 @@ async function deriveKey(password, salt) {
 }
 
 export async function exportBackup(password) {
-  const data = { app: 'khaled-erp', version: 1, exportedAt: nowISO(), tables: {} };
+  const TABLES = backupTables();
+  const data = { app: 'khaled-erp', version: 2, exportedAt: nowISO(), tables: {} };
   for (const t of TABLES) data.tables[t] = await db[t].toArray();
   const json = JSON.stringify(data);
 
@@ -43,6 +47,8 @@ export async function exportBackup(password) {
   a.download = `khaled-backup-${day}.${ext}`;
   a.click();
   URL.revokeObjectURL(a.href);
+  // remember when we last backed up (drives the reminder banner)
+  await setSetting('lastBackupAt', data.exportedAt).catch(() => {});
 }
 
 export async function importBackup(file, password) {
@@ -66,10 +72,15 @@ export async function importBackup(file, password) {
   const data = JSON.parse(json);
   if (data.app !== 'khaled-erp') throw new Error('ملف نسخة احتياطية غير صالح');
 
+  // Restore every table the current schema has (except syncQueue): clear it, then
+  // reload the rows the file holds for it. Tables the (older) file lacks are just
+  // emptied — a backup is a full snapshot, so this gives a clean replace.
+  const TABLES = backupTables().filter((t) => db[t]);
   await db.transaction('rw', TABLES.map((t) => db[t]), async () => {
     for (const t of TABLES) {
       await db[t].clear();
-      if (data.tables[t]?.length) await db[t].bulkAdd(data.tables[t]);
+      const rows = data.tables[t];
+      if (rows && rows.length) await db[t].bulkPut(rows);
     }
   });
   return data.exportedAt;

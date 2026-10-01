@@ -26,6 +26,13 @@ export default function Dashboard() {
   const debts = useLiveQuery(() => db.customers.filter((c) => (c.balance || 0) > 0).toArray(), [], []);
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
 
+  // backup reminder: warn if never backed up or overdue
+  const lastBackupAt = useLiveQuery(() => getSetting('lastBackupAt', null), [], undefined);
+  const backupDays = useLiveQuery(() => getSetting('backupReminderDays', 7), [], 7);
+  const backupOverdue = lastBackupAt !== undefined && (
+    !lastBackupAt || (Date.now() - new Date(lastBackupAt).getTime()) > (Number(backupDays) || 7) * 86400000
+  );
+
   // ---- sector-aware KPIs ----
   const sectorId = useLiveQuery(() => getSetting('bizSector', 'general'), [], 'general');
   const sector = getSector(sectorId);
@@ -85,6 +92,18 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {backupOverdue && can(user.role, 'backup') && (
+        <div className="card" style={{ borderColor: 'var(--red)', background: 'rgba(220,40,30,0.06)', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ color: 'var(--red)' }}>
+            <b>🛡️ احمِ بياناتك!</b>{' '}
+            {lastBackupAt
+              ? `آخر نسخة احتياطية من ${fmtDate(lastBackupAt)} — يُفضّل تعمل نسخة جديدة.`
+              : 'لم تقم بأي نسخة احتياطية بعد. بيانات المحل كلها على هذا الجهاز فقط.'}
+          </div>
+          <Link to="/backup" className="btn accent">نسخة احتياطية الآن</Link>
+        </div>
+      )}
 
       {(() => {
         const acts = [

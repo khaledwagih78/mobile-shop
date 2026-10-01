@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, loadDemoData, clearBusinessData } from '../db';
+import { db, loadDemoData, clearBusinessData, getSetting, setSetting } from '../db';
 import { exportBackup, importBackup } from '../backup';
 import { syncAll, useSyncStatus } from '../sync';
 import { fmtDate } from '../utils';
@@ -25,6 +25,9 @@ export default function Backup() {
   const pending = useLiveQuery(() => db.syncQueue.where('synced').equals(0).count(), [], 0);
   const itemsCount = useLiveQuery(() => db.items.count(), [], 0);
   const invCount = useLiveQuery(() => db.invoices.count(), [], 0);
+  const lastBackupAt = useLiveQuery(() => getSetting('lastBackupAt', null), [], null);
+  const reminderDays = useLiveQuery(() => getSetting('backupReminderDays', 7), [], 7);
+  const autoBackup = useLiveQuery(() => getSetting('autoBackup', false), [], false);
 
   const show = (m) => { setToast(m); setTimeout(() => setToast(''), 3500); };
 
@@ -64,6 +67,20 @@ export default function Backup() {
               placeholder="اتركها فارغة لنسخة بدون تشفير" />
           </div>
           <button className="btn big block" onClick={doExport} disabled={busy}>💾 نسخ احتياطي الآن</button>
+          <p className="muted" style={{ marginTop: 10, marginBottom: 0 }}>
+            {lastBackupAt
+              ? <>آخر نسخة احتياطية: <b>{fmtDate(lastBackupAt)}</b> ({relTime(lastBackupAt)})</>
+              : <b style={{ color: 'var(--red,#d33)' }}>⚠️ لم تقم بأي نسخة احتياطية بعد.</b>}
+          </p>
+          <div className="field" style={{ marginTop: 10 }}>
+            <label>ذكّرني بالنسخ الاحتياطي كل (أيام)</label>
+            <input className="input" type="number" min="1" value={reminderDays}
+              onChange={(e) => setSetting('backupReminderDays', Math.max(1, Number(e.target.value) || 7))} />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+            <input type="checkbox" checked={!!autoBackup} onChange={(e) => setSetting('autoBackup', e.target.checked)} style={{ width: 18, height: 18 }} />
+            نسخة احتياطية تلقائية عند فتح التطبيق إذا تأخرت (تُنزَّل بدون تشفير)
+          </label>
         </div>
 
         <div className="card">
