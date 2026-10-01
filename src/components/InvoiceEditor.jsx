@@ -36,6 +36,7 @@ export default function InvoiceEditor({ type }) {
   const taxName = useLiveQuery(() => getSetting('taxName', 'ضريبة القيمة المضافة'), [], 'ضريبة القيمة المضافة');
   const discountApprovalPct = useLiveQuery(() => getSetting('discountApprovalPct', 0), [], 0);
   const creditDays = useLiveQuery(() => getSetting('creditDays', 30), [], 30);
+  const pointEGP = useLiveQuery(() => getSetting('pointEGP', 1), [], 1);
 
   const [q, setQ] = useState('');
   const [lines, setLines] = useState([]);
@@ -55,6 +56,7 @@ export default function InvoiceEditor({ type }) {
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState(null);
   const [couponMsg, setCouponMsg] = useState('');
+  const [pointsRedeem, setPointsRedeem] = useState('');
 
   // price list bound to the selected customer (sales only)
   const priceList = useLiveQuery(async () => {
@@ -145,7 +147,16 @@ export default function InvoiceEditor({ type }) {
   }));
 
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
-  const disc = Number(discount) || 0;
+  const manualDisc = Number(discount) || 0;
+  // loyalty redemption (sales only): N points × pointEGP, capped by balance & amount
+  const egpPerPoint = Number(pointEGP) || 0;
+  const partyPoints = (isSale && selectedParty && selectedParty.points) || 0;
+  const maxRedeemPts = egpPerPoint > 0
+    ? Math.max(0, Math.min(partyPoints, Math.floor(Math.max(0, subtotal - manualDisc) / egpPerPoint)))
+    : 0;
+  const redeemPts = Math.max(0, Math.min(Math.floor(Number(pointsRedeem) || 0), maxRedeemPts));
+  const pointDisc = redeemPts * egpPerPoint;
+  const disc = manualDisc + pointDisc; // effective discount used everywhere below
   const taxRate = (taxEnabled && !isQuote && !isPO) ? Number(taxRateSetting) || 0 : 0;
   // tax on taxable lines only, after allocating the invoice discount proportionally
   const discFactor = subtotal > 0 ? (subtotal - disc) / subtotal : 1;
@@ -158,7 +169,7 @@ export default function InvoiceEditor({ type }) {
   const defaultDue = new Date(Date.now() + (Number(creditDays) || 0) * 86400000).toISOString().slice(0, 10);
   const effDueDate = dueTouched && dueDate ? dueDate : defaultDue;
   const profit = isSale ? lines.reduce((s, l) => s + l.qty * (l.price - l.cost), 0) - disc : 0;
-  const discountPct = subtotal > 0 ? (disc / subtotal) * 100 : 0;
+  const discountPct = subtotal > 0 ? (manualDisc / subtotal) * 100 : 0;
   const needsApproval = isSale && Number(discountApprovalPct) > 0 && discountPct > Number(discountApprovalPct) && user.role !== 'admin';
 
   const save = async () => {
@@ -183,6 +194,8 @@ export default function InvoiceEditor({ type }) {
       lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, baseUnit, salePrice, costPrice, units, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0, factor: Number(l.factor) || 1 })),
       subtotal,
       discount: disc,
+      pointsRedeemed: isSale ? redeemPts : 0,
+      pointsValue: isSale ? pointDisc : 0,
       couponCode: coupon ? coupon.code : null,
       priceListId: party ? (party.priceListId || null) : null,
       tax,
@@ -211,6 +224,9 @@ export default function InvoiceEditor({ type }) {
     setShowNewParty(false);
     setNewParty({ name: '', phone: '', address: '' });
   };
+
+  // reset loyalty redemption when the selected customer changes
+  useEffect(() => { setPointsRedeem(''); }, [partyId]);
 
   // re-price sale lines when the customer's price list changes
   useEffect(() => {
@@ -378,17 +394,22 @@ export default function InvoiceEditor({ type }) {
             )}
           </div>
 
-          {isSale && partyId && (() => {
-            const party = parties.find((p) => p.id === Number(partyId));
-            if (party && party.points > 0) {
-              return (
-                <div className="card" style={{ background: 'var(--bg)', marginBottom: 12, padding: 10, fontSize: 13 }}>
-                  ⭐ نقاط العميل: <b>{party.points}</b> · إجمالي مشتريات: {money(party.totalSpent || 0)}
+          {isSale && partyId && selectedParty && selectedParty.points > 0 && (
+            <div className="card" style={{ background: 'var(--bg)', marginBottom: 12, padding: 10, fontSize: 13 }}>
+              <div>⭐ نقاط العميل: <b>{selectedParty.points}</b> · إجمالي مشتريات: {money(selectedParty.totalSpent || 0)}</div>
+              {egpPerPoint > 0 && maxRedeemPts > 0 && (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                  <span>استخدم نقاط:</span>
+                  <input className="input" type="number" min="0" max={maxRedeemPts} style={{ width: 90 }}
+                    value={pointsRedeem}
+                    onChange={(e) => setPointsRedeem(e.target.value)} placeholder="0" />
+                  <button className="btn ghost sm" type="button" onClick={() => setPointsRedeem(String(maxRedeemPts))}>استخدم الكل ({maxRedeemPts})</button>
+                  {redeemPts > 0 && <span style={{ color: 'var(--green)' }}>= خصم {money(pointDisc)}</span>}
+                  <span className="muted" style={{ fontSize: 11 }}>(النقطة = {money(egpPerPoint)})</span>
                 </div>
-              );
-            }
-            return null;
-          })()}
+              )}
+            </div>
+          )}
 
           {isSale && !isReturn && (
             <div className="field">
@@ -419,7 +440,9 @@ export default function InvoiceEditor({ type }) {
 
           <div className="totals">
             <div className="trow"><span>الإجمالي قبل الخصم</span><span className="num">{money(subtotal)}</span></div>
-            <div className="trow"><span>الخصم</span><span className="num">- {money(disc)}</span></div>
+            {manualDisc > 0 && <div className="trow"><span>الخصم</span><span className="num">- {money(manualDisc)}</span></div>}
+            {pointDisc > 0 && <div className="trow"><span>خصم النقاط ({redeemPts} نقطة)</span><span className="num">- {money(pointDisc)}</span></div>}
+            {manualDisc === 0 && pointDisc === 0 && <div className="trow"><span>الخصم</span><span className="num">- {money(0)}</span></div>}
             {tax > 0 && (
               <div className="trow"><span>{taxName} ({fmt(taxRate)}%)</span><span className="num">+ {money(tax)}</span></div>
             )}

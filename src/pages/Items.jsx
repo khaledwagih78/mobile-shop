@@ -26,6 +26,7 @@ export default function Items() {
   const [movesFor, setMovesFor] = useState(null);
   const [labelFor, setLabelFor] = useState(null);
   const [showPricer, setShowPricer] = useState(false);
+  const [sel, setSel] = useState([]); // selected item ids for the label sheet
   const editable = can(user.role, 'editItem');
   const showCost = canUser(user, 'viewCost');
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
@@ -129,17 +130,55 @@ export default function Items() {
 
   const lowCount = items.filter((it) => st(it) <= (it.minStock || 0)).length;
 
+  // ---- multi-item barcode label sheet ----
+  const toggleSel = (id) => setSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
+  const allVisibleSelected = list.length > 0 && list.every((it) => sel.includes(it.id));
+  const toggleSelAll = () => setSel(allVisibleSelected ? [] : list.map((it) => it.id));
+  const printLabels = () => {
+    const chosen = (sel.length ? list.filter((it) => sel.includes(it.id)) : list)
+      .filter((it) => it.barcode || it.code);
+    if (!chosen.length) { alert('لا توجد أصناف لها باركود/كود للطباعة'); return; }
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const cards = chosen.map((it) => `
+      <div class="lbl">
+        <div class="nm">${esc(it.name)}</div>
+        <div class="pr">${esc(money(it.salePrice))}</div>
+        ${barcodeSVG(it.barcode || it.code)}
+      </div>`).join('');
+    const w = window.open('', '_blank');
+    if (!w) { alert('اسمح بالنوافذ المنبثقة لطباعة الملصقات'); return; }
+    w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
+      <title>ملصقات باركود (${chosen.length})</title>
+      <style>
+        *{box-sizing:border-box;font-family:Cairo,Tahoma,Arial,sans-serif}
+        body{margin:8px}
+        .sheet{display:flex;flex-wrap:wrap;gap:6px}
+        .lbl{width:150px;border:1px solid #ddd;border-radius:6px;padding:6px;text-align:center;page-break-inside:avoid}
+        .nm{font-weight:700;font-size:12px;line-height:1.2;height:30px;overflow:hidden}
+        .pr{font-size:13px;margin:2px 0}
+        .lbl svg{max-width:100%;height:46px}
+        @media print{body{margin:0}.lbl{border-color:#bbb}}
+      </style></head><body>
+      <div class="sheet">${cards}</div>
+      <script>window.onload=function(){window.print();}</script>
+      </body></html>`);
+    w.document.close();
+  };
+
   return (
     <>
       <div className="page-head">
         <h1>📦 المخزون <span className="muted" style={{ fontSize: 14 }}>({items.length} صنف — {list.length} ظاهر)</span></h1>
-        {editable && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn ghost" onClick={printLabels} title="طباعة ملصقات باركود للأصناف المحددة (أو الظاهرة كلها)">
+            🏷️ ملصقات{sel.length ? ` (${sel.length})` : ''}
+          </button>
+          {editable && <>
             <button className="btn ghost" onClick={() => setShowPricer(true)}>💹 تعديل الأسعار %</button>
             <button className="btn ghost" onClick={reprice}>💱 إعادة التسعير بالدولار</button>
             <button className="btn" onClick={() => setForm({ ...EMPTY })}>＋ صنف جديد</button>
-          </div>
-        )}
+          </>}
+        </div>
       </div>
 
       <div className="list-tools">
@@ -167,6 +206,7 @@ export default function Items() {
           <table>
             <thead>
               <tr>
+                <th style={{ width: 28 }}><input type="checkbox" checked={allVisibleSelected} onChange={toggleSelAll} title="تحديد الكل" /></th>
                 <th className="clickable" onClick={() => toggleSort('code')}>الكود{sortIcon('code')}</th>
                 <th className="clickable" onClick={() => toggleSort('name')}>الصنف{sortIcon('name')}</th>
                 <th className="clickable" onClick={() => toggleSort('brand')}>الماركة{sortIcon('brand')}</th>
@@ -184,6 +224,7 @@ export default function Items() {
                 const low = st(it) <= (it.minStock || 0);
                 return (
                   <tr key={it.id}>
+                    <td><input type="checkbox" checked={sel.includes(it.id)} onChange={() => toggleSel(it.id)} /></td>
                     <td className="num muted">{it.code}</td>
                     <td><b>{it.name}</b></td>
                     <td>{it.brand || '—'}</td>

@@ -430,15 +430,18 @@ export async function saveInvoice(inv) {
         }
       }
 
-      // loyalty points: 1 point per 100 EGP spent
-      if (inv.type === 'sale' && inv.partyId && inv.total >= 100) {
-        const pts = Math.floor(inv.total / 100);
-        const c = await db.customers.get(inv.partyId);
-        if (c) {
-          await db.customers.update(inv.partyId, {
-            points: (c.points || 0) + pts,
-            totalSpent: (c.totalSpent || 0) + inv.total,
-          });
+      // loyalty points: earn 1 point per 100 EGP spent, minus any points redeemed
+      if (inv.type === 'sale' && inv.partyId) {
+        const pts = inv.total >= 100 ? Math.floor(inv.total / 100) : 0;
+        const redeemed = Math.max(0, Math.floor(inv.pointsRedeemed || 0));
+        if (pts > 0 || redeemed > 0 || inv.total > 0) {
+          const c = await db.customers.get(inv.partyId);
+          if (c) {
+            await db.customers.update(inv.partyId, {
+              points: Math.max(0, (c.points || 0) + pts - redeemed),
+              totalSpent: (c.totalSpent || 0) + inv.total,
+            });
+          }
         }
       }
 
@@ -502,6 +505,18 @@ export async function cancelInvoice(invoiceId, userName) {
           if (s) await db.suppliers.update(inv.partyId, { balance: (s.balance || 0) - inv.remaining });
         }
       }
+      // reverse loyalty: remove earned points, restore redeemed points
+      if (inv.type === 'sale' && inv.partyId) {
+        const pts = inv.total >= 100 ? Math.floor(inv.total / 100) : 0;
+        const redeemed = Math.max(0, Math.floor(inv.pointsRedeemed || 0));
+        if (pts > 0 || redeemed > 0) {
+          const c = await db.customers.get(inv.partyId);
+          if (c) await db.customers.update(inv.partyId, {
+            points: Math.max(0, (c.points || 0) - pts + redeemed),
+            totalSpent: Math.max(0, (c.totalSpent || 0) - inv.total),
+          });
+        }
+      }
       await db.invoices.update(invoiceId, {
         status: 'cancelled',
         cancelledAt: nowISO(),
@@ -563,6 +578,18 @@ export async function restoreInvoice(invoiceId, userName) {
         } else {
           const s = await db.suppliers.get(inv.partyId);
           if (s) await db.suppliers.update(inv.partyId, { balance: (s.balance || 0) + inv.remaining });
+        }
+      }
+      // re-apply loyalty: re-earn points, re-deduct redeemed points
+      if (inv.type === 'sale' && inv.partyId) {
+        const pts = inv.total >= 100 ? Math.floor(inv.total / 100) : 0;
+        const redeemed = Math.max(0, Math.floor(inv.pointsRedeemed || 0));
+        if (pts > 0 || redeemed > 0) {
+          const c = await db.customers.get(inv.partyId);
+          if (c) await db.customers.update(inv.partyId, {
+            points: Math.max(0, (c.points || 0) + pts - redeemed),
+            totalSpent: (c.totalSpent || 0) + inv.total,
+          });
         }
       }
       await db.invoices.update(invoiceId, { status: 'active', cancelledAt: null, cancelledBy: null, restoredAt: nowISO(), restoredBy: userName });

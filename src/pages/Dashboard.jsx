@@ -86,6 +86,27 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {(() => {
+        const acts = [
+          { to: '/pos', ico: '🧾', label: 'بيع', action: 'pos' },
+          { to: '/purchase', ico: '🛒', label: 'شراء', action: 'purchase' },
+          { to: '/customers', ico: '💵', label: 'تحصيل', action: 'customers' },
+          { to: '/expenses', ico: '💸', label: 'مصروف', action: 'expenses' },
+          { to: '/items', ico: '📦', label: 'صنف جديد', action: 'items' },
+          { to: '/cash-close', ico: '🧮', label: 'تقفيل اليومية', action: 'cashclose' },
+        ].filter((a) => can(user.role, a.action));
+        if (!acts.length) return null;
+        return (
+          <div className="quick-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+            {acts.map((a) => (
+              <Link key={a.to} to={a.to} className="btn ghost" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 18 }}>{a.ico}</span> {a.label}
+              </Link>
+            ))}
+          </div>
+        );
+      })()}
+
       {customize && (
         <div className="card" style={{ marginBottom: 12 }}>
           <b>تخصيص مؤشرات الرئيسية</b>

@@ -15,7 +15,7 @@ export default function Settings() {
   const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
   const [waAuto, setWaAuto] = useState(false);
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
-  const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0', creditDays: '30' });
+  const [alerts, setAlerts] = useState({ nearExpiryDays: '60', overdueDays: '30', discountApprovalPct: '0', creditDays: '30', pointEGP: '1' });
   const [reports, setReports] = useState({ daily: false, weekly: false, monthly: false });
   const [plan, setPlan] = useState('full');
   const [dev, setDev] = useState({ whatsapp: '', email: '' });
@@ -82,6 +82,7 @@ export default function Settings() {
         overdueDays: String(await getSetting('overdueDays', 30) ?? 30),
         discountApprovalPct: String(await getSetting('discountApprovalPct', 0) ?? 0),
         creditDays: String(await getSetting('creditDays', 30) ?? 30),
+        pointEGP: String(await getSetting('pointEGP', 1) ?? 1),
       });
       setReports({
         daily: await getSetting('reportDaily', false) === true,
@@ -138,6 +139,7 @@ export default function Settings() {
     await setSetting('overdueDays', Number(alerts.overdueDays) || 30);
     await setSetting('discountApprovalPct', Number(alerts.discountApprovalPct) || 0);
     await setSetting('creditDays', Number(alerts.creditDays) || 30);
+    await setSetting('pointEGP', Math.max(0, Number(alerts.pointEGP) || 0));
     setToast('✅ تم حفظ إعدادات التنبيهات والموافقات');
     setTimeout(() => setToast(''), 2500);
   };
@@ -449,6 +451,9 @@ export default function Settings() {
           <div className="field"><label>خصم يتطلب موافقة المدير عند تجاوز % (0 = بدون)</label>
             <input className="input" type="number" min="0" value={alerts.discountApprovalPct} onChange={(e) => setAlerts({ ...alerts, discountApprovalPct: e.target.value })} placeholder="مثال: 10" /></div>
           <p className="muted" style={{ fontSize: 12 }}>لو الخصم في الفاتورة تجاوز النسبة دي، الموظف غير المدير مش هيقدر يحفظ الفاتورة إلا بموافقة/دخول مدير.</p>
+          <div className="field"><label>⭐ قيمة نقطة الولاء بالجنيه (عند الاستبدال)</label>
+            <input className="input" type="number" min="0" step="0.1" value={alerts.pointEGP} onChange={(e) => setAlerts({ ...alerts, pointEGP: e.target.value })} placeholder="1" /></div>
+          <p className="muted" style={{ fontSize: 12 }}>العميل بيكسب نقطة لكل 100 ج.م. وقت البيع يقدر يستبدل نقاطه كخصم — كل نقطة = القيمة دي (0 = إيقاف الاستبدال).</p>
           <button className="btn" onClick={saveAlerts}>💾 حفظ إعدادات التنبيهات</button>
         </div>
       </div>

@@ -141,6 +141,13 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   `stock`, writes `stockMoves`, updates purchase `costPrice`, updates customer/
   supplier credit `balance` for the remaining amount, awards loyalty `points`
   (1 pt / 100 EGP), writes an audit log entry, and queues sync.
+  - **Loyalty redemption:** a sale can also spend points — the invoice carries
+    `pointsRedeemed` (count) + `pointsValue` (EGP). `saveInvoice` nets the customer's
+    points (`+earned − redeemed`) in the same transaction; the redeemed value is
+    already folded into the invoice `discount` so totals/tax/journal stay consistent.
+    `cancelInvoice`/`restoreInvoice` reverse/re-apply both earned and redeemed points
+    (previously points were never reversed on cancel — now fixed). The EGP value per
+    point is the `pointEGP` setting (default 1; 0 disables redemption).
 - `cancelInvoice(invoiceId, userName)` — reverses stock and balances, marks the
   invoice `cancelled` (admin-only, enforced in UI via `can(role, 'cancelInvoice')`).
 - `recordPayment({...})` — records a customer/supplier payment and adjusts balance.
@@ -518,6 +525,12 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   hardware scanner** and manual entry — both type into the field and submit on
   Enter — so it works even where the camera or BarcodeDetector is unavailable.
   Props: `onDetected(value)`, `onClose()`, optional `title`.
+- **Label printing (`src/pages/Items.jsx`).** Each row's **🏷️** opens `BarcodeModal`
+  (single-item label, name + price + `barcodeSVG`). The Items toolbar also has a
+  **🏷️ ملصقات** button + per-row/select-all checkboxes (`sel` state) that print a
+  **grid sheet** of labels for the selected items (or all currently-filtered items
+  when none are checked) — each card is name + sale price + barcode, sized for sticker
+  sheets, auto-`print()`. Items without a barcode fall back to their code.
 
 ### Maintenance / work orders (`src/pages/WorkOrders.jsx`)
 
@@ -570,6 +583,8 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   items. Presented as estimates, not guarantees.
 - `Dashboard.jsx` KPI widgets are customizable per device: a ⚙️ panel toggles each
   card, persisted in `localStorage.kerp_dash_hidden`.
+- **Quick actions:** a shortcut row near the top (بيع/شراء/تحصيل/مصروف/صنف جديد/تقفيل
+  اليومية), each filtered by `can(user.role, action)` so only permitted shortcuts show.
 - **Sector-specific dashboard KPIs.** Below the core KPI row, `Dashboard.jsx` renders
   a **مؤشرات <sector>** strip of clickable cards driven by the active sector
   (`getSector(bizSector)`): open work orders (`repair`), running projects (`projects`),
