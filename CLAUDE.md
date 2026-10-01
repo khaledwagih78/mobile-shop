@@ -705,6 +705,15 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
   reuses the EmailJS config. Sending is best-effort and only fires while the app is
   open + online (no backend scheduler); a manual "send now" button exists per period.
 
+### In-app usage guide (`src/pages/Guide.jsx`)
+
+- A **❓ دليل الاستخدام** page (new `guide` permission granted to all roles; route
+  `/guide`) with collapsible how-to cards for the main daily tasks (sale, purchase, add
+  item, customer debts/collection, cash close, backup, returns/cancel, opening balances,
+  profit reports). Each card's steps are Arabic, with a quick-link to the relevant page.
+  Cards are filtered by `can(user.role, item.action)` so each role sees only what applies
+  to it. Pure static content — no data/schema.
+
 ### Feature suggestions (`src/pages/Requests.jsx`)
 
 - Users submit feature/field/change/bug requests into the `requests` table (v8).

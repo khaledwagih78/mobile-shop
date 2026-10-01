@@ -69,6 +69,7 @@ const MENU = [
   { to: '/settings', ico: '⚙️', label: 'الإعدادات', action: 'settings' },
   { to: '/custom-fields', ico: '🧩', label: 'الحقول المخصّصة', action: 'settings' },
   { to: '/requests', ico: '📝', label: 'الطلبات والاقتراحات', action: 'requests' },
+  { to: '/guide', ico: '❓', label: 'دليل الاستخدام', action: 'guide' },
 ];
 
 const MOBILE = ['/', '/pos', '/items', '/customers', '/invoices'];
