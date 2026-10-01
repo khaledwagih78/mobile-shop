@@ -30,7 +30,8 @@ optional layer on top.
 - **Web Crypto (AES-GCM + PBKDF2)** — encrypted backups
 - **xlsx** (SheetJS) — Excel import/export
 - **@fontsource/cairo** — Arabic font
-- No TypeScript, no test framework, no linter configured. Files are `.js` / `.jsx`.
+- **Vitest** (+ jsdom + fake-indexeddb) — unit tests for the money-critical ops.
+- No TypeScript, no linter configured. Files are `.js` / `.jsx`.
 
 ## Commands
 
@@ -39,10 +40,12 @@ npm install       # install dependencies
 npm run dev       # start Vite dev server (local development)
 npm run build     # production build -> dist/
 npm run preview   # preview the production build locally
+npm test          # run the Vitest suite once (tests/**)
+npm run test:watch # Vitest in watch mode
 ```
 
-There are **no test or lint scripts**. Verify changes by running `npm run dev` and
-`npm run build`.
+There is **no lint script**. Verify changes by running `npm run build` and `npm test`
+(the test run uses jsdom + fake-indexeddb so Dexie ops run under Node — see `### Tests`).
 
 ## Deployment
 
@@ -450,6 +453,21 @@ feature, filter by `(r.branchId || DEFAULT_BRANCH_ID) === activeBranch`.
 - The Accounting page also has a **balance sheet** tab (assets vs liabilities +
   equity + un-closed net income, with a balanced check) and a **cash flow** tab
   (opening + inflows − outflows = closing, from cashbox-account movement).
+
+### Tests (`tests/**`, Vitest)
+
+- `npm test` runs Vitest with `environment: 'jsdom'` and `tests/setup.js` importing
+  `fake-indexeddb/auto`, so `src/db.js` (Dexie) runs under Node. Config in
+  `vitest.config.js`. Tests are **not** run in the deploy workflow (build only) — run
+  them locally before pushing money-logic changes.
+- `tests/utils.test.js` — pure helpers (`waPhone`, `marginPct`, `monthOf`,
+  `parseInvoiceLines`, `matchItem`, `genBarcode`).
+- `tests/db.test.js` — the money-critical ops, each on a cleared DB with
+  `ensureChartOfAccounts()`: `saveInvoice` (stock down, credit balance, loyalty points,
+  **balanced** journal), loyalty redemption netting, `cancelInvoice` reversal,
+  `recordPayment`, `setPartyOpening` idempotent delta, `computeDayCash` cash-in. A shared
+  `journalsBalance()` assert guards double-entry balance. When adding/altering a core
+  `db.js` op, add or extend a case here.
 
 ### Report builder (`src/pages/ReportBuilder.jsx`)
 
