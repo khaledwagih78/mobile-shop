@@ -11,6 +11,7 @@ import { fmtDateTime, fromLocalInput, money, toLocalInput } from '@/lib/format';
 import { useLiveRefresh, useRpc } from '@/lib/hooks';
 import { signedUrls, uploadDeviceMedia } from '@/lib/media';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import { ManagerActions } from './ManagerActions';
 
 interface Details {
   order: {
@@ -101,6 +102,9 @@ export function OrderDetails({ id, role, branchId, canManage }: { id: string; ro
       </div>
 
       <Flash msg={flash} />
+
+      <ManagerActions d={d} canManage={canManage}
+        onDone={(text, ok = true) => { setFlash({ ok, text }); reload(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* ---------- العميل ---------- */}

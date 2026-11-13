@@ -1,12 +1,17 @@
 import { AppShell } from '@/components/AppShell';
 import { requireRole } from '@/lib/guard';
+import { TechHome } from './TechHome';
 
-export default async function TechHome() {
-  const me = await requireRole(['TECHNICIAN']);
+export const metadata = { title: 'أجهزتي — خالد لصيانة المحمول' };
+
+export default async function TechPage() {
+  const me = await requireRole(['TECHNICIAN', 'MANAGER', 'ADMIN']);
+  const nav = [{ href: '/tech', label: '🔧 أجهزتي' }];
+  if (me.role !== 'TECHNICIAN') nav.push({ href: '/staff', label: '📊 لوحة المحل' });
   return (
-    <AppShell me={me} nav={[{ href: '/tech', label: 'أجهزتي' }]}>
-      <h1 className="text-2xl font-bold">أهلاً {me.full_name ?? ''}</h1>
-      <p className="mt-2 text-slate-500">هنا هتظهر الأجهزة المسندة ليك بس.</p>
+    <AppShell me={me} nav={nav}>
+      <h1 className="mb-4 text-2xl font-bold">أجهزتي</h1>
+      <TechHome />
     </AppShell>
   );
 }
