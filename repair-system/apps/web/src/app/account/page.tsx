@@ -9,7 +9,7 @@ export default async function AccountPage() {
   return (
     <AppShell me={me} nav={[{ href: '/account', label: 'حسابي' }]}>
       <h1 className="mb-4 text-2xl font-bold">حسابي</h1>
-      <AccountPanel customer={me.customer} phone={me.phone} />
+      <AccountPanel customer={me.customer} phone={me.phone} email={me.email} />
     </AppShell>
   );
 }

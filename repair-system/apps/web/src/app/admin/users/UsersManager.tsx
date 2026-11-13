@@ -7,6 +7,8 @@ interface UserRow {
   id: string;
   full_name: string | null;
   phone: string | null;
+  email: string | null;
+  login_method: 'PHONE' | 'EMAIL';
   role: AppRole;
   branch_id: string | null;
   is_active: boolean;
@@ -51,7 +53,7 @@ export function UsersManager({ meId }: { meId: string }) {
   return (
     <div className="space-y-4">
       <div className="card grid gap-3 sm:grid-cols-3">
-        <input className="input sm:col-span-2" placeholder="ابحث بالاسم أو رقم الموبايل" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="input sm:col-span-2" placeholder="ابحث بالاسم أو الموبايل أو الإيميل" value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className="input" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as AppRole | '')}>
           <option value="">كل الأدوار</option>
           {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
@@ -59,7 +61,7 @@ export function UsersManager({ meId }: { meId: string }) {
       </div>
 
       <div className="rounded-xl bg-brand-50 p-4 text-sm text-navy-600">
-        لإضافة موظف أو فني: يعمل حساب من صفحة الدخول برقم موبايله، وبعدين تبحث عنه هنا وتغيّر دوره.
+        لإضافة موظف أو فني: يعمل حساب من صفحة الدخول (موبايل أو إيميل)، وبعدين تبحث عنه هنا وتغيّر دوره. حسابات الإيميل مش محتاجة كلمة سر — بيدخلوا بكود.
       </div>
 
       {flash && (
@@ -73,7 +75,7 @@ export function UsersManager({ meId }: { meId: string }) {
           <thead className="bg-slate-50 text-slate-500">
             <tr>
               <th className="p-3">الاسم</th>
-              <th className="p-3">الموبايل</th>
+              <th className="p-3">الموبايل / الإيميل</th>
               <th className="p-3">الدور</th>
               <th className="p-3">الحالة</th>
               <th className="p-3">إجراءات</th>
@@ -85,7 +87,10 @@ export function UsersManager({ meId }: { meId: string }) {
             {!loading && rows.map((u) => (
               <tr key={u.id} className="border-t border-slate-100">
                 <td className="p-3 font-semibold">{u.full_name ?? '—'}{u.job_title ? <span className="block text-xs text-slate-400">{u.job_title}</span> : null}</td>
-                <td className="p-3" dir="ltr">{displayPhone(u.phone)}</td>
+                <td className="p-3">
+                  <span dir="ltr" className="block">{displayPhone(u.phone)}</span>
+                  <span className="block text-xs text-slate-400" dir="ltr">{u.login_method === 'EMAIL' ? u.email : 'دخول بكلمة سر'}</span>
+                </td>
                 <td className="p-3"><span className="badge bg-sky-100 text-navy">{ROLE_LABELS[u.role]}</span></td>
                 <td className="p-3">
                   <span className={`badge ${u.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
@@ -95,7 +100,9 @@ export function UsersManager({ meId }: { meId: string }) {
                 <td className="p-3">
                   <div className="flex flex-wrap gap-2">
                     <button className="btn-secondary min-h-9 px-3 text-xs" onClick={() => setEditing(u)} disabled={u.id === meId}>تغيير الدور</button>
-                    <button className="btn-secondary min-h-9 px-3 text-xs" onClick={() => setResetFor(u)}>كلمة سر جديدة</button>
+                    {u.login_method === 'PHONE' && (
+                      <button className="btn-secondary min-h-9 px-3 text-xs" onClick={() => setResetFor(u)}>كلمة سر جديدة</button>
+                    )}
                     {u.id !== meId && (
                       <button className={`${u.is_active ? 'btn-danger' : 'btn-primary'} min-h-9 px-3 text-xs`} onClick={() => toggleActive(u)}>
                         {u.is_active ? 'إيقاف' : 'تفعيل'}

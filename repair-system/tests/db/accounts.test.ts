@@ -139,3 +139,47 @@ describe('إدارة المستخدمين', () => {
     expect(who).toMatchObject({ role: 'RECEPTIONIST', branch_id: ctx.branchId, customer: null });
   });
 });
+
+describe('الدخول بالإيميل + كود (الطريقة التانية)', () => {
+  async function signUpEmail(name: string, email: string, phone: string) {
+    const r = await ctx.pool.query(
+      `insert into auth.users (email, raw_user_meta_data) values ($1, jsonb_build_object('full_name', $2::text, 'phone', $3::text)) returning id`,
+      [email, name, phone],
+    );
+    return { id: r.rows[0].id as string, phone, role: 'CUSTOMER' as const };
+  }
+
+  it('حساب بالإيميل: profile + رقم الموبايل + سجل عميل', async () => {
+    const u = await signUpEmail('نادية', 'nadia@example.com', '01250505050');
+    const who = await rpc(ctx, u, 'whoami');
+    expect(who).toMatchObject({ role: 'CUSTOMER', phone: '+201250505050', login_method: 'EMAIL', email: 'nadia@example.com' });
+    expect(who.customer.verified).toBe(false);
+  });
+
+  it('حساب الموبايل لا يكشف الإيميل الداخلي', async () => {
+    const u = await signUpLikeApp('رامي', '01151515151');
+    const who = await rpc(ctx, u, 'whoami');
+    expect(who.login_method).toBe('PHONE');
+    expect(who.email).toBeNull();
+  });
+
+  it('نفس الرقم لا يتسجل مرتين حتى بطريقتين مختلفتين', async () => {
+    await signUpLikeApp('أول', '01161616161');
+    await expectError(signUpEmail('تاني', 'second@example.com', '01161616161'), 'profiles_phone_uidx');
+  });
+
+  it('الإيميل لا يثبت ملكية الرقم: لا ربط تلقائي بأجهزة المحل', async () => {
+    await walkInFor('01171717171', 'صاحب الرقم');
+    const u = await signUpEmail('حد تاني', 'other@example.com', '01171717171');
+    expect(await rpc(ctx, u, 'my_customer')).toBeNull();
+    expect(await select(ctx, u, `select * from public.customer_tracking`)).toHaveLength(0);
+  });
+
+  it('الأدمن يبحث بالإيميل ويشوف طريقة الدخول', async () => {
+    await signUpEmail('فني بالإيميل', 'tech.mail@example.com', '01181818181');
+    const rows = await select(ctx, p.admin, `select email, login_method from public.admin_list_users($1)`, ['tech.mail@']);
+    expect(rows).toEqual([{ email: 'tech.mail@example.com', login_method: 'EMAIL' }]);
+    const phoneRows = await select(ctx, p.admin, `select email, login_method from public.admin_list_users($1)`, ['01151515151']);
+    expect(phoneRows).toEqual([{ email: null, login_method: 'PHONE' }]);
+  });
+});

@@ -18,7 +18,7 @@ export function extractToken(input: string): string {
   return (m ? m[1] : t).toLowerCase();
 }
 
-export function AccountPanel({ customer, phone }: { customer: Customer | null; phone: string | null }) {
+export function AccountPanel({ customer, phone, email }: { customer: Customer | null; phone: string | null; email: string | null }) {
   const router = useRouter();
   const sb = supabaseBrowser();
   const [name, setName] = useState(customer?.full_name ?? '');
@@ -61,7 +61,7 @@ export function AccountPanel({ customer, phone }: { customer: Customer | null; p
             </span>
           )}
         </div>
-        <p className="mt-2 text-sm text-slate-500" dir="ltr">{displayPhone(phone)}</p>
+        <p className="mt-2 text-sm text-slate-500" dir="ltr">{displayPhone(phone)}{email ? ` · ${email}` : ''}</p>
         {customer && (
           <form onSubmit={saveName} className="mt-4 flex flex-col gap-2 sm:flex-row">
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} aria-label="الاسم" />

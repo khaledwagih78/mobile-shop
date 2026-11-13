@@ -138,6 +138,10 @@ export const ERROR_MESSAGES: Record<string, string> = {
   INVALID_CREDENTIALS: 'رقم الموبايل أو كلمة السر غير صحيحة',
   USER_EXISTS: 'الرقم ده مسجّل قبل كده — سجّل دخول',
   WEAK_PASSWORD: 'كلمة السر لازم تكون 8 حروف/أرقام على الأقل',
+  OTP_INVALID: 'الكود غلط أو انتهت صلاحيته — اطلب كود جديد',
+  NO_EMAIL_ACCOUNT: 'مفيش حساب بالإيميل ده — اختار "حساب جديد"',
+  INVALID_EMAIL: 'اكتب إيميل صحيح',
+  RATE_LIMIT: 'طلبات كتير ورا بعض — استنى دقيقة وحاول تاني',
 };
 
 /** Extract the error code from a Postgres/Supabase error message ("CODE: details"). */
@@ -214,5 +218,17 @@ export function authErrorCode(message: string | undefined | null): string {
   if (m.includes('invalid login credentials')) return 'INVALID_CREDENTIALS';
   if (m.includes('already registered') || m.includes('already been registered') || m.includes('profiles_phone_uidx')) return 'USER_EXISTS';
   if (m.includes('password') && (m.includes('at least') || m.includes('weak'))) return 'WEAK_PASSWORD';
+  if (m.includes('token has expired') || (m.includes('otp') && m.includes('invalid')) || m.includes('otp_expired')) return 'OTP_INVALID';
+  if (m.includes('signups not allowed')) return 'NO_EMAIL_ACCOUNT';
+  // a duplicate phone makes the sign-up trigger fail inside Supabase Auth
+  if (m.includes('database error saving new user')) return 'USER_EXISTS';
+  if (m.includes('rate limit') || m.includes('only request this after')) return 'RATE_LIMIT';
+  if (m.includes('email') && m.includes('invalid')) return 'INVALID_EMAIL';
   return errorCode(message);
 }
+
+export function isEmail(e: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e.trim());
+}
+
+export type LoginMethod = 'PHONE' | 'EMAIL';

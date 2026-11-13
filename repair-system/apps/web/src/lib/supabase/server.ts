@@ -25,6 +25,8 @@ export interface WhoAmI {
   role: AppRole;
   full_name: string | null;
   phone: string | null;
+  email: string | null;
+  login_method: 'PHONE' | 'EMAIL';
   branch_id: string | null;
   is_active: boolean;
   employee_id: string | null;
