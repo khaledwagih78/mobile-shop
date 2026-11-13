@@ -24,13 +24,6 @@ describe('تسجيل العميل', () => {
     expect(me.phone).toBe('+201112223334');
   });
 
-  it('يربط عميل الـ walk-in الموجود بالحساب الجديد بدل ما يكرره', async () => {
-    const cid = await rpc(ctx, p.reception, 'staff_upsert_customer', { p_phone: '01099998888', p_full_name: 'حسن' });
-    const u = await signUp(ctx, 'حسن', '+201099998888');
-    expect(u.customerId).toBe(cid);
-    const n = await ctx.pool.query(`select count(*)::int as n from public.customers where phone = '+201099998888'`);
-    expect(n.rows[0].n).toBe(1);
-  });
 });
 
 describe('الحجز', () => {

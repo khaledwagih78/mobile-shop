@@ -148,6 +148,8 @@ export async function cast(ctx: Ctx) {
   const tech2 = await createStaff(ctx, 'TECHNICIAN', 'الفني محمود', admin);
   const customer = await signUp(ctx, 'عميل أول');
   const other = await signUp(ctx, 'عميل تاني');
+  // حسابات العملاء في معظم الاختبارات موثّقة (كأنهم ربطوا حسابهم بالإيصال مرة)
+  await ctx.pool.query(`update public.customers set account_verified_at = now() where id = any($1)`, [[customer.customerId, other.customerId]]);
   return { admin, manager, reception, tech1, tech2, customer, other };
 }
 export type Cast = Awaited<ReturnType<typeof cast>>;

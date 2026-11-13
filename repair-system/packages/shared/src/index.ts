@@ -127,6 +127,17 @@ export const ERROR_MESSAGES: Record<string, string> = {
   ISSUE_REQUIRED: 'اكتب وصف العطل',
   ALREADY_REVIEWED: 'تم تقييم هذا الطلب من قبل',
   NOT_AUTHENTICATED: 'سجّل الدخول أولاً',
+  UNVERIFIED_ACCOUNT_DECISION_REQUIRED: 'العميل ده عنده حساب على التطبيق غير موثّق — اختار: الحساب بتاعه (توثيق) أو مش بتاعه (فصل)',
+  CLAIM_NOT_FOUND: 'رابط الإيصال غير صحيح',
+  CLAIM_PHONE_MISMATCH: 'رقم الموبايل في الإيصال مختلف عن رقم حسابك',
+  CLAIM_ALREADY_LINKED: 'بيانات الإيصال مربوطة بحساب آخر — تواصل مع المحل',
+  ALREADY_LINKED: 'حسابك مربوط بالفعل',
+  CANNOT_DEMOTE_SELF: 'لا يمكنك تغيير صلاحيتك بنفسك',
+  CANNOT_DEACTIVATE_SELF: 'لا يمكنك إيقاف حسابك بنفسك',
+  PROFILE_NOT_FOUND: 'المستخدم غير موجود',
+  INVALID_CREDENTIALS: 'رقم الموبايل أو كلمة السر غير صحيحة',
+  USER_EXISTS: 'الرقم ده مسجّل قبل كده — سجّل دخول',
+  WEAK_PASSWORD: 'كلمة السر لازم تكون 8 حروف/أرقام على الأقل',
 };
 
 /** Extract the error code from a Postgres/Supabase error message ("CODE: details"). */
@@ -148,4 +159,60 @@ export function normalizePhone(p: string): string {
   if (raw.startsWith('00')) return '+' + digits.slice(2);
   if (raw.startsWith('+')) return raw;
   return '+' + digits;
+}
+
+// ---------------------------------------------------------------------
+// Auth without SMS/WhatsApp OTP: phone + password.
+// Supabase Auth gets an internal e-mail derived from the phone. The domain
+// uses the reserved ".invalid" TLD (RFC 2606) so no e-mail can ever be
+// delivered there -> password-reset e-mails cannot be hijacked.
+// ---------------------------------------------------------------------
+export const AUTH_EMAIL_DOMAIN = 'phone.kmr.invalid';
+
+/** 01xxxxxxxxx (Egyptian mobile) in any common format. */
+export function isEgyptMobile(p: string): boolean {
+  return /^\+201[0125][0-9]{8}$/.test(normalizePhone(p));
+}
+
+export function phoneToAuthEmail(p: string, domain = AUTH_EMAIL_DOMAIN): string {
+  return normalizePhone(p).replace(/[^0-9]/g, '') + '@' + domain;
+}
+
+/** Display a normalized phone as 01xxxxxxxxx. */
+export function displayPhone(p: string | null | undefined): string {
+  if (!p) return '';
+  return p.startsWith('+20') ? '0' + p.slice(3) : p;
+}
+
+export const ROLE_LABELS: Record<AppRole, string> = {
+  ADMIN: 'مدير النظام',
+  MANAGER: 'مدير الفرع',
+  RECEPTIONIST: 'موظف استقبال',
+  TECHNICIAN: 'فني صيانة',
+  CUSTOMER: 'عميل',
+};
+
+/** Landing route after login per role. */
+export function homeForRole(role: AppRole | null | undefined): string {
+  switch (role) {
+    case 'ADMIN':
+    case 'MANAGER':
+    case 'RECEPTIONIST':
+      return '/staff';
+    case 'TECHNICIAN':
+      return '/tech';
+    case 'CUSTOMER':
+      return '/account';
+    default:
+      return '/login';
+  }
+}
+
+/** Map Supabase Auth error messages to our codes. */
+export function authErrorCode(message: string | undefined | null): string {
+  const m = (message ?? '').toLowerCase();
+  if (m.includes('invalid login credentials')) return 'INVALID_CREDENTIALS';
+  if (m.includes('already registered') || m.includes('already been registered') || m.includes('profiles_phone_uidx')) return 'USER_EXISTS';
+  if (m.includes('password') && (m.includes('at least') || m.includes('weak'))) return 'WEAK_PASSWORD';
+  return errorCode(message);
 }

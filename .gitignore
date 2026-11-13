@@ -21,3 +21,7 @@ yarn-error.log*
 
 # repair-system local test database
 repair-system/.pgtest/
+
+# repair-system web build output
+repair-system/apps/web/.next/
+repair-system/apps/web/*.tsbuildinfo

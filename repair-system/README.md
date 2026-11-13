@@ -11,13 +11,13 @@
 
 | المرحلة | المحتوى | الحالة |
 |---|---|---|
-| 1 | هيكل المشروع + قاعدة البيانات + العلاقات + الصلاحيات (RLS) + آلة الحالات + الاختبارات | ✅ تمت (55 اختبار ناجح) |
-| 2 | تسجيل الدخول (OTP) وإدارة المستخدمين | ⏳ التالية |
-| 3 | لوحة المدير + الاستلام + الإيصال الإلكتروني (Next.js) | ⏳ |
+| 1 | هيكل المشروع + قاعدة البيانات + العلاقات + الصلاحيات (RLS) + آلة الحالات + الاختبارات | ✅ تمت |
+| 2 | تسجيل الدخول (موبايل + كلمة سر) وإدارة المستخدمين + موقع الويب | ✅ تمت (65 اختبار ناجح) |
+| 3 | لوحة المدير + الاستلام + الإيصال الإلكتروني (Next.js) | ⏳ التالية |
 | 4 | واجهة الفني + التوزيع + سجل الحركة | ⏳ |
 | 5 | تطبيق العميل (Expo) + الحجز + المتابعة | ⏳ |
 | 6 | موافقات العميل على الإصلاح (واجهات) | ⏳ |
-| 7 | واتساب + إشعارات التطبيق (Edge Functions) | ⏳ |
+| 7 | إشعارات التطبيق + إرسال واتساب يدوي بضغطة (بدون WhatsApp API) | ⏳ |
 | 8 | التقارير + اختبارات الأمان النهائية | ⏳ |
 | 9 | النشر والتشغيل الفعلي | ⏳ |
 
@@ -41,10 +41,24 @@
         │    كل الكتابة عبر RPC (SECURITY DEFINER)     │
         │  • Realtime (تحديث لحظي)                    │
         │  • Storage (صور الأجهزة — bucket خاص)       │
-        │  • Edge Functions (مرحلة 7):                │
-        │      dispatcher → WhatsApp Cloud API / FCM  │
+        │  • Edge Functions:                          │
+        │      admin-reset-password (مرحلة 2)         │
+        │      push dispatcher → FCM (مرحلة 7)        │
         └────────────────────────────────────────────┘
 ```
+
+### تسجيل الدخول (بدون SMS أو واتساب API)
+
+- الدخول **برقم الموبايل + كلمة سر**. داخليًا Supabase Auth بياخد إيميل مشتق من الرقم
+  (`201xxxxxxxxx@phone.kmr.invalid`). الامتداد `.invalid` محجوز عالميًا ومستحيل يستقبل إيميل،
+  فمحدش يقدر يسرق حساب عن طريق "نسيت كلمة السر".
+- **نسيت كلمة السر:** الأدمن يعيّن كلمة جديدة من شاشة المستخدمين (Edge Function `admin-reset-password`).
+- **لأن الرقم مش متأكَّد منه بـ OTP:** الحساب الجديد عمره ما يترَبط تلقائيًا بأجهزة سجّلها المحل بنفس الرقم. الربط بيحصل بس:
+  1. العميل يلصق رابط إيصال الاستلام بتاعه (رمز سري) والرقم يطابق، أو
+  2. الموظف يتأكد وجهًا لوجه: استلام حجز من التطبيق = توثيق تلقائي، وفي الـ walk-in لو الرقم عليه حساب غير موثّق
+     النظام بيطلب من الموظف يختار **توثيق** (الحساب بتاعه) أو **فصل** (مش بتاعه).
+- **قيد معروف:** أي حد يقدر يسجل برقم مش بتاعه (مفيش OTP)، لكنه مش هيشوف أي بيانات. لو صاحب الرقم الحقيقي اشتكى،
+  الأدمن يوقف الحساب ده. إضافة SMS OTP بعدين = تغيير إعدادات بس.
 
 ### قرارات تصميم مهمة
 
@@ -101,6 +115,8 @@ repair-system/
 │   │   └── …005_storage_realtime.sql  bucket الصور الخاص + Realtime
 │   ├── seed.sql                     الفرع الافتراضي "محل خالد" + الشروط (بدون بيانات وهمية)
 │   └── tests/supabase_shim.sql      للاختبار فقط: محاكاة auth/storage على PostgreSQL عادي
+├── supabase/functions/admin-reset-password/  Edge Function لتعيين كلمة سر من الأدمن
+├── apps/web/                        موقع Next.js (المدير/الاستقبال/الفني PWA/العميل)
 ├── packages/shared/                 الحالات والترجمة والانتقالات ورسائل الأخطاء (مشترك ويب/موبايل)
 ├── tests/db/                        اختبارات قاعدة البيانات الحقيقية (Vitest + pg)
 ├── scripts/pg-local.sh              تشغيل PostgreSQL محلي للاختبار بدون Docker
@@ -126,7 +142,7 @@ repair-system/
 ```bash
 cd repair-system
 npm install
-npm test          # بيشغّل Postgres محلي على 54329، يطبّق كل الـ migrations، ويشغّل 55 اختبار
+npm test          # بيشغّل Postgres محلي على 54329، يطبّق كل الـ migrations، ويشغّل 65 اختبار
 npm run db:stop   # لإيقاف قاعدة الاختبار
 ```
 
@@ -141,21 +157,35 @@ supabase start          # بيطبّق migrations + seed تلقائيًا
 supabase status         # هيطبعلك API URL و anon key
 ```
 
-### 3) أول حساب أدمن (مرة واحدة)
+### 3) موقع الويب
 
-1. سجّل دخول بالموبايل من التطبيق/الموقع (هيتعمل حساب عميل عادي).
+```bash
+cp .env.example apps/web/.env.local   # واملأ NEXT_PUBLIC_SUPABASE_URL و NEXT_PUBLIC_SUPABASE_ANON_KEY
+npm run web:dev                       # http://localhost:3000
+```
+
+### إعدادات لازمة في Supabase Dashboard (مرة واحدة)
+
+1. **Authentication → Sign In / Providers → Email:** مفعّل، و **Confirm email: OFF** (مفيش إيميلات حقيقية).
+2. **Authentication → Sign In / Providers → Phone:** سيبه مقفول (مش محتاجينه).
+3. انشر دالة تغيير كلمة السر: `supabase functions deploy admin-reset-password`
+
+### 4) أول حساب أدمن (مرة واحدة)
+
+1. اعمل حساب من صفحة الدخول في الموقع برقم موبايلك (هيتعمل حساب عميل عادي).
 2. من **Supabase → SQL Editor** شغّل (بعد ما تحط رقمك):
 
 ```sql
 update public.profiles
    set role = 'ADMIN', branch_id = (select id from public.branches where code = 'MAIN')
  where phone = '+201XXXXXXXXX';
-delete from public.customers where profile_id = (select id from public.profiles where phone = '+201XXXXXXXXX');
+update public.customers set profile_id = null, deleted_at = now()
+ where profile_id = (select id from public.profiles where phone = '+201XXXXXXXXX');
 insert into public.employees (profile_id, branch_id)
 select id, branch_id from public.profiles where phone = '+201XXXXXXXXX';
 ```
 
-3. بعد كده أي موظف تاني بيتعمل من لوحة الإدارة (`admin_set_role`).
+3. بعد كده أي موظف/فني: يعمل حساب من صفحة الدخول، وإنت تغيّر دوره من **إدارة المستخدمين**.
 
 ---
 

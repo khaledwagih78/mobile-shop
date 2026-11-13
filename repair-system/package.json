@@ -3,13 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "db:start": "bash scripts/pg-local.sh start",
     "db:stop": "bash scripts/pg-local.sh stop",
     "test": "vitest run",
     "test:db": "vitest run tests/db",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "web:dev": "npm run dev -w @kmr/web",
+    "web:build": "npm run build -w @kmr/web",
+    "web:typecheck": "npm run typecheck -w @kmr/web"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

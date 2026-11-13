@@ -1,0 +1,42 @@
+@import '@fontsource/cairo/400.css';
+@import '@fontsource/cairo/600.css';
+@import '@fontsource/cairo/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-50 font-sans text-navy antialiased;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+  }
+  .btn {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 text-base font-bold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white hover:bg-brand-600;
+  }
+  .btn-secondary {
+    @apply btn border border-slate-300 bg-white text-navy hover:bg-slate-100;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .input {
+    @apply min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/30;
+  }
+  .label {
+    @apply mb-1 block text-sm font-semibold text-navy-600;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-bold;
+  }
+}
