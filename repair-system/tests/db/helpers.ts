@@ -27,6 +27,8 @@ export async function setupDb(): Promise<Ctx> {
   await admin.query(`create database ${dbName} template ${TEMPLATE_DB}`);
   await admin.end();
   const pool = new pg.Pool({ connectionString: withDb(base, dbName), max: 8 });
+  // the DB is force-dropped at teardown; idle clients being terminated is expected
+  pool.on('error', () => {});
   const b = await pool.query(`select id from public.branches where code = 'MAIN'`);
   return { pool, dbName, branchId: b.rows[0].id };
 }

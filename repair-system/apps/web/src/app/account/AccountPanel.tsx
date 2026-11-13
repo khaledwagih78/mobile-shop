@@ -3,19 +3,13 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { arabicError, displayPhone } from '@kmr/shared';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import { extractToken } from '@/lib/token';
 
 interface Customer {
   id: string;
   full_name: string;
   phone: string;
   verified: boolean;
-}
-
-/** يقبل الرابط كامل (…/track/<token> أو …/receipt/<token>) أو الرمز لوحده. */
-export function extractToken(input: string): string {
-  const t = input.trim();
-  const m = /\/(?:track|receipt)\/([0-9a-f]{20,})/i.exec(t);
-  return (m ? m[1] : t).toLowerCase();
 }
 
 export function AccountPanel({ customer, phone, email }: { customer: Customer | null; phone: string | null; email: string | null }) {

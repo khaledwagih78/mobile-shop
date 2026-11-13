@@ -142,6 +142,16 @@ export const ERROR_MESSAGES: Record<string, string> = {
   NO_EMAIL_ACCOUNT: 'مفيش حساب بالإيميل ده — اختار "حساب جديد"',
   INVALID_EMAIL: 'اكتب إيميل صحيح',
   RATE_LIMIT: 'طلبات كتير ورا بعض — استنى دقيقة وحاول تاني',
+  REASON_REQUIRED: 'اكتب السبب',
+  INVALID_PROPOSED_TIME: 'اختار موعد في المستقبل',
+  CUSTOMER_NOT_FOUND: 'العميل غير موجود',
+  DEVICE_BRAND_MODEL_REQUIRED: 'اكتب الشركة والموديل',
+  TECHNICIAN_NOT_FOUND: 'الفني غير موجود أو موقوف',
+  NOT_A_TECHNICIAN: 'المستخدم ده مش فني',
+  ALREADY_ASSIGNED: 'الجهاز مسند للفني ده بالفعل',
+  ORDER_NOT_ASSIGNABLE: 'لا يمكن تعيين فني للجهاز في حالته الحالية',
+  INVALID_URL: 'رابط الموقع لازم يبدأ بـ https://',
+  INVALID_MEDIA_PATH: 'مسار الصورة غير صحيح',
 };
 
 /** Extract the error code from a Postgres/Supabase error message ("CODE: details"). */
@@ -232,3 +242,63 @@ export function isEmail(e: string): boolean {
 }
 
 export type LoginMethod = 'PHONE' | 'EMAIL';
+
+// ---------------------------------------------------------------------
+// WhatsApp (manual send — no API): wa.me link with a ready message.
+// ---------------------------------------------------------------------
+export function waLink(phone: string | null | undefined, text: string): string {
+  const digits = phone ? normalizePhone(phone).replace(/[^0-9]/g, '') : '';
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
+export function trackingUrl(base: string | null | undefined, token: string): string {
+  return `${(base ?? '').replace(/\/+$/, '')}/track/${token}`;
+}
+
+export function receiptUrl(base: string | null | undefined, token: string): string {
+  return `${(base ?? '').replace(/\/+$/, '')}/receipt/${token}`;
+}
+
+/** رسالة الاستلام (نفس نص المواصفات). */
+export function receivedMessage(orderNumber: string, url: string): string {
+  return [
+    'مرحبًا بك في خالد لصيانة المحمول.',
+    '',
+    'تم استلام جهازك بنجاح.',
+    '',
+    `رقم طلب الصيانة: ${orderNumber}`,
+    '',
+    'يمكنك متابعة حالة جهازك من الرابط:',
+    url,
+  ].join('\n');
+}
+
+/** رسالة الجاهزية (نفس نص المواصفات). */
+export function readyMessage(orderNumber: string): string {
+  return [
+    'عميلنا العزيز،',
+    '',
+    'تم الانتهاء من صيانة جهازك واعتماد جاهزيته للاستلام.',
+    '',
+    `رقم طلب الصيانة: ${orderNumber}`,
+    '',
+    'يسعدنا استقبالكم في محل خالد لصيانة المحمول.',
+  ].join('\n');
+}
+
+export const DEVICE_TYPE_LABELS: Record<'PHONE' | 'TABLET' | 'SMARTWATCH' | 'LAPTOP' | 'OTHER', string> = {
+  PHONE: 'موبايل',
+  TABLET: 'تابلت',
+  SMARTWATCH: 'ساعة ذكية',
+  LAPTOP: 'لابتوب',
+  OTHER: 'أخرى',
+};
+
+export const BOOKING_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'في انتظار التأكيد',
+  CONFIRMED: 'مؤكد',
+  RESCHEDULE_PROPOSED: 'تم اقتراح موعد آخر',
+  REJECTED: 'مرفوض',
+  CANCELLED: 'ملغي',
+  CHECKED_IN: 'تم الاستلام',
+};
