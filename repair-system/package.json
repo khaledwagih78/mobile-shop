@@ -1,0 +1,21 @@
+{
+  "name": "khaled-mobile-repair",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "db:start": "bash scripts/pg-local.sh start",
+    "db:stop": "bash scripts/pg-local.sh stop",
+    "test": "vitest run",
+    "test:db": "vitest run tests/db",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.9"
+  }
+}

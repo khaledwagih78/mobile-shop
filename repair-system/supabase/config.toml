@@ -1,0 +1,43 @@
+# Supabase CLI config — خالد لصيانة المحمول
+# التشغيل المحلي الكامل (يحتاج Docker):  supabase start
+project_id = "khaled-mobile-repair"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000", "kmr://auth"]
+jwt_expiry = 3600
+enable_signup = true
+
+# تسجيل الدخول برقم الهاتف + OTP
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+template = "رمز الدخول لخالد لصيانة المحمول: {{ .Code }}"
+max_frequency = "60s"
+
+# محليًا: أرقام اختبار برمز ثابت بدون إرسال SMS حقيقي
+[auth.sms.test_otp]
+201000000001 = "123456"
