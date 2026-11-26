@@ -429,9 +429,18 @@ export async function saveInvoice(inv) {
           stocks[b] = cur - qBase;
           await db.items.update(line.itemId, { stocks, branchUpdatedAt });
         } else {
-          // purchase: increase this branch's stock and update cost price
+          // purchase: increase this branch's stock and update cost using the
+          // moving WEIGHTED AVERAGE across existing stock + this line. Applied
+          // per line, so the same item bought several times at different prices
+          // in one invoice blends into the correct average (each line reads the
+          // cost/stock the previous line already wrote, within this transaction).
           stocks[b] = cur + qBase;
-          await db.items.update(line.itemId, { stocks, branchUpdatedAt, costPrice: line.factor > 1 ? item.costPrice : line.price });
+          const unitCost = (Number(line.price) || 0) / (line.factor || 1); // per base unit
+          const prevQty = Math.max(0, cur);           // existing total stock (this branch)
+          const prevCost = Number(item.costPrice) || 0;
+          const denom = prevQty + qBase;
+          const avgCost = denom > 0 ? (prevQty * prevCost + qBase * unitCost) / denom : unitCost;
+          await db.items.update(line.itemId, { stocks, branchUpdatedAt, costPrice: Math.round(avgCost * 100) / 100 });
         }
         await db.stockMoves.add({
           itemId: line.itemId,

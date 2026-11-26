@@ -89,13 +89,20 @@ export default function InvoiceEditor({ type }) {
     return list.slice(0, 8);
   }, [partyQ, parties]);
 
+  // في الشراء يُسمح بتكرار نفس الصنف بأسعار مختلفة (يُحتسب متوسطها عند الحفظ)
+  const allowDupLines = type ==='purchase' || type ==='po';
+  const newUid = () => (globalThis.crypto?.randomUUID?.() || `L${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+
   const addItem = (it) => {
     setLines((ls) => {
-      const ex = ls.find((l) => l.itemId === it.id);
-      if (ex) return ls.map((l) => (l.itemId === it.id ? { ...l, qty: l.qty + 1 } : l));
+      if (!allowDupLines) {
+        const ex = ls.find((l) => l.itemId === it.id);
+        if (ex) return ls.map((l) => (l.itemId === it.id ? { ...l, qty: l.qty + 1 } : l));
+      }
       return [
         ...ls,
         {
+          uid: newUid(),
           itemId: it.id,
           name: it.name,
           code: it.code,
@@ -127,9 +134,9 @@ export default function InvoiceEditor({ type }) {
     if (results.length === 1) addItem(results[0]);
   };
 
-  const setLine = (itemId, patch) =>
+  const setLine = (uid, patch) =>
     setLines((ls) => ls.map((l) => {
-      if (l.itemId !== itemId) return l;
+      if (l.uid !== uid) return l;
       const updated = { ...l, ...patch };
       // auto-switch to wholesale price when qty reaches threshold
       if (isSale && updated.wholesaleMinQty > 0 && updated.wholesalePrice > 0 && updated.qty >= updated.wholesaleMinQty) {
@@ -137,10 +144,10 @@ export default function InvoiceEditor({ type }) {
       }
       return updated;
     }));
-  const removeLine = (itemId) => setLines((ls) => ls.filter((l) => l.itemId !== itemId));
+  const removeLine = (uid) => setLines((ls) => ls.filter((l) => l.uid !== uid));
 
-  const changeUnit = (itemId, unitName) => setLines((ls) => ls.map((l) => {
-    if (l.itemId !== itemId) return l;
+  const changeUnit = (uid, unitName) => setLines((ls) => ls.map((l) => {
+    if (l.uid !== uid) return l;
     const all = [{ name: l.baseUnit ||'قطعة', factor: 1 }, ...(l.units || [])];
     const u = all.find((x) => x.name === unitName) || all[0];
     const factor = Number(u.factor) || 1;
@@ -192,7 +199,7 @@ export default function InvoiceEditor({ type }) {
       branchId: activeBranch,
       partyId: party ? party.id : null,
       partyName: party ? party.name : null,
-      lines: lines.map(({ stock, wholesalePrice, wholesaleMinQty, baseUnit, salePrice, costPrice, units, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0, factor: Number(l.factor) || 1 })),
+      lines: lines.map(({ uid, stock, wholesalePrice, wholesaleMinQty, baseUnit, salePrice, costPrice, units, ...l }) => ({ ...l, qty: Number(l.qty) || 0, price: Number(l.price) || 0, factor: Number(l.factor) || 1 })),
       subtotal,
       discount: disc,
       pointsRedeemed: isSale ? redeemPts : 0,
@@ -325,7 +332,7 @@ export default function InvoiceEditor({ type }) {
                   <span />
                 </div>
                 {lines.map((l) => (
-                  <div key={l.itemId} className="cart-line">
+                  <div key={l.uid} className="cart-line">
                     <div className="name">
                       {l.name}
                       <small>
@@ -340,7 +347,7 @@ export default function InvoiceEditor({ type }) {
                       {(l.units && l.units.length > 0) && (
                         <select
                           value={l.unit}
-                          onChange={(e) => changeUnit(l.itemId, e.target.value)}
+                          onChange={(e) => changeUnit(l.uid, e.target.value)}
                           style={{ marginTop: 4, fontSize: 12, padding:'2px 4px', maxWidth: 150 }}
                         >
                           {[{ name: l.baseUnit ||'قطعة', factor: 1 }, ...l.units].map((u) => (
@@ -350,11 +357,11 @@ export default function InvoiceEditor({ type }) {
                       )}
                     </div>
                     <input type="number" min="0" step="any" value={l.qty}
-                      onChange={(e) => setLine(l.itemId, { qty: Number(e.target.value) })} />
+                      onChange={(e) => setLine(l.uid, { qty: Number(e.target.value) })} />
                     <input type="number" min="0" step="any" value={l.price} readOnly={!canUser(user,'changePrice')}
-                      onChange={(e) => setLine(l.itemId, { price: Number(e.target.value) })} />
+                      onChange={(e) => setLine(l.uid, { price: Number(e.target.value) })} />
                     <div className="num" style={{ textAlign:'center' }}>{fmt(l.qty * l.price)}</div>
-                    <button className="x" onClick={() => removeLine(l.itemId)}></button>
+                    <button className="x" onClick={() => removeLine(l.uid)}></button>
                   </div>
                 ))}
               </>

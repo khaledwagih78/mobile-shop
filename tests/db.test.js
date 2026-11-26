@@ -102,3 +102,34 @@ describe('computeDayCash', () => {
     expect(c.expected).toBe(300); // opening 0 + 300 in − 0 out
   });
 });
+
+describe('saveInvoice (purchase) — moving weighted-average cost', () => {
+  it('blends a single purchase line with existing stock', async () => {
+    const itemId = await addItem({ stocks: { 1: 10 }, costPrice: 100 });
+    await saveInvoice({
+      type: 'purchase', branchId: 1, partyId: null, partyName: null,
+      lines: [{ itemId, name: 'شاشة', qty: 10, price: 200, factor: 1, unit: 'قطعة' }],
+      subtotal: 2000, discount: 0, tax: 0, total: 2000, paid: 2000, remaining: 0, userName: 'ت',
+    });
+    const it = await db.items.get(itemId);
+    expect(stockOf(it, 1)).toBe(20);        // 10 + 10
+    expect(it.costPrice).toBe(150);         // (10*100 + 10*200)/20
+    await journalsBalance();
+  });
+
+  it('averages the same item recorded several times at different prices in one invoice', async () => {
+    const itemId = await addItem({ stocks: { 1: 100 }, costPrice: 10 });
+    await saveInvoice({
+      type: 'purchase', branchId: 1, partyId: null, partyName: null,
+      lines: [
+        { itemId, name: 'شاشة', qty: 2, price: 20, factor: 1, unit: 'قطعة' },
+        { itemId, name: 'شاشة', qty: 2, price: 30, factor: 1, unit: 'قطعة' },
+      ],
+      subtotal: 100, discount: 0, tax: 0, total: 100, paid: 100, remaining: 0, userName: 'ت',
+    });
+    const it = await db.items.get(itemId);
+    expect(stockOf(it, 1)).toBe(104);       // 100 + 2 + 2
+    expect(it.costPrice).toBe(10.58);       // (100*10 + 2*20 + 2*30)/104 ≈ 10.58
+    await journalsBalance();
+  });
+});
