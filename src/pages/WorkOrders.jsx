@@ -2,8 +2,8 @@ import { Icon } from'../components/Icon';
 import { useMemo, useState } from'react';
 import { useLiveQuery } from'dexie-react-hooks';
 import { useNavigate } from'react-router-dom';
-import { db, today, queueSync, createWorkOrder, invoiceWorkOrder, stockOf } from'../db';
-import { money, fmt, normAr } from'../utils';
+import { db, today, queueSync, createWorkOrder, invoiceWorkOrder, stockOf, getSetting } from'../db';
+import { money, fmt, normAr, waLink } from'../utils';
 import { Modal, Toast } from'../components/UI';
 import BarcodeScanner from'../components/BarcodeScanner';
 import { useAuth } from'../auth';
@@ -22,6 +22,10 @@ export default function WorkOrders() {
   const nav = useNavigate();
   const orders = useLiveQuery(() => db.workOrders.orderBy('createdAt').reverse().toArray(), [], []);
   const customers = useLiveQuery(() => db.customers.toArray(), [], []);
+  const bizName = useLiveQuery(() => getSetting('bizName',''), [],'') ||'مركز الصيانة';
+  const bizAddress = useLiveQuery(() => getSetting('bizAddress',''), [],'');
+  const bizPhone = useLiveQuery(() => getSetting('bizPhone',''), [],'');
+  const defWarranty = useLiveQuery(() => getSetting('warranty',''), [],'');
   const employees = useLiveQuery(() => db.employees.where('status').equals('active').toArray(), [], []);
   const items = useLiveQuery(() => db.items.toArray(), [], []);
   const [form, setForm] = useState(null);
@@ -37,12 +41,20 @@ export default function WorkOrders() {
     return orders.filter((o) => o.status === filter);
   }, [orders, filter]);
 
-  const openNew = () => setForm({ customerId:'', customerName:'', deviceType:'', deviceInfo:'', reportedIssue:'', technicianName:'', parts: [], laborCost:'', warranty:'', notes:'', status:'received' });
+  const openNew = () => setForm({ customerId:'', customerName:'', customerPhone:'', deviceType:'', deviceInfo:'', reportedIssue:'', technicianName:'', parts: [], laborCost:'', warranty:'', notes:'', status:'received' });
+
+  // اختيار عميل مسجّل يملأ الاسم والرقم تلقائياً (ويظلّان قابلين للتعديل)
+  const pickCustomer = (idStr) => {
+    const c = customers.find((x) => x.id === Number(idStr));
+    setForm((f) => ({ ...f, customerId: idStr, customerName: c ? c.name : f.customerName, customerPhone: c ? (c.phone ||'') : f.customerPhone }));
+  };
 
   const save = async () => {
     const cust = customers.find((c) => c.id === Number(form.customerId));
     const payload = {
-      customerId: cust ? cust.id : null, customerName: cust ? cust.name : (form.customerName ||''),
+      customerId: cust ? cust.id : null,
+      customerName: (form.customerName ||'').trim() || (cust ? cust.name :''),
+      customerPhone: (form.customerPhone ||'').trim() || (cust ? (cust.phone ||'') :''),
       deviceType: form.deviceType, deviceInfo: form.deviceInfo, reportedIssue: form.reportedIssue,
       technicianName: form.technicianName, parts: form.parts, laborCost: Number(form.laborCost) || 0,
       warranty: form.warranty, notes: form.notes, status: form.status, branchId: activeBranch,
@@ -71,6 +83,96 @@ export default function WorkOrders() {
   const partsTotal = (o) => (o.parts || []).reduce((s, p) => s + (Number(p.qty) || 0) * (Number(p.price) || 0), 0);
   const woTotal = (o) => partsTotal(o) + (Number(o.laborCost) || 0);
 
+  // ---------- إيصال الصيانة (واتساب + طباعة) ----------
+  const escHtml = (s) => String(s == null ?'' : s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+  const woDate = (o) => { try { return new Date(o.createdAt || Date.now()).toLocaleDateString('ar-EG'); } catch { return o.day ||''; } };
+
+  const receiptText = (o) => {
+    const L = [];
+    L.push(`🧾 *${bizName}* — إيصال صيانة`);
+    L.push(`رقم: ${o.number}`);
+    L.push(`التاريخ: ${woDate(o)}`);
+    if (o.customerName) L.push(`العميل: ${o.customerName}${o.customerPhone ?' - ' + o.customerPhone :''}`);
+    L.push(`الجهاز: ${o.deviceType ||''}${o.deviceInfo ?' (' + o.deviceInfo + ')' :''}`);
+    if (o.reportedIssue) L.push(`العطل: ${o.reportedIssue}`);
+    if (o.technicianName) L.push(`الفني: ${o.technicianName}`);
+    const parts = o.parts || [];
+    if (parts.length) {
+      L.push('—— القطع ——');
+      parts.forEach((p) => L.push(`• ${p.name} ×${Number(p.qty) || 0} = ${money((Number(p.qty) || 0) * (Number(p.price) || 0))}`));
+    }
+    if (Number(o.laborCost) || 0) L.push(`أجر الصيانة: ${money(o.laborCost)}`);
+    L.push(`الإجمالي: ${money(woTotal(o))}`);
+    L.push(`الحالة: ${STATUS[o.status]?.label || o.status}`);
+    const w = o.warranty || defWarranty;
+    if (w) L.push(`الضمان: ${w}`);
+    L.push('شكراً لتعاملكم معنا 🙏');
+    return L.join('\n');
+  };
+
+  const sendWhatsApp = (o) => {
+    window.open(waLink(o.customerPhone, receiptText(o)),'_blank');
+    if (!o.customerPhone) notify('لا يوجد رقم للعميل — اختر جهة الاتصال في واتساب');
+  };
+
+  const printWorkOrder = (o) => {
+    const win = window.open('','_blank');
+    if (!win) { notify('اسمح بالنوافذ المنبثقة لطباعة الإيصال'); return; }
+    const parts = o.parts || [];
+    const rows = parts.map((p) =>`<tr><td>${escHtml(p.name)}</td><td class="c">${Number(p.qty) || 0}</td><td class="l">${escHtml(money(p.price))}</td><td class="l">${escHtml(money((Number(p.qty) || 0) * (Number(p.price) || 0)))}</td></tr>`).join('');
+    const w = o.warranty || defWarranty;
+    win.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
+      <title>إيصال صيانة ${escHtml(o.number)}</title>
+      <style>
+        *{box-sizing:border-box;font-family:Cairo,Tahoma,Arial,sans-serif}
+        body{margin:0;padding:22px;color:#15232B}
+        .hd{text-align:center;border-bottom:2px solid #0F4C5C;padding-bottom:10px;margin-bottom:14px}
+        .hd h1{margin:0;font-size:22px;color:#0F4C5C}
+        .hd .sub{color:#6B7C86;font-size:13px;margin-top:3px}
+        .tag{display:inline-block;background:#EAF1F3;color:#0F4C5C;border-radius:6px;padding:3px 10px;font-weight:700;font-size:13px;margin-top:6px}
+        .meta{display:flex;flex-wrap:wrap;gap:6px 24px;margin:12px 0}
+        .meta div{font-size:14px}
+        .meta b{color:#0F4C5C}
+        .box{border:1px solid #E4E9EC;border-radius:10px;padding:10px 12px;margin:10px 0}
+        .box h3{margin:0 0 6px;font-size:13px;color:#6B7C86}
+        table{width:100%;border-collapse:collapse;margin-top:6px}
+        th,td{border-bottom:1px solid #E4E9EC;padding:7px 8px;font-size:13.5px;text-align:right}
+        th{background:#F4F6F8;color:#0F4C5C}
+        td.c{text-align:center}td.l{text-align:left}
+        .tot{margin-top:12px;text-align:left}
+        .tot .row{display:flex;justify-content:space-between;max-width:280px;margin-left:auto;padding:3px 0;font-size:14px}
+        .tot .grand{font-size:18px;font-weight:800;color:#0F4C5C;border-top:2px solid #0F4C5C;margin-top:4px;padding-top:6px}
+        .ft{margin-top:18px;text-align:center;color:#6B7C86;font-size:12.5px;border-top:1px dashed #cfd8dc;padding-top:10px}
+        @media print{body{padding:6px}}
+      </style></head><body>
+      <div class="hd">
+        <h1>${escHtml(bizName)}</h1>
+        ${bizAddress ?`<div class="sub">${escHtml(bizAddress)}</div>` :''}
+        ${bizPhone ?`<div class="sub">هاتف: ${escHtml(bizPhone)}</div>` :''}
+        <div class="tag">إيصال صيانة — ${escHtml(o.number)}</div>
+      </div>
+      <div class="meta">
+        <div><b>التاريخ:</b> ${escHtml(woDate(o))}</div>
+        <div><b>العميل:</b> ${escHtml(o.customerName ||'نقدي')}</div>
+        ${o.customerPhone ?`<div><b>الموبايل:</b> ${escHtml(o.customerPhone)}</div>` :''}
+        ${o.technicianName ?`<div><b>الفني:</b> ${escHtml(o.technicianName)}</div>` :''}
+        <div><b>الحالة:</b> ${escHtml(STATUS[o.status]?.label || o.status)}</div>
+      </div>
+      <div class="box"><h3>الجهاز</h3>${escHtml(o.deviceType ||'—')}${o.deviceInfo ?` — ${escHtml(o.deviceInfo)}` :''}</div>
+      ${o.reportedIssue ?`<div class="box"><h3>العطل / المطلوب</h3>${escHtml(o.reportedIssue)}</div>` :''}
+      ${parts.length ?`<table><thead><tr><th>القطعة</th><th class="c">كمية</th><th class="l">سعر</th><th class="l">الإجمالي</th></tr></thead><tbody>${rows}</tbody></table>` :''}
+      <div class="tot">
+        ${parts.length ?`<div class="row"><span>إجمالي القطع</span><span>${escHtml(money(partsTotal(o)))}</span></div>` :''}
+        ${Number(o.laborCost) || 0 ?`<div class="row"><span>أجر الصيانة</span><span>${escHtml(money(o.laborCost))}</span></div>` :''}
+        <div class="row grand"><span>الإجمالي</span><span>${escHtml(money(woTotal(o)))}</span></div>
+      </div>
+      ${w ?`<div class="box"><h3>الضمان</h3>${escHtml(w)}</div>` :''}
+      <div class="ft">شكراً لتعاملكم معنا — ${escHtml(bizName)}</div>
+      <script>window.onload = () => { window.print(); setTimeout(() => window.close(), 400); }</script>
+      </body></html>`);
+    win.document.close();
+  };
+
   return (
     <>
       <div className="page-head">
@@ -94,7 +196,7 @@ export default function WorkOrders() {
               {filtered.map((o) => (
                 <tr key={o.id}>
                   <td className="num">{o.number}</td>
-                  <td>{o.customerName ||'نقدي'}</td>
+                  <td>{o.customerName ||'نقدي'}{o.customerPhone ? <div className="meta muted">{o.customerPhone}</div> : null}</td>
                   <td>{o.deviceType}{o.deviceInfo ? <div className="meta muted">{o.deviceInfo}</div> : null}</td>
                   <td className="muted" style={{ maxWidth: 160 }}>{o.reportedIssue ||'—'}</td>
                   <td className="muted">{o.technicianName ||'—'}</td>
@@ -107,6 +209,8 @@ export default function WorkOrders() {
                       </select>
                     )}
                     {o.status !=='delivered' && o.status !=='cancelled' && <button className="btn ghost sm" onClick={() => setForm({ ...o, laborCost: String(o.laborCost ||''), customerId: o.customerId ||'' })}>تعديل</button>}
+                    <button className="btn ghost sm" title="طباعة الإيصال" onClick={() => printWorkOrder(o)}>🖨️ إيصال</button>
+                    <button className="btn ghost sm" title="إرسال الإيصال على واتساب" onClick={() => sendWhatsApp(o)}>📱 واتساب</button>
                     {o.status ==='done' && !o.invoiceId && <button className="btn accent sm" onClick={() => setPayFor(o)}>فاتورة وتسليم</button>}
                     {o.invoiceId && <button className="btn ghost sm" onClick={() => nav(`/invoices/${o.invoiceId}`)}>الفاتورة</button>}
                   </td>
@@ -120,9 +224,9 @@ export default function WorkOrders() {
       {form && (
         <Modal title={form.id ?`تعديل أمر ${form.number}` :'أمر صيانة جديد'} onClose={() => setForm(null)}>
           <div className="row">
-            <div className="field"><label>العميل</label>
-              <select className="input" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
-                <option value="">نقدي / بدون</option>
+            <div className="field"><label>العميل (من المسجّلين)</label>
+              <select className="input" value={form.customerId} onChange={(e) => pickCustomer(e.target.value)}>
+                <option value="">نقدي / جديد</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select></div>
             <div className="field"><label>الفني</label>
@@ -130,6 +234,12 @@ export default function WorkOrders() {
                 <option value="">—</option>
                 {employees.map((e) => <option key={e.id} value={e.name}>{e.name}</option>)}
               </select></div>
+          </div>
+          <div className="row">
+            <div className="field"><label>اسم العميل</label>
+              <input className="input" value={form.customerName ||''} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="اسم صاحب الجهاز" /></div>
+            <div className="field"><label>رقم الموبايل</label>
+              <input className="input" inputMode="tel" value={form.customerPhone ||''} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} placeholder="01xxxxxxxxx" /></div>
           </div>
           <div className="row">
             <div className="field"><label>نوع الجهاز/الأصل *</label>
