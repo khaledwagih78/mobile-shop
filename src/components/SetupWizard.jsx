@@ -1,37 +1,37 @@
-import { useState } from 'react';
-import { setSetting, applySectorFields } from '../db';
-import { SECTORS } from '../sectors';
-import { verifyLicenseCode, applyLicenseCode } from '../license';
-import { getPlan } from '../plans';
+import { useState } from'react';
+import { setSetting, applySectorFields } from'../db';
+import { SECTORS } from'../sectors';
+import { verifyLicenseCode, applyLicenseCode } from'../license';
+import { getPlan } from'../plans';
 
-// First-run setup wizard: shows once (until `setupDone` is set), walks a new
+// First-run setup wizard: shows once (until`setupDone` is set), walks a new
 // shop through naming, sector, tax and credit terms, then configures the app to
-// the tailored "final product" for that sector. Never appears again afterwards.
+// the tailored"final product" for that sector. Never appears again afterwards.
 // Read launch parameters from the URL so a per-sector link arrives pre-configured,
 // e.g. .../mobile-shop/?sector=contracting  (optionally &code=<activation>).
 // Works whether the params sit before the hash (?x=y#/) or inside it (#/?x=y).
 function launchParams() {
   try {
-    const search = (typeof location !== 'undefined' && location.search) || '';
-    const hash = (typeof location !== 'undefined' && location.hash) || '';
+    const search = (typeof location !=='undefined' && location.search) ||'';
+    const hash = (typeof location !=='undefined' && location.hash) ||'';
     const q = new URLSearchParams(search);
     const hq = hash.includes('?') ? new URLSearchParams(hash.slice(hash.indexOf('?') + 1)) : null;
-    const get = (k) => q.get(k) || (hq && hq.get(k)) || '';
+    const get = (k) => q.get(k) || (hq && hq.get(k)) ||'';
     return { sector: get('sector'), code: get('code') };
-  } catch { return { sector: '', code: '' }; }
+  } catch { return { sector:'', code:'' }; }
 }
 
 export default function SetupWizard({ onDone }) {
   const params = launchParams();
-  const preSector = SECTORS.some((s) => s.id === params.sector) ? params.sector : '';
+  const preSector = SECTORS.some((s) => s.id === params.sector) ? params.sector :'';
   const [step, setStep] = useState(0);
   const [bizName, setBizName] = useState('');
-  const [sector, setSector] = useState(preSector || 'general');
+  const [sector, setSector] = useState(preSector ||'general');
   const [sectorLocked] = useState(!!preSector); // came pre-set from the link
   const [taxOn, setTaxOn] = useState(false);
   const [taxRate, setTaxRate] = useState('14');
   const [creditDays, setCreditDays] = useState('30');
-  const [licenseCode, setLicenseCode] = useState(params.code || '');
+  const [licenseCode, setLicenseCode] = useState(params.code ||'');
   const [licenseMsg, setLicenseMsg] = useState('');   // inline feedback (ok/err)
   const [licenseOk, setLicenseOk] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -44,15 +44,15 @@ export default function SetupWizard({ onDone }) {
   const checkCode = async () => {
     setLicenseMsg(''); setLicenseOk(false);
     const res = await verifyLicenseCode(licenseCode);
-    if (res.valid) { setLicenseOk(true); setLicenseMsg(`✅ كود صالح — خطة ${getPlan(res.plan).name}${res.exp ? ` حتى ${res.exp}` : ''}`); }
-    else { setLicenseMsg('❌ ' + (res.reason || 'الكود غير صحيح')); }
+    if (res.valid) { setLicenseOk(true); setLicenseMsg(`كود صالح — خطة ${getPlan(res.plan).name}${res.exp ?` حتى ${res.exp}` :''}`); }
+    else { setLicenseMsg(res.reason ||'الكود غير صحيح'); }
   };
 
   const finish = async () => {
     // if a code was entered, it must be valid before finishing
     if (licenseCode.trim()) {
       const res = await verifyLicenseCode(licenseCode);
-      if (!res.valid) { setStep(4); setLicenseMsg('❌ ' + (res.reason || 'الكود غير صحيح')); return; }
+      if (!res.valid) { setStep(4); setLicenseMsg(res.reason ||'الكود غير صحيح'); return; }
     }
     setSaving(true);
     await setSetting('bizName', bizName.trim());
@@ -60,7 +60,7 @@ export default function SetupWizard({ onDone }) {
     await setSetting('moduleOverrides', {}); // start from the sector's clean defaults
     await applySectorFields(sector); // seed the sector's field requirements
     await setSetting('taxEnabled', !!taxOn);
-    await setSetting('taxName', 'ضريبة القيمة المضافة');
+    await setSetting('taxName','ضريبة القيمة المضافة');
     await setSetting('taxRate', taxOn ? (Number(taxRate) || 0) : 0);
     await setSetting('creditDays', Number(creditDays) || 30);
     if (licenseCode.trim()) await applyLicenseCode(licenseCode); // upgrades the plan
@@ -77,22 +77,22 @@ export default function SetupWizard({ onDone }) {
 
   return (
     <div className="wizard-overlay" style={{
-      position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,76,92,.55)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      position:'fixed', inset: 0, zIndex: 9999, background:'rgba(15,76,92,.55)',
+      display:'flex', alignItems:'center', justifyContent:'center', padding: 16,
     }}>
-      <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto' }}>
+      <div className="card" style={{ width:'100%', maxWidth: 480, maxHeight:'92vh', overflowY:'auto' }}>
         {/* progress dots */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        <div style={{ display:'flex', gap: 6, marginBottom: 14 }}>
           {Array.from({ length: total }).map((_, i) => (
-            <div key={i} style={{ flex: 1, height: 5, borderRadius: 4, background: i <= step ? 'var(--accent, #0F4C5C)' : 'var(--line, #ddd)' }} />
+            <div key={i} style={{ flex: 1, height: 5, borderRadius: 4, background: i <= step ?'var(--accent, #0F4C5C)' :'var(--line, #ddd)' }} />
           ))}
         </div>
         <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>الخطوة {step + 1} من {total}</div>
 
         {step === 0 && (
           <div>
-            <h2 style={{ marginTop: 0 }}>👋 أهلاً بيك</h2>
-            <p className="muted">يلا نظبّط البرنامج لنشاطك في دقيقة. الأول، اسم المحل/النشاط:</p>
+            <h2 style={{ marginTop: 0 }}>أهلاً بك</h2>
+            <p className="muted">تهيئة النظام لنشاطك التجاري. أولاً، حدد اسم المنشأة أو المحل:</p>
             <div className="field">
               <label>اسم النشاط</label>
               <input className="input lg" autoFocus value={bizName} onChange={(e) => setBizName(e.target.value)} placeholder="اكتب اسم شركتك أو محلك" />
@@ -102,14 +102,13 @@ export default function SetupWizard({ onDone }) {
 
         {step === 1 && (
           <div>
-            <h2 style={{ marginTop: 0 }}>🧭 نشاطك إيه؟</h2>
+            <h2 style={{ marginTop: 0 }}>مجال النشاط</h2>
             {sectorLocked ? (
-              <div className="card" style={{ padding: 12, borderColor: 'var(--accent,#0F4C5C)' }}>
+              <div className="card" style={{ padding: 12, borderColor:'var(--accent,#0F4C5C)' }}>
                 <p className="muted" style={{ marginTop: 0 }}>البرنامج مُجهّز مسبقاً لمجال:</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 30 }}>{(SECTORS.find((s) => s.id === sector) || {}).ico}</span>
+                <div style={{ display:'flex', alignItems:'center', gap: 10 }}>
                   <b style={{ fontSize: 18 }}>{(SECTORS.find((s) => s.id === sector) || {}).name}</b>
-                  <span className="badge green" style={{ marginRight: 'auto' }}>جاهز ✓</span>
+                  <span className="badge green" style={{ marginRight:'auto' }}>جاهز</span>
                 </div>
                 <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
                   {(SECTORS.find((s) => s.id === sector) || {}).desc}
@@ -117,17 +116,16 @@ export default function SetupWizard({ onDone }) {
               </div>
             ) : (
               <>
-                <p className="muted">هنظهرلك الأقسام اللي تخص مجالك بس، ونسمّي الشاشات بأسماء مناسبة.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 8 }}>
+                <p className="muted">سيتم تفعيل الأقسام والمسميات المناسبة لطبيعة مجالك.</p>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap: 8 }}>
                   {SECTORS.map((s) => {
                     const active = sector === s.id;
                     return (
                       <button key={s.id} className="card" onClick={() => setSector(s.id)} style={{
-                        cursor: 'pointer', textAlign: 'right', padding: 10, margin: 0,
-                        border: active ? '2px solid var(--accent, #0F4C5C)' : '1px solid var(--line, #ddd)',
-                        background: active ? 'var(--bg, #f6f8f9)' : 'var(--card, #fff)',
+                        cursor:'pointer', textAlign:'right', padding: 10, margin: 0,
+                        border: active ?'2px solid var(--accent, #0F4C5C)' :'1px solid var(--line, #ddd)',
+                        background: active ?'var(--bg, #f6f8f9)' :'var(--card, #fff)',
                       }}>
-                        <div style={{ fontSize: 22 }}>{s.ico}</div>
                         <b style={{ fontSize: 13 }}>{s.name}</b>
                       </button>
                     );
@@ -140,11 +138,11 @@ export default function SetupWizard({ onDone }) {
 
         {step === 2 && (
           <div>
-            <h2 style={{ marginTop: 0 }}>🧾 الضرايب</h2>
-            <p className="muted">فيه ضريبة قيمة مضافة على مبيعاتك؟</p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              <button className={`btn ${!taxOn ? '' : 'ghost'}`} onClick={() => setTaxOn(false)}>لا، بدون ضريبة</button>
-              <button className={`btn ${taxOn ? '' : 'ghost'}`} onClick={() => setTaxOn(true)}>نعم، فيه ضريبة</button>
+            <h2 style={{ marginTop: 0 }}>إعدادات الضريبة</h2>
+            <p className="muted">هل تطبّق ضريبة القيمة المضافة على مبيعاتك؟</p>
+            <div style={{ display:'flex', gap: 8, marginBottom: 10 }}>
+              <button className={`btn ${!taxOn ?'' :'ghost'}`} onClick={() => setTaxOn(false)}>لا، بدون ضريبة</button>
+              <button className={`btn ${taxOn ?'' :'ghost'}`} onClick={() => setTaxOn(true)}>نعم، خاضع للضريبة</button>
             </div>
             {taxOn && (
               <div className="field">
@@ -152,46 +150,46 @@ export default function SetupWizard({ onDone }) {
                 <input className="input lg" type="number" min="0" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} placeholder="14" />
               </div>
             )}
-            <p className="muted" style={{ fontSize: 12 }}>تقدر تغيّرها لاحقاً من الإعدادات.</p>
+            <p className="muted" style={{ fontSize: 12 }}>يمكن تعديل هذه النسبة لاحقاً من شاشة الإعدادات.</p>
           </div>
         )}
 
         {step === 3 && (
           <div>
-            <h2 style={{ marginTop: 0 }}>💳 البيع الآجل</h2>
-            <p className="muted">لما تبيع بالآجل، العميل بياخد كام يوم يسدّد افتراضياً؟</p>
+            <h2 style={{ marginTop: 0 }}>البيع الآجل والائتمان</h2>
+            <p className="muted">ما هي المهلة الافتراضية الممنوحة للعملاء لسداد الفواتير الآجلة؟</p>
             <div className="field">
               <label>مدة الائتمان (أيام)</label>
               <input className="input lg" type="number" min="0" value={creditDays} onChange={(e) => setCreditDays(e.target.value)} placeholder="30" />
             </div>
-            <p className="muted" style={{ fontSize: 12 }}>بتُستخدم في تاريخ استحقاق الفواتير وتنبيهات المتأخرين.</p>
+            <p className="muted" style={{ fontSize: 12 }}>تُستخدم لحساب تاريخ استحقاق الفواتير وتنبيهات مديونيات العملاء.</p>
           </div>
         )}
 
         {step === 4 && (
           <div>
-            <h2 style={{ marginTop: 0 }}>💼 خطة البرنامج</h2>
+            <h2 style={{ marginTop: 0 }}>خطة الاشتراك</h2>
             <p className="muted">
-              البرنامج بيبدأ بالخطة <b>المجانية</b> (البيع والمخزون والعملاء والموردين والتقارير الأساسية).
-              لو معاك <b>كود تفعيل</b> لخطة أعلى، ألصقه هنا — أو سيبه فارغ وكمّل مجاناً.
+              يبدأ البرنامج بالخطة <b>الأساسية</b> (البيع والمخزون والعملاء والموردين والتقارير).
+              إذا توفر لديك <b>كود تفعيل</b>، يمكنك إدخاله هنا للترقية فوراً.
             </p>
             <div className="field">
-              <label>🔑 كود التفعيل (اختياري)</label>
+              <label>كود التفعيل (اختياري)</label>
               <textarea className="input" rows="2" value={licenseCode}
                 onChange={(e) => { setLicenseCode(e.target.value); setLicenseMsg(''); setLicenseOk(false); }}
-                placeholder="ألصق كود التفعيل هنا لو معاك واحد..." style={{ fontFamily: 'monospace', fontSize: 12 }} />
+                placeholder="ألصق كود التفعيل هنا إن وُجد..." style={{ fontFamily:'monospace', fontSize: 12 }} />
             </div>
             {licenseCode.trim() && <button className="btn ghost sm" onClick={checkCode}>تحقّق من الكود</button>}
-            {licenseMsg && <p style={{ fontSize: 13, margin: '8px 0', color: licenseOk ? 'var(--green)' : 'var(--red)' }}>{licenseMsg}</p>}
+            {licenseMsg && <p style={{ fontSize: 13, margin:'8px 0', color: licenseOk ?'var(--green)' :'var(--red)' }}>{licenseMsg}</p>}
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 18, alignItems: 'center' }}>
+        <div style={{ display:'flex', gap: 8, marginTop: 18, alignItems:'center' }}>
           {step > 0 && <button className="btn ghost" onClick={back} disabled={saving}>‹ رجوع</button>}
-          <button className="btn ghost sm" style={{ marginRight: 'auto' }} onClick={skip} disabled={saving}>تخطّي</button>
+          <button className="btn ghost sm" style={{ marginRight:'auto' }} onClick={skip} disabled={saving}>تخطّي</button>
           {step < total - 1
             ? <button className="btn accent" onClick={next} disabled={saving}>التالي ›</button>
-            : <button className="btn accent" onClick={finish} disabled={saving}>{saving ? '...' : 'يلا نبدأ ✅'}</button>}
+            : <button className="btn accent" onClick={finish} disabled={saving}>{saving ?'...' :'بدء استخدام النظام'}</button>}
         </div>
       </div>
     </div>

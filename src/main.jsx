@@ -1,11 +1,11 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import { startAutoSync } from './sync';
-import { getSetting } from './db';
-import { maybeSendPeriodicReports } from './periodicReports';
-import { enforceLicenseOnBoot } from './license';
-import './styles.css';
+import React from'react';
+import ReactDOM from'react-dom/client';
+import App from'./App';
+import { startAutoSync } from'./sync';
+import { getSetting } from'./db';
+import { maybeSendPeriodicReports } from'./periodicReports';
+import { enforceLicenseOnBoot } from'./license';
+import'./styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

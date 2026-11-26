@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, postJournal, ensureChartOfAccounts, accountBalance, ACCOUNT_TYPES } from '../db';
-import { money, fmt, fmtDate } from '../utils';
-import { Modal, Toast } from '../components/UI';
-import { useAuth } from '../auth';
+import { Icon } from'../components/Icon';
+import { useMemo, useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, today, postJournal, ensureChartOfAccounts, accountBalance, ACCOUNT_TYPES } from'../db';
+import { money, fmt, fmtDate } from'../utils';
+import { Modal, Toast } from'../components/UI';
+import { useAuth } from'../auth';
 
-const TYPE_ORDER = ['asset', 'liability', 'equity', 'revenue', 'expense'];
+const TYPE_ORDER = ['asset','liability','equity','revenue','expense'];
 
 export default function Accounting() {
   const { user, activeBranch } = useAuth();
@@ -13,7 +14,7 @@ export default function Accounting() {
   const entries = useLiveQuery(() => db.journalEntries.orderBy('createdAt').reverse().toArray(), [], []);
 
   const [tab, setTab] = useState('chart');
-  const [from, setFrom] = useState(today().slice(0, 7) + '-01');
+  const [from, setFrom] = useState(today().slice(0, 7) +'-01');
   const [to, setTo] = useState(today());
   const [ledgerAcc, setLedgerAcc] = useState('');
   const [toast, setToast] = useState('');
@@ -30,18 +31,18 @@ export default function Accounting() {
     const code = acctForm.code.trim();
     const name = acctForm.name.trim();
     if (!code || !name) return;
-    if (accounts.some((a) => a.code === code)) { setToast('⚠️ كود الحساب مستخدم بالفعل'); setTimeout(() => setToast(''), 2500); return; }
+    if (accounts.some((a) => a.code === code)) { setToast(' كود الحساب مستخدم بالفعل'); setTimeout(() => setToast(''), 2500); return; }
     await db.accounts.add({ code, name, type: acctForm.type, role: null, parentId: null, isGroup: false, system: false, createdAt: new Date().toISOString() });
     import('../sync').then((m) => m.triggerSync()).catch(() => {});
     setAcctForm(null);
-    setToast('✅ تم إضافة الحساب');
+    setToast(' تم إضافة الحساب');
     setTimeout(() => setToast(''), 2000);
   };
 
   // ---- manual journal entry ----
-  const openJv = () => setJvForm({ date: today(), description: '', lines: [{ accountId: '', debit: '', credit: '' }, { accountId: '', debit: '', credit: '' }] });
+  const openJv = () => setJvForm({ date: today(), description:'', lines: [{ accountId:'', debit:'', credit:'' }, { accountId:'', debit:'', credit:'' }] });
   const setJvLine = (i, patch) => setJvForm((f) => ({ ...f, lines: f.lines.map((l, idx) => idx === i ? { ...l, ...patch } : l) }));
-  const addJvLine = () => setJvForm((f) => ({ ...f, lines: [...f.lines, { accountId: '', debit: '', credit: '' }] }));
+  const addJvLine = () => setJvForm((f) => ({ ...f, lines: [...f.lines, { accountId:'', debit:'', credit:'' }] }));
   const removeJvLine = (i) => setJvForm((f) => ({ ...f, lines: f.lines.filter((_, idx) => idx !== i) }));
 
   const jvTotals = useMemo(() => {
@@ -55,17 +56,17 @@ export default function Accounting() {
       .filter((l) => l.accountId && (Number(l.debit) > 0 || Number(l.credit) > 0))
       .map((l) => ({ accountId: Number(l.accountId), debit: Number(l.debit || 0), credit: Number(l.credit || 0) }));
     const res = await postJournal({
-      date: jvForm.date, description: jvForm.description.trim() || 'قيد يدوي',
-      refType: 'manual', branchId: activeBranch, lines, userId: user.id, userName: user.name,
+      date: jvForm.date, description: jvForm.description.trim() ||'قيد يدوي',
+      refType:'manual', branchId: activeBranch, lines, userId: user.id, userName: user.name,
     });
-    if (res) { setToast(`✅ تم حفظ القيد ${res.number}`); setJvForm(null); }
-    else { setToast('⚠️ القيد غير متوازن أو غير صالح'); }
+    if (res) { setToast(` تم حفظ القيد ${res.number}`); setJvForm(null); }
+    else { setToast(' القيد غير متوازن أو غير صالح'); }
     setTimeout(() => setToast(''), 3000);
   };
 
   const accountsByType = useMemo(() => {
     const m = {}; for (const t of TYPE_ORDER) m[t] = [];
-    for (const a of [...accounts].sort((x, y) => (x.code || '').localeCompare(y.code || ''))) {
+    for (const a of [...accounts].sort((x, y) => (x.code ||'').localeCompare(y.code ||''))) {
       if (m[a.type]) m[a.type].push(a);
     }
     return m;
@@ -90,10 +91,10 @@ export default function Accounting() {
   const income = useMemo(() => {
     const rev = [], exp = [];
     for (const a of accounts) {
-      if (a.type !== 'revenue' && a.type !== 'expense') continue;
+      if (a.type !=='revenue' && a.type !=='expense') continue;
       const bal = accountBalance(a, entriesInRange);
       if (Math.abs(bal) < 0.001) continue;
-      (a.type === 'revenue' ? rev : exp).push({ a, bal });
+      (a.type ==='revenue' ? rev : exp).push({ a, bal });
     }
     const totRev = rev.reduce((s, r) => s + r.bal, 0);
     const totExp = exp.reduce((s, r) => s + r.bal, 0);
@@ -102,7 +103,7 @@ export default function Accounting() {
 
   // VAT report from the tax account movement in range
   const taxReport = useMemo(() => {
-    const vat = accounts.find((a) => a.role === 'vat');
+    const vat = accounts.find((a) => a.role ==='vat');
     if (!vat) return null;
     let collected = 0, paid = 0;
     for (const e of entriesInRange) for (const l of (e.lines || [])) {
@@ -113,15 +114,15 @@ export default function Accounting() {
     return { collected, paid, net: collected - paid };
   }, [accounts, entriesInRange]);
 
-  // balance sheet (cumulative up to `to`)
+  // balance sheet (cumulative up to`to`)
   const balanceSheet = useMemo(() => {
     const upTo = entries.filter((e) => e.day <= to);
     const byType = { asset: [], liability: [], equity: [] };
     let rev = 0, exp = 0;
     for (const a of accounts) {
       const bal = accountBalance(a, upTo);
-      if (a.type === 'revenue') rev += bal;
-      else if (a.type === 'expense') exp += bal;
+      if (a.type ==='revenue') rev += bal;
+      else if (a.type ==='expense') exp += bal;
       else if (byType[a.type] && Math.abs(bal) > 0.001) byType[a.type].push({ a, bal });
     }
     const netIncome = rev - exp;
@@ -133,7 +134,7 @@ export default function Accounting() {
 
   // cash flow over the period (movement of cashbox accounts)
   const cashFlow = useMemo(() => {
-    const cashIds = new Set(accounts.filter((a) => a.cashbox || a.role === 'cash' || a.role === 'bank').map((a) => a.id));
+    const cashIds = new Set(accounts.filter((a) => a.cashbox || a.role ==='cash' || a.role ==='bank').map((a) => a.id));
     let opening = 0, inflow = 0, outflow = 0;
     for (const e of entries) for (const l of (e.lines || [])) {
       if (!cashIds.has(l.accountId)) continue;
@@ -149,10 +150,10 @@ export default function Accounting() {
     if (!ledgerAcc) return null;
     const acc = accounts.find((a) => a.id === Number(ledgerAcc));
     if (!acc) return null;
-    const creditNormal = ACCOUNT_TYPES[acc.type]?.normal === 'credit';
+    const creditNormal = ACCOUNT_TYPES[acc.type]?.normal ==='credit';
     const rows = [];
     let running = 0;
-    const chron = [...entriesInRange].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    const chron = [...entriesInRange].sort((a, b) => (a.createdAt ||'').localeCompare(b.createdAt ||''));
     for (const e of chron) for (const l of (e.lines || [])) {
       if (l.accountId !== acc.id) continue;
       const delta = creditNormal ? (l.credit - l.debit) : (l.debit - l.credit);
@@ -166,38 +167,36 @@ export default function Accounting() {
 
   return (
     <>
-      <div className="page-head"><h1>📒 المحاسبة</h1></div>
+      <div className="page-head"><h1>المحاسبة</h1></div>
 
       {needsSeed && (
         <div className="card" style={{ marginBottom: 14 }}>
           <p>لم يتم إنشاء دليل الحسابات بعد.</p>
-          <button className="btn accent" onClick={async () => { await ensureChartOfAccounts(); setToast('✅ تم إنشاء دليل الحسابات'); setTimeout(() => setToast(''), 2000); }}>
-            إنشاء دليل الحسابات الافتراضي
-          </button>
+          <button className="btn accent" onClick={async () => { await ensureChartOfAccounts(); setToast(' تم إنشاء دليل الحسابات'); setTimeout(() => setToast(''), 2000); }}> إنشاء دليل الحسابات الافتراضي </button>
         </div>
       )}
 
-      <div className="list-tools" style={{ flexWrap: 'wrap' }}>
-        <button className={`btn ${tab === 'chart' ? '' : 'ghost'}`} onClick={() => setTab('chart')}>📚 دليل الحسابات</button>
-        <button className={`btn ${tab === 'journal' ? '' : 'ghost'}`} onClick={() => setTab('journal')}>📝 القيود</button>
-        <button className={`btn ${tab === 'trial' ? '' : 'ghost'}`} onClick={() => setTab('trial')}>⚖️ ميزان المراجعة</button>
-        <button className={`btn ${tab === 'income' ? '' : 'ghost'}`} onClick={() => setTab('income')}>📈 قائمة الدخل</button>
-        <button className={`btn ${tab === 'balance' ? '' : 'ghost'}`} onClick={() => setTab('balance')}>🏛️ الميزانية</button>
-        <button className={`btn ${tab === 'cashflow' ? '' : 'ghost'}`} onClick={() => setTab('cashflow')}>💧 التدفق النقدي</button>
-        <button className={`btn ${tab === 'tax' ? '' : 'ghost'}`} onClick={() => setTab('tax')}>🧾 الضرائب</button>
-        <button className={`btn ${tab === 'ledger' ? '' : 'ghost'}`} onClick={() => setTab('ledger')}>📖 الأستاذ العام</button>
+      <div className="list-tools" style={{ flexWrap:'wrap' }}>
+        <button className={`btn ${tab ==='chart' ?'' :'ghost'}`} onClick={() => setTab('chart')}> دليل الحسابات</button>
+        <button className={`btn ${tab ==='journal' ?'' :'ghost'}`} onClick={() => setTab('journal')}> القيود</button>
+        <button className={`btn ${tab ==='trial' ?'' :'ghost'}`} onClick={() => setTab('trial')}> ميزان المراجعة</button>
+        <button className={`btn ${tab ==='income' ?'' :'ghost'}`} onClick={() => setTab('income')}> قائمة الدخل</button>
+        <button className={`btn ${tab ==='balance' ?'' :'ghost'}`} onClick={() => setTab('balance')}> الميزانية</button>
+        <button className={`btn ${tab ==='cashflow' ?'' :'ghost'}`} onClick={() => setTab('cashflow')}> التدفق النقدي</button>
+        <button className={`btn ${tab ==='tax' ?'' :'ghost'}`} onClick={() => setTab('tax')}> الضرائب</button>
+        <button className={`btn ${tab ==='ledger' ?'' :'ghost'}`} onClick={() => setTab('ledger')}> الأستاذ العام</button>
       </div>
 
-      {(tab === 'trial' || tab === 'income' || tab === 'ledger' || tab === 'tax' || tab === 'balance' || tab === 'cashflow') && (
+      {(tab ==='trial' || tab ==='income' || tab ==='ledger' || tab ==='tax' || tab ==='balance' || tab ==='cashflow') && (
         <div className="list-tools">
-          <span className="muted" style={{ alignSelf: 'center', fontSize: 13 }}>الفترة من</span>
+          <span className="muted" style={{ alignSelf:'center', fontSize: 13 }}>الفترة من</span>
           <input className="input" style={{ maxWidth: 155 }} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <span className="muted" style={{ alignSelf: 'center', fontSize: 13 }}>إلى</span>
+          <span className="muted" style={{ alignSelf:'center', fontSize: 13 }}>إلى</span>
           <input className="input" style={{ maxWidth: 155 }} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          {tab === 'ledger' && (
+          {tab ==='ledger' && (
             <select className="input" style={{ maxWidth: 260 }} value={ledgerAcc} onChange={(e) => setLedgerAcc(e.target.value)}>
               <option value="">اختر الحساب...</option>
-              {[...accounts].sort((a, b) => (a.code || '').localeCompare(b.code || '')).map((a) => (
+              {[...accounts].sort((a, b) => (a.code ||'').localeCompare(b.code ||'')).map((a) => (
                 <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
               ))}
             </select>
@@ -206,10 +205,10 @@ export default function Accounting() {
       )}
 
       {/* ── Chart of accounts ── */}
-      {tab === 'chart' && (
+      {tab ==='chart' && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0' }}>
-            <button className="btn accent" onClick={() => setAcctForm({ code: '', name: '', type: 'asset' })}>＋ حساب جديد</button>
+          <div style={{ display:'flex', justifyContent:'flex-end', margin:'10px 0' }}>
+            <button className="btn accent" onClick={() => setAcctForm({ code:'', name:'', type:'asset' })}>＋ حساب جديد</button>
           </div>
           {TYPE_ORDER.map((t) => accountsByType[t] && accountsByType[t].length > 0 && (
             <div className="card" key={t} style={{ marginBottom: 12 }}>
@@ -234,13 +233,13 @@ export default function Accounting() {
       )}
 
       {/* ── Journal ── */}
-      {tab === 'journal' && (
+      {tab ==='journal' && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0' }}>
+          <div style={{ display:'flex', justifyContent:'flex-end', margin:'10px 0' }}>
             <button className="btn accent" onClick={openJv}>＋ قيد يدوي</button>
           </div>
           {entries.length === 0 ? (
-            <div className="card empty"><div className="big-ico">📝</div><p>لا توجد قيود بعد — أي عملية بيع/شراء/دفع تنشئ قيدها تلقائياً</p></div>
+            <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="FileText" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا توجد قيود بعد — أي عملية بيع/شراء/دفع تنشئ قيدها تلقائياً</p></div>
           ) : (
             <div className="table-wrap">
               <table>
@@ -252,7 +251,7 @@ export default function Accounting() {
                       <td className="muted">{e.day}</td>
                       <td>{e.description}
                         <div className="meta muted" style={{ fontSize: 11 }}>
-                          {(e.lines || []).map((l) => `${l.name} ${l.debit ? `مدين ${fmt(l.debit)}` : `دائن ${fmt(l.credit)}`}`).join(' · ')}
+                          {(e.lines || []).map((l) =>`${l.name} ${l.debit ?`مدين ${fmt(l.debit)}` :`دائن ${fmt(l.credit)}`}`).join(' ·')}
                         </div>
                       </td>
                       <td className="num">{money(e.totalDebit)}</td>
@@ -267,31 +266,31 @@ export default function Accounting() {
       )}
 
       {/* ── Trial balance ── */}
-      {tab === 'trial' && (
+      {tab ==='trial' && (
         <div className="table-wrap">
           <table>
             <thead><tr><th>الكود</th><th>الحساب</th><th>مدين</th><th>دائن</th></tr></thead>
             <tbody>
               {trial.rows.length === 0 ? (
-                <tr><td colSpan={4} className="muted" style={{ textAlign: 'center', padding: 20 }}>لا توجد حركات في هذه الفترة</td></tr>
+                <tr><td colSpan={4} className="muted" style={{ textAlign:'center', padding: 20 }}>لا توجد حركات في هذه الفترة</td></tr>
               ) : trial.rows.map((r) => (
                 <tr key={r.a.id}>
                   <td className="num muted">{r.a.code}</td>
                   <td>{r.a.name}</td>
-                  <td className="num">{r.net > 0 ? money(r.net) : '—'}</td>
-                  <td className="num">{r.net < 0 ? money(-r.net) : '—'}</td>
+                  <td className="num">{r.net > 0 ? money(r.net) :'—'}</td>
+                  <td className="num">{r.net < 0 ? money(-r.net) :'—'}</td>
                 </tr>
               ))}
-              <tr style={{ borderTop: '2px solid var(--line)', fontWeight: 800 }}>
+              <tr style={{ borderTop:'2px solid var(--line)', fontWeight: 800 }}>
                 <td></td><td>الإجمالي</td>
                 <td className="num">{money(trial.totDebit)}</td>
                 <td className="num">{money(trial.totCredit)}</td>
               </tr>
               <tr>
                 <td></td><td className="muted">التوازن</td>
-                <td colSpan={2} style={{ textAlign: 'center' }}>
+                <td colSpan={2} style={{ textAlign:'center' }}>
                   {Math.abs(trial.totDebit - trial.totCredit) < 0.01
-                    ? <span className="badge green">متوازن ✓</span>
+                    ? <span className="badge green">متوازن </span>
                     : <span className="badge red">فرق {money(Math.abs(trial.totDebit - trial.totCredit))}</span>}
                 </td>
               </tr>
@@ -301,7 +300,7 @@ export default function Accounting() {
       )}
 
       {/* ── Income statement ── */}
-      {tab === 'income' && (
+      {tab ==='income' && (
         <div className="card" style={{ maxWidth: 640 }}>
           <h3 style={{ marginTop: 0 }}>قائمة الدخل — {from} إلى {to}</h3>
           <div className="totals">
@@ -309,21 +308,21 @@ export default function Accounting() {
             {income.rev.map((r) => (
               <div className="trow" key={r.a.id}><span style={{ paddingRight: 12 }}>{r.a.name}</span><span className="num">{money(r.bal)}</span></div>
             ))}
-            <div className="trow" style={{ borderTop: '1px solid var(--line)' }}><span>إجمالي الإيرادات</span><span className="num">{money(income.totRev)}</span></div>
+            <div className="trow" style={{ borderTop:'1px solid var(--line)' }}><span>إجمالي الإيرادات</span><span className="num">{money(income.totRev)}</span></div>
             <div className="trow" style={{ fontWeight: 700, marginTop: 8 }}><span>المصروفات</span><span /></div>
             {income.exp.map((r) => (
               <div className="trow" key={r.a.id}><span style={{ paddingRight: 12 }}>{r.a.name}</span><span className="num">{money(r.bal)}</span></div>
             ))}
-            <div className="trow" style={{ borderTop: '1px solid var(--line)' }}><span>إجمالي المصروفات</span><span className="num">{money(income.totExp)}</span></div>
-            <div className="trow grand" style={{ color: income.net >= 0 ? 'var(--green)' : 'var(--red)' }}>
-              <span>صافي {income.net >= 0 ? 'الربح' : 'الخسارة'}</span><span className="num">{money(income.net)}</span>
+            <div className="trow" style={{ borderTop:'1px solid var(--line)' }}><span>إجمالي المصروفات</span><span className="num">{money(income.totExp)}</span></div>
+            <div className="trow grand" style={{ color: income.net >= 0 ?'var(--green)' :'var(--red)' }}>
+              <span>صافي {income.net >= 0 ?'الربح' :'الخسارة'}</span><span className="num">{money(income.net)}</span>
             </div>
           </div>
         </div>
       )}
 
       {/* ── Tax (VAT) report ── */}
-      {tab === 'tax' && (
+      {tab ==='tax' && (
         <div className="card" style={{ maxWidth: 560 }}>
           <h3 style={{ marginTop: 0 }}>تقرير الضريبة — {from} إلى {to}</h3>
           {!taxReport ? (
@@ -332,8 +331,8 @@ export default function Accounting() {
             <div className="totals">
               <div className="trow"><span>ضريبة المبيعات المُحصّلة (مخرجات)</span><span className="num">{money(taxReport.collected)}</span></div>
               <div className="trow"><span>ضريبة المشتريات (مدخلات)</span><span className="num">- {money(taxReport.paid)}</span></div>
-              <div className="trow grand" style={{ color: taxReport.net >= 0 ? 'var(--red)' : 'var(--green)' }}>
-                <span>{taxReport.net >= 0 ? 'صافي الضريبة المستحقة للمصلحة' : 'رصيد ضريبة لصالحك'}</span>
+              <div className="trow grand" style={{ color: taxReport.net >= 0 ?'var(--red)' :'var(--green)' }}>
+                <span>{taxReport.net >= 0 ?'صافي الضريبة المستحقة للمصلحة' :'رصيد ضريبة لصالحك'}</span>
                 <span className="num">{money(Math.abs(taxReport.net))}</span>
               </div>
             </div>
@@ -345,7 +344,7 @@ export default function Accounting() {
       )}
 
       {/* ── Balance sheet ── */}
-      {tab === 'balance' && (
+      {tab ==='balance' && (
         <div className="card" style={{ maxWidth: 680 }}>
           <h3 style={{ marginTop: 0 }}>الميزانية العمومية — حتى {to}</h3>
           <div className="grid-2">
@@ -367,22 +366,22 @@ export default function Accounting() {
               </div>
             </div>
           </div>
-          <div style={{ textAlign: 'center', marginTop: 10 }}>
+          <div style={{ textAlign:'center', marginTop: 10 }}>
             {Math.abs(balanceSheet.assets - balanceSheet.rightSide) < 0.01
-              ? <span className="badge green">الميزانية متوازنة ✓</span>
+              ? <span className="badge green">الميزانية متوازنة </span>
               : <span className="badge red">فرق {money(Math.abs(balanceSheet.assets - balanceSheet.rightSide))}</span>}
           </div>
         </div>
       )}
 
       {/* ── Cash flow ── */}
-      {tab === 'cashflow' && (
+      {tab ==='cashflow' && (
         <div className="card" style={{ maxWidth: 520 }}>
           <h3 style={{ marginTop: 0 }}>التدفق النقدي — {from} إلى {to}</h3>
           <div className="totals">
             <div className="trow"><span>الرصيد النقدي الافتتاحي</span><span className="num">{money(cashFlow.opening)}</span></div>
-            <div className="trow" style={{ color: 'var(--green)' }}><span>+ المقبوضات</span><span className="num">{money(cashFlow.inflow)}</span></div>
-            <div className="trow" style={{ color: 'var(--red)' }}><span>− المدفوعات</span><span className="num">{money(cashFlow.outflow)}</span></div>
+            <div className="trow" style={{ color:'var(--green)' }}><span>+ المقبوضات</span><span className="num">{money(cashFlow.inflow)}</span></div>
+            <div className="trow" style={{ color:'var(--red)' }}><span>− المدفوعات</span><span className="num">{money(cashFlow.outflow)}</span></div>
             <div className="trow"><span>صافي التدفق</span><span className="num">{money(cashFlow.inflow - cashFlow.outflow)}</span></div>
             <div className="trow grand"><span>الرصيد النقدي الختامي</span><span className="num">{money(cashFlow.closing)}</span></div>
           </div>
@@ -390,23 +389,23 @@ export default function Accounting() {
       )}
 
       {/* ── General ledger ── */}
-      {tab === 'ledger' && (
+      {tab ==='ledger' && (
         !ledger ? (
-          <div className="card empty"><div className="big-ico">📖</div><p>اختر حساباً لعرض حركته</p></div>
+          <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="BookOpen" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>اختر حساباً لعرض حركته</p></div>
         ) : (
           <div className="table-wrap">
             <table>
               <thead><tr><th>التاريخ</th><th>القيد</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
               <tbody>
                 {ledger.rows.length === 0 ? (
-                  <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 20 }}>لا توجد حركات</td></tr>
+                  <tr><td colSpan={6} className="muted" style={{ textAlign:'center', padding: 20 }}>لا توجد حركات</td></tr>
                 ) : ledger.rows.map((r, i) => (
                   <tr key={i}>
                     <td className="muted">{r.e.day}</td>
                     <td className="num muted">{r.e.number}</td>
                     <td>{r.e.description}</td>
-                    <td className="num">{r.debit ? money(r.debit) : '—'}</td>
-                    <td className="num">{r.credit ? money(r.credit) : '—'}</td>
+                    <td className="num">{r.debit ? money(r.debit) :'—'}</td>
+                    <td className="num">{r.credit ? money(r.credit) :'—'}</td>
                     <td className="num" style={{ fontWeight: 700 }}>{money(r.running)}</td>
                   </tr>
                 ))}
@@ -429,7 +428,7 @@ export default function Accounting() {
           </div>
           <div className="field"><label>اسم الحساب *</label>
             <input className="input" value={acctForm.name} onChange={(e) => setAcctForm({ ...acctForm, name: e.target.value })} placeholder="مثال: مصاريف كهرباء" /></div>
-          <button className="btn block" onClick={saveAccount} disabled={!acctForm.code.trim() || !acctForm.name.trim()}>💾 حفظ</button>
+          <button className="btn block" onClick={saveAccount} disabled={!acctForm.code.trim() || !acctForm.name.trim()}> حفظ</button>
         </Modal>
       )}
 
@@ -451,26 +450,26 @@ export default function Accounting() {
                     <td>
                       <select className="input" value={l.accountId} onChange={(e) => setJvLine(i, { accountId: e.target.value })}>
                         <option value="">—</option>
-                        {[...accounts].sort((a, b) => (a.code || '').localeCompare(b.code || '')).map((a) => (
+                        {[...accounts].sort((a, b) => (a.code ||'').localeCompare(b.code ||'')).map((a) => (
                           <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
                         ))}
                       </select>
                     </td>
-                    <td style={{ maxWidth: 100 }}><input className="input" type="number" min="0" value={l.debit} onChange={(e) => setJvLine(i, { debit: e.target.value, credit: '' })} /></td>
-                    <td style={{ maxWidth: 100 }}><input className="input" type="number" min="0" value={l.credit} onChange={(e) => setJvLine(i, { credit: e.target.value, debit: '' })} /></td>
-                    <td>{jvForm.lines.length > 2 && <button className="x" onClick={() => removeJvLine(i)}>✕</button>}</td>
+                    <td style={{ maxWidth: 100 }}><input className="input" type="number" min="0" value={l.debit} onChange={(e) => setJvLine(i, { debit: e.target.value, credit:'' })} /></td>
+                    <td style={{ maxWidth: 100 }}><input className="input" type="number" min="0" value={l.credit} onChange={(e) => setJvLine(i, { credit: e.target.value, debit:'' })} /></td>
+                    <td>{jvForm.lines.length > 2 && <button className="x" onClick={() => removeJvLine(i)}></button>}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <button className="btn ghost sm" onClick={addJvLine}>＋ سطر</button>
-          <div className="totals" style={{ margin: '10px 0' }}>
+          <div className="totals" style={{ margin:'10px 0' }}>
             <div className="trow"><span>إجمالي المدين</span><span className="num">{money(jvTotals.d)}</span></div>
             <div className="trow"><span>إجمالي الدائن</span><span className="num">{money(jvTotals.c)}</span></div>
-            <div className="trow"><span>التوازن</span><span>{jvBalanced ? <span className="badge green">متوازن ✓</span> : <span className="badge amber">فرق {money(Math.abs(jvTotals.d - jvTotals.c))}</span>}</span></div>
+            <div className="trow"><span>التوازن</span><span>{jvBalanced ? <span className="badge green">متوازن </span> : <span className="badge amber">فرق {money(Math.abs(jvTotals.d - jvTotals.c))}</span>}</span></div>
           </div>
-          <button className="btn accent big block" onClick={saveJv} disabled={!jvBalanced}>💾 حفظ القيد</button>
+          <button className="btn accent big block" onClick={saveJv} disabled={!jvBalanced}> حفظ القيد</button>
         </Modal>
       )}
 

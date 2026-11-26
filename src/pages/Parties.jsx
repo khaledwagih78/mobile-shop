@@ -1,23 +1,23 @@
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, recordPayment, queueSync, getSetting, getCustomFields } from '../db';
-import { money, fmt, fmtDate, waLink } from '../utils';
-import { useAuth } from '../auth';
-import { Modal } from '../components/UI';
-import { CustomFieldInputs } from './CustomFields';
+import { useMemo, useState } from'react';
+import { NavLink } from'react-router-dom';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, nowISO, recordPayment, queueSync, getSetting, getCustomFields } from'../db';
+import { money, fmt, fmtDate, waLink } from'../utils';
+import { useAuth } from'../auth';
+import { Modal } from'../components/UI';
+import { CustomFieldInputs } from'./CustomFields';
+import { Plus, Users, Award, AlertTriangle, FileSpreadsheet } from'lucide-react';
 
-export default function Parties({ kind = 'customer' }) {
-  const isCustomer = kind === 'customer';
+export default function Parties({ kind ='customer' }) {
+  const isCustomer = kind ==='customer';
   const table = isCustomer ? db.customers : db.suppliers;
   const { user } = useAuth();
   const list = useLiveQuery(() => table.orderBy('name').toArray(), [kind], []);
   const priceLists = useLiveQuery(() => db.priceLists.toArray(), [], []);
   const customFields = useLiveQuery(() => getCustomFields(kind), [kind], []);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'نظام المبيعات والمخزون'), [], 'نظام المبيعات والمخزون');
-  const waMsg = (c) =>
-    `السلام عليكم أ/ ${c.name} 🌹\n` +
-    ((c.balance || 0) > 0 ? `تذكير ودّي: إجمالي المستحق ${money(c.balance)}.\nنرجو التكرم بالسداد في أقرب وقت.\n` : '') +
-    `مع تحيات ${bizName}`;
+  const bizName = useLiveQuery(() => getSetting('bizName','نظام المبيعات والمخزون'), [],'نظام المبيعات والمخزون');
+  const waMsg = (c) =>`السلام عليكم أ/ ${c.name} \n` +
+    ((c.balance || 0) > 0 ?`تذكير ودّي: إجمالي المستحق ${money(c.balance)}.\nنرجو التكرم بالسداد في أقرب وقت.\n` :'') +`مع تحيات ${bizName}`;
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
@@ -29,17 +29,17 @@ export default function Parties({ kind = 'customer' }) {
     let l = list || [];
     const t = q.trim().toLowerCase();
     if (t) l = l.filter((c) =>
-      (c.name || '').toLowerCase().includes(t) ||
-      (c.phone || '').includes(t) ||
-      (c.address || '').toLowerCase().includes(t)
+      (c.name ||'').toLowerCase().includes(t) ||
+      (c.phone ||'').includes(t) ||
+      (c.address ||'').toLowerCase().includes(t)
     );
-    if (filter === 'debtors') l = l.filter((c) => (c.balance || 0) > 0);
-    if (filter === 'clear') l = l.filter((c) => (c.balance || 0) <= 0);
-    if (filter === 'topPoints' && isCustomer) l = [...l].sort((a, b) => (b.points || 0) - (a.points || 0));
+    if (filter ==='debtors') l = l.filter((c) => (c.balance || 0) > 0);
+    if (filter ==='clear') l = l.filter((c) => (c.balance || 0) <= 0);
+    if (filter ==='topPoints' && isCustomer) l = [...l].sort((a, b) => (b.points || 0) - (a.points || 0));
     else l = [...l].sort((a, b) => {
-      if (sortBy === 'balance') return (b.balance || 0) - (a.balance || 0);
-      if (sortBy === 'points') return (b.points || 0) - (a.points || 0);
-      return (a.name || '').localeCompare(b.name || '', 'ar');
+      if (sortBy ==='balance') return (b.balance || 0) - (a.balance || 0);
+      if (sortBy ==='points') return (b.points || 0) - (a.points || 0);
+      return (a.name ||'').localeCompare(b.name ||'','ar');
     });
     return l;
   }, [list, q, filter, sortBy, isCustomer]);
@@ -55,38 +55,41 @@ export default function Parties({ kind = 'customer' }) {
     } else {
       await table.add({ ...form, creditLimit, balance: 0, points: 0, totalSpent: 0, createdAt: nowISO() });
     }
-    await queueSync(isCustomer ? 'customers' : 'suppliers', form.id ? 'update' : 'add', form);
+    await queueSync(isCustomer ?'customers' :'suppliers', form.id ?'update' :'add', form);
     setForm(null);
   };
 
   return (
     <>
       <div className="page-head">
-        <h1>{isCustomer ? '👥 العملاء' : '🚚 الموردين'} <span className="muted" style={{ fontSize: 14 }}>({list?.length || 0})</span></h1>
-        <button className="btn" onClick={() => setForm({ name: '', phone: '', address: '' })}>＋ {isCustomer ? 'عميل' : 'مورد'} جديد</button>
+        <h1>{isCustomer ?'العملاء' :'الموردين'} <span className="muted" style={{ fontSize: 14 }}>({list?.length || 0})</span></h1>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <NavLink to="/import" className="btn ghost" title="استيراد وتحديث من ملف إكسل"> <FileSpreadsheet size={15} /> استيراد إكسل </NavLink>
+          <button className="btn" onClick={() => setForm({ name:'', phone:'', address:'' })}> <Plus size={16} /> {isCustomer ?'عميل جديد' :'مورد جديد'} </button>
+        </div>
       </div>
 
       <div className="kpis">
         <div className="kpi tone-red">
-          <div className="label">{isCustomer ? 'إجمالي ديون العملاء' : 'إجمالي المستحق للموردين'}</div>
-          <div className="value">{money(totalDebt)}</div>
+          <div className="label">{isCustomer ?'إجمالي ديون العملاء' :'إجمالي المستحق للموردين'}</div>
+          <div className="value num">{money(totalDebt)}</div>
         </div>
         {isCustomer && (
           <div className="kpi tone-accent">
-            <div className="label">⭐ إجمالي النقاط</div>
-            <div className="value">{fmt(totalPoints)}</div>
+            <div className="label">إجمالي النقاط</div>
+            <div className="value num">{fmt(totalPoints)}</div>
             <div className="sub">1 نقطة لكل 100 ج.م شراء</div>
           </div>
         )}
       </div>
 
       <div className="list-tools">
-        <input className="input" placeholder="🔍 بحث بالاسم أو الهاتف أو العنوان..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="بحث بالاسم أو الهاتف أو العنوان..." value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input" style={{ maxWidth: 150 }} value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">الكل</option>
           <option value="debtors">عليهم رصيد</option>
           <option value="clear">خالصين</option>
-          {isCustomer && <option value="topPoints">⭐ أعلى نقاط</option>}
+          {isCustomer && <option value="topPoints">أعلى نقاط</option>}
         </select>
         <select className="input" style={{ maxWidth: 140 }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
           <option value="name">ترتيب بالاسم</option>
@@ -96,7 +99,12 @@ export default function Parties({ kind = 'customer' }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="card empty"><div className="big-ico">👥</div><p>لا يوجد {isCustomer ? 'عملاء' : 'موردين'}</p></div>
+        <div className="card empty">
+          <div className="big-ico" style={{ display:'flex', justifyContent:'center' }}>
+            <Users size={40} color="var(--ink-soft)" strokeWidth={1.5} />
+          </div>
+          <p>لا يوجد {isCustomer ?'عملاء' :'موردين'}</p>
+        </div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -105,7 +113,7 @@ export default function Parties({ kind = 'customer' }) {
                 <th>الاسم</th>
                 <th>الهاتف</th>
                 <th>العنوان</th>
-                {isCustomer && <th>⭐ النقاط</th>}
+                {isCustomer && <th>النقاط</th>}
                 {isCustomer && <th>إجمالي المشتريات</th>}
                 <th>الرصيد</th>
                 <th></th>
@@ -115,25 +123,27 @@ export default function Parties({ kind = 'customer' }) {
               {filtered.map((c) => (
                 <tr key={c.id}>
                   <td><b>{c.name}</b></td>
-                  <td className="num">{c.phone || '—'}</td>
-                  <td className="muted">{c.address || '—'}</td>
-                  {isCustomer && <td>{(c.points || 0) > 0 ? <span className="badge accent">⭐ {c.points}</span> : '—'}</td>}
-                  {isCustomer && <td className="num muted">{c.totalSpent ? money(c.totalSpent) : '—'}</td>}
+                  <td className="num">{c.phone ||'—'}</td>
+                  <td className="muted">{c.address ||'—'}</td>
+                  {isCustomer && <td>{(c.points || 0) > 0 ? <span className="badge accent">{c.points} نقطة</span> :'—'}</td>}
+                  {isCustomer && <td className="num muted">{c.totalSpent ? money(c.totalSpent) :'—'}</td>}
                   <td>
                     {(c.balance || 0) > 0
-                      ? <span className="badge red">{isCustomer ? 'عليه' : 'له'} {money(c.balance)}</span>
+                      ? <span className="badge red">{isCustomer ?'عليه' :'له'} {money(c.balance)}</span>
                       : <span className="badge green">خالص</span>}
                     {isCustomer && (c.creditLimit || 0) > 0 && (c.balance || 0) > c.creditLimit && (
-                      <span className="badge amber" title={`تجاوز الحد ${money(c.creditLimit)}`} style={{ marginRight: 4 }}>⚠️ تجاوز الحد</span>
+                      <span className="badge amber" title={`تجاوز الحد ${money(c.creditLimit)}`} style={{ marginRight: 4, display:'inline-flex', alignItems:'center', gap: 2 }}>
+                        <AlertTriangle size={11} /> تجاوز الحد
+                      </span>
                     )}
                   </td>
-                  <td style={{ display: 'flex', gap: 6 }}>
+                  <td style={{ display:'flex', gap: 6 }}>
                     {c.phone && (
-                      <a className="btn ghost sm" style={{ color: 'var(--green)' }} target="_blank" rel="noreferrer"
-                        href={waLink(c.phone, waMsg(c))}>📲 واتساب</a>
+                      <a className="btn ghost sm" style={{ color:'var(--green)' }} target="_blank" rel="noreferrer"
+                        href={waLink(c.phone, waMsg(c))}> واتساب</a>
                     )}
                     <button className="btn ghost sm" onClick={() => setView(c)}>كشف حساب</button>
-                    {(c.balance || 0) > 0 && <button className="btn sm" onClick={() => setPayFor(c)}>{isCustomer ? 'تحصيل' : 'سداد'}</button>}
+                    {(c.balance || 0) > 0 && <button className="btn sm" onClick={() => setPayFor(c)}>{isCustomer ?'تحصيل' :'سداد'}</button>}
                     <button className="btn ghost sm" onClick={() => setForm({ ...c })}>تعديل</button>
                   </td>
                 </tr>
@@ -144,20 +154,20 @@ export default function Parties({ kind = 'customer' }) {
       )}
 
       {form && (
-        <Modal title={form.id ? `تعديل: ${form.name}` : isCustomer ? 'عميل جديد' : 'مورد جديد'} onClose={() => setForm(null)}>
+        <Modal title={form.id ?`تعديل: ${form.name}` : isCustomer ?'عميل جديد' :'مورد جديد'} onClose={() => setForm(null)}>
           <div className="field"><label>الاسم *</label>
             <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus /></div>
           <div className="field"><label>الهاتف</label>
-            <input className="input" inputMode="tel" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            <input className="input" inputMode="tel" value={form.phone ||''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="field"><label>العنوان</label>
-            <input className="input" value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+            <input className="input" value={form.address ||''} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
           {isCustomer && (
             <div className="row">
-              <div className="field"><label>💳 الحد الائتماني (0 = بدون حد)</label>
-                <input className="input" type="number" min="0" value={form.creditLimit || ''} onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
+              <div className="field"><label> الحد الائتماني (0 = بدون حد)</label>
+                <input className="input" type="number" min="0" value={form.creditLimit ||''} onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
                   placeholder="أقصى مديونية مسموح بها" /></div>
-              <div className="field"><label>🏷️ قائمة الأسعار</label>
-                <select className="input" value={form.priceListId || ''} onChange={(e) => setForm({ ...form, priceListId: e.target.value })}>
+              <div className="field"><label> قائمة الأسعار</label>
+                <select className="input" value={form.priceListId ||''} onChange={(e) => setForm({ ...form, priceListId: e.target.value })}>
                   <option value="">الأسعار الأساسية</option>
                   {priceLists.map((pl) => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
                 </select></div>
@@ -170,7 +180,7 @@ export default function Parties({ kind = 'customer' }) {
               onChange={(fid, v) => setForm({ ...form, custom: { ...(form.custom || {}), [fid]: v } })}
             />
           )}
-          <button className="btn block" onClick={save} disabled={!form.name?.trim()}>💾 حفظ</button>
+          <button className="btn block" onClick={save} disabled={!form.name?.trim()}> حفظ</button>
         </Modal>
       )}
 
@@ -187,8 +197,8 @@ export default function Parties({ kind = 'customer' }) {
 }
 
 function StatementModal({ party, kind, bizName, onClose }) {
-  const isCustomer = kind === 'customer';
-  const type = isCustomer ? 'sale' : 'purchase';
+  const isCustomer = kind ==='customer';
+  const type = isCustomer ?'sale' :'purchase';
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const invoices = useLiveQuery(
@@ -201,10 +211,10 @@ function StatementModal({ party, kind, bizName, onClose }) {
   );
   const allRows = [
     ...invoices.map((i) => ({
-      date: i.createdAt, label: `فاتورة ${i.number}${i.status === 'cancelled' ? ' (ملغاة)' : ''}`,
-      debit: i.status === 'cancelled' ? 0 : i.remaining, total: i.total, credit: 0,
+      date: i.createdAt, label:`فاتورة ${i.number}${i.status ==='cancelled' ?' (ملغاة)' :''}`,
+      debit: i.status ==='cancelled' ? 0 : i.remaining, total: i.total, credit: 0,
     })),
-    ...payments.map((p) => ({ date: p.createdAt, label: `دفعة${p.note ? ` — ${p.note}` : ''}`, debit: 0, credit: p.amount })),
+    ...payments.map((p) => ({ date: p.createdAt, label:`دفعة${p.note ?` — ${p.note}` :''}`, debit: 0, credit: p.amount })),
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   // running balance over ALL rows; the period filter only hides rows outside it
@@ -214,17 +224,17 @@ function StatementModal({ party, kind, bizName, onClose }) {
   const withBal = withBalAll.filter((r) => inRange(r.date));
 
   const printStatement = () => {
-    const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-    const period = from || to ? `<div class="per">الفترة: ${esc(from || '—')} ← ${esc(to || 'الآن')}</div>` : '';
-    const body = withBal.map((r) => `
+    const esc = (s) => String(s == null ?'' : s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+    const period = from || to ?`<div class="per">الفترة: ${esc(from ||'—')} ← ${esc(to ||'الآن')}</div>` :'';
+    const body = withBal.map((r) =>`
       <tr>
         <td>${esc(r.label)}</td>
-        <td class="n">${r.debit ? fmt(r.debit) : '—'}</td>
-        <td class="n g">${r.credit ? fmt(r.credit) : '—'}</td>
+        <td class="n">${r.debit ? fmt(r.debit) :'—'}</td>
+        <td class="n g">${r.credit ? fmt(r.credit) :'—'}</td>
         <td class="n">${fmt(r.balance)}</td>
         <td class="m">${fmtDate(r.date)}</td>
       </tr>`).join('');
-    const w = window.open('', '_blank');
+    const w = window.open('','_blank');
     if (!w) return;
     w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
       <title>كشف حساب ${esc(party.name)}</title>
@@ -244,34 +254,34 @@ function StatementModal({ party, kind, bizName, onClose }) {
         .red{color:#c0261a}.green{color:#0a7d32}
         @media print{button{display:none}}
       </style></head><body>
-      <h1>${esc(bizName || 'كشف حساب')}</h1>
-      <div class="sub">كشف حساب ${isCustomer ? 'عميل' : 'مورّد'}</div>
+      <h1>${esc(bizName ||'كشف حساب')}</h1>
+      <div class="sub">كشف حساب ${isCustomer ?'عميل' :'مورّد'}</div>
       <div class="box">
-        <div><b>${esc(party.name)}</b> · هاتف: ${esc(party.phone || '—')}</div>
-        <div>الرصيد الحالي: <b class="${(party.balance || 0) > 0 ? 'red' : 'green'}">${money(party.balance)}</b>${isCustomer && party.points ? ` · نقاط: ${party.points}` : ''}</div>
+        <div><b>${esc(party.name)}</b> · هاتف: ${esc(party.phone ||'—')}</div>
+        <div>الرصيد الحالي: <b class="${(party.balance || 0) > 0 ?'red' :'green'}">${money(party.balance)}</b>${isCustomer && party.points ?` · نقاط: ${party.points}` :''}</div>
         ${period}
       </div>
-      ${withBal.length === 0 ? '<p>لا توجد حركة في هذه الفترة</p>' : `
+      ${withBal.length === 0 ?'<p>لا توجد حركة في هذه الفترة</p>' :`
       <table><thead><tr><th>البيان</th><th>آجل</th><th>دفعة</th><th>الرصيد</th><th>التاريخ</th></tr></thead>
       <tbody>${body}</tbody></table>`}
-      <div class="tot">الرصيد ${(party.balance || 0) > 0 ? 'المستحق' : ''}: <span class="${(party.balance || 0) > 0 ? 'red' : 'green'}">${money(party.balance)}</span></div>
+      <div class="tot">الرصيد ${(party.balance || 0) > 0 ?'المستحق' :''}: <span class="${(party.balance || 0) > 0 ?'red' :'green'}">${money(party.balance)}</span></div>
       <script>window.onload=function(){window.print();}</script>
       </body></html>`);
     w.document.close();
   };
 
   const exportCsv = () => {
-    const head = ['البيان', 'آجل', 'دفعة', 'الرصيد', 'التاريخ'];
+    const head = ['البيان','آجل','دفعة','الرصيد','التاريخ'];
     const lines = withBal.map((r) => [
       r.label, r.debit || 0, r.credit || 0, r.balance, fmtDate(r.date),
     ]);
     const csv = [head, ...lines]
-      .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .map((row) => row.map((c) =>`"${String(c).replace(/"/g,'""')}"`).join(','))
       .join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['' + csv], { type:'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `كشف-${party.name}.csv`;
+    a.download =`كشف-${party.name}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -279,17 +289,17 @@ function StatementModal({ party, kind, bizName, onClose }) {
   return (
     <Modal title={`كشف حساب: ${party.name}`} onClose={onClose}>
       <p className="muted">
-        الهاتف: {party.phone || '—'} · الرصيد الحالي: <b style={{ color: (party.balance || 0) > 0 ? 'var(--red)' : 'var(--green)' }}>{money(party.balance)}</b>
-        {isCustomer && party.points ? <> · ⭐ نقاط: <b>{party.points}</b></> : ''}
+        الهاتف: {party.phone ||'—'} · الرصيد الحالي: <b style={{ color: (party.balance || 0) > 0 ?'var(--red)' :'var(--green)' }}>{money(party.balance)}</b>
+        {isCustomer && party.points ? <> · ⭐ نقاط: <b>{party.points}</b></> :''}
       </p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 10 }}>
+      <div style={{ display:'flex', gap: 8, flexWrap:'wrap', alignItems:'flex-end', marginBottom: 10 }}>
         <div className="field" style={{ margin: 0 }}><label>من</label>
           <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
         <div className="field" style={{ margin: 0 }}><label>إلى</label>
           <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
         {(from || to) && <button className="btn ghost sm" onClick={() => { setFrom(''); setTo(''); }}>↺ الكل</button>}
-        <button className="btn ghost sm" onClick={printStatement} disabled={withBal.length === 0}>🖨️ طباعة / PDF</button>
-        <button className="btn ghost sm" onClick={exportCsv} disabled={withBal.length === 0}>📊 Excel/CSV</button>
+        <button className="btn ghost sm" onClick={printStatement} disabled={withBal.length === 0}> طباعة / PDF</button>
+        <button className="btn ghost sm" onClick={exportCsv} disabled={withBal.length === 0}> Excel/CSV</button>
       </div>
       {withBal.length === 0 ? (
         <div className="empty">لا توجد حركة</div>
@@ -301,8 +311,8 @@ function StatementModal({ party, kind, bizName, onClose }) {
               {withBal.map((r, i) => (
                 <tr key={i}>
                   <td>{r.label}</td>
-                  <td className="num">{r.debit ? fmt(r.debit) : '—'}</td>
-                  <td className="num" style={{ color: 'var(--green)' }}>{r.credit ? fmt(r.credit) : '—'}</td>
+                  <td className="num">{r.debit ? fmt(r.debit) :'—'}</td>
+                  <td className="num" style={{ color:'var(--green)' }}>{r.credit ? fmt(r.credit) :'—'}</td>
                   <td className="num">{fmt(r.balance)}</td>
                   <td className="muted">{fmtDate(r.date)}</td>
                 </tr>
@@ -318,7 +328,7 @@ function StatementModal({ party, kind, bizName, onClose }) {
 function PaymentModal({ party, kind, userName, onClose }) {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const isCustomer = kind === 'customer';
+  const isCustomer = kind ==='customer';
   const save = async () => {
     await recordPayment({
       partyType: kind, partyId: party.id, partyName: party.name,
@@ -327,13 +337,13 @@ function PaymentModal({ party, kind, userName, onClose }) {
     onClose();
   };
   return (
-    <Modal title={`${isCustomer ? 'تحصيل من' : 'سداد إلى'}: ${party.name}`} onClose={onClose}>
-      <p className="muted">الرصيد الحالي: <b>{money(party.balance)}</b>{isCustomer && party.points ? <> · ⭐ {party.points} نقطة</> : ''}</p>
+    <Modal title={`${isCustomer ?'تحصيل من' :'سداد إلى'}: ${party.name}`} onClose={onClose}>
+      <p className="muted">الرصيد الحالي: <b>{money(party.balance)}</b>{isCustomer && party.points ? <> · ⭐ {party.points} نقطة</> :''}</p>
       <div className="field"><label>المبلغ *</label>
         <input className="input lg" type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus /></div>
       <div className="field"><label>ملاحظة</label>
         <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="نقدي / فودافون كاش..." /></div>
-      <button className="btn block" onClick={save} disabled={!Number(amount)}>💾 تسجيل الدفعة</button>
+      <button className="btn block" onClick={save} disabled={!Number(amount)}> تسجيل الدفعة</button>
     </Modal>
   );
 }

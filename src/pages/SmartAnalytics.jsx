@@ -1,14 +1,14 @@
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { useNavigate } from 'react-router-dom';
-import { db, stockOf, savePurchaseOrder } from '../db';
-import { money, fmt } from '../utils';
-import { useAuth } from '../auth';
-import { Toast } from '../components/UI';
+import { useMemo, useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { useNavigate } from'react-router-dom';
+import { db, stockOf, savePurchaseOrder } from'../db';
+import { money, fmt } from'../utils';
+import { useAuth } from'../auth';
+import { Toast } from'../components/UI';
 
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
-export default function SmartAnalytics() {
+export default function SmartAnalytics({ embedded = false }) {
   const { user, activeBranch } = useAuth();
   const nav = useNavigate();
   const invoices = useLiveQuery(() => db.invoices.where('type').equals('sale').toArray(), [], []);
@@ -37,25 +37,25 @@ export default function SmartAnalytics() {
       const sup = suppliers.find((s) => s.id === Number(supplierId));
       const lines = chosen.map(({ it, qty }) => ({
         itemId: it.id, name: it.name, qty, price: it.costPrice || 0,
-        unit: it.baseUnit || 'قطعة', factor: 1, cost: it.costPrice || 0, taxable: it.taxable !== false,
+        unit: it.baseUnit ||'قطعة', factor: 1, cost: it.costPrice || 0, taxable: it.taxable !== false,
       }));
       const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
       const res = await savePurchaseOrder({
-        type: 'po', branchId: activeBranch,
+        type:'po', branchId: activeBranch,
         partyId: sup ? sup.id : null, partyName: sup ? sup.name : null,
         lines, subtotal, discount: 0, tax: 0, total: subtotal,
         paid: 0, remaining: subtotal, profit: 0, userId: user.id, userName: user.name,
       });
       setPicks({});
-      notify(`✅ تم إنشاء أمر شراء ${res.number}`);
+      notify(` تم إنشاء أمر شراء ${res.number}`);
       setTimeout(() => nav(`/invoices/${res.id}`), 900);
-    } catch (e) { notify('❌ ' + e.message); }
+    } catch (e) { notify('' + e.message); }
     setPoBusy(false);
   };
 
   const A = useMemo(() => {
     const inBranch = (r) => (r.branchId || 1) === activeBranch;
-    const active = invoices.filter((i) => i.status === 'active' && inBranch(i));
+    const active = invoices.filter((i) => i.status ==='active' && inBranch(i));
     const c30 = daysAgo(30), c60 = daysAgo(60), c15 = daysAgo(15);
 
     // per-item base-qty sold in last 30 / last 60 days
@@ -100,7 +100,7 @@ export default function SmartAnalytics() {
     const forecast = Math.round(sales30 * (1 + trendPct / 100));
 
     // expense anomaly (this month vs avg of prior 3 months)
-    const monthKey = (d) => (d || '').slice(0, 7);
+    const monthKey = (d) => (d ||'').slice(0, 7);
     const now = new Date();
     const curM = now.toISOString().slice(0, 7);
     const expBranch = expenses.filter((e) => (e.branchId || 1) === activeBranch);
@@ -117,30 +117,30 @@ export default function SmartAnalytics() {
 
   return (
     <>
-      <div className="page-head"><h1>🧠 التحليلات الذكية</h1></div>
+      {!embedded && <div className="page-head"><h1>التحليلات الذكية</h1></div>}
 
       <div className="kpis">
         <div className="kpi"><div className="label">مبيعات آخر 30 يوم</div><div className="value">{money(A.sales30)}</div></div>
-        <div className="kpi" style={{ borderColor: A.trendPct >= 0 ? 'var(--green)' : 'var(--red)' }}>
+        <div className="kpi" style={{ borderColor: A.trendPct >= 0 ?'var(--green)' :'var(--red)' }}>
           <div className="label">الاتجاه (آخر 15 مقابل السابقة)</div>
-          <div className="value" style={{ color: A.trendPct >= 0 ? 'var(--green)' : 'var(--red)' }}>{A.trendPct >= 0 ? '▲' : '▼'} {fmt(Math.abs(A.trendPct))}%</div>
+          <div className="value" style={{ color: A.trendPct >= 0 ?'var(--green)' :'var(--red)' }}>{A.trendPct >= 0 ?'▲' :'▼'} {fmt(Math.abs(A.trendPct))}%</div>
         </div>
         <div className="kpi tone-accent"><div className="label">توقع مبيعات الشهر القادم</div><div className="value">{money(A.forecast)}</div><div className="sub">تقدير مبني على بياناتك</div></div>
       </div>
-      <p className="muted" style={{ fontSize: 12, marginTop: -6 }}>⚠️ التوقعات تقديرية مبنية على مبيعاتك السابقة، وليست أرقاماً مؤكدة.</p>
+      <p className="muted" style={{ fontSize: 12, marginTop: -6 }}> التوقعات تقديرية مبنية على مبيعاتك السابقة، وليست أرقاماً مؤكدة.</p>
 
       {A.expAnomaly && (
-        <div className="card" style={{ borderColor: 'var(--red)', margin: '12px 0' }}>
-          <b style={{ color: 'var(--red)' }}>🚨 مصروفات غير معتادة هذا الشهر</b>
-          <p className="muted" style={{ margin: '4px 0 0' }}>
+        <div className="card" style={{ borderColor:'var(--red)', margin:'12px 0' }}>
+          <b style={{ color:'var(--red)' }}>مصروفات غير معتادة هذا الشهر</b>
+          <p className="muted" style={{ margin:'4px 0 0' }}>
             مصروفات الشهر ({money(A.expAnomaly.curExp)}) أعلى بنسبة {fmt(A.expAnomaly.pct)}% من متوسط آخر 3 شهور ({money(A.expAnomaly.avgPrev)}).
           </p>
         </div>
       )}
 
-      <div className="section-title">🔄 مقترحات إعادة الطلب</div>
+      <div className="section-title">مقترحات إعادة الطلب</div>
       {A.reorder.length === 0 ? (
-        <div className="card empty"><p>لا توجد أصناف تحتاج إعادة طلب حالياً 👍</p></div>
+        <div className="card empty"><p>لا توجد أصناف تحتاج إعادة طلب حالياً</p></div>
       ) : (
         <>
           <p className="muted" style={{ fontSize: 13, marginTop: -4 }}>حدّد الأصناف وعدّل الكميات، واختر المورد، ثم أنشئ أمر شراء جاهز.</p>
@@ -151,18 +151,18 @@ export default function SmartAnalytics() {
                 {A.reorder.slice(0, 40).map(({ it, stock, velocity, daysLeft, suggest }) => {
                   const picked = picks[it.id] != null;
                   return (
-                    <tr key={it.id} style={picked ? { background: 'rgba(15,76,92,0.06)' } : undefined}>
+                    <tr key={it.id} style={picked ? { background:'rgba(15,76,92,0.06)' } : undefined}>
                       <td><input type="checkbox" checked={picked} onChange={() => togglePick(it, suggest)} /></td>
                       <td><b>{it.name}</b><div className="meta muted">{it.code}</div></td>
                       <td className="num">{fmt(stock)}</td>
-                      <td className="num muted">{velocity > 0 ? velocity.toFixed(1) : '—'}</td>
-                      <td className="num">{daysLeft === Infinity ? '—' : <span style={{ color: daysLeft < 7 ? 'var(--red)' : 'var(--amber)' }}>{fmt(Math.round(daysLeft))} يوم</span>}</td>
+                      <td className="num muted">{velocity > 0 ? velocity.toFixed(1) :'—'}</td>
+                      <td className="num">{daysLeft === Infinity ?'—' : <span style={{ color: daysLeft < 7 ?'var(--red)' :'var(--amber)' }}>{fmt(Math.round(daysLeft))} يوم</span>}</td>
                       <td className="num">
                         {picked ? (
                           <input className="input" type="number" min="1" style={{ width: 80 }} value={picks[it.id]}
                             onChange={(e) => setPicks((p) => ({ ...p, [it.id]: e.target.value }))} />
                         ) : (
-                          <span style={{ fontWeight: 700, color: 'var(--accent, #0F4C5C)' }}>{fmt(suggest)}</span>
+                          <span style={{ fontWeight: 700, color:'var(--accent, #0F4C5C)' }}>{fmt(suggest)}</span>
                         )}
                       </td>
                     </tr>
@@ -171,7 +171,7 @@ export default function SmartAnalytics() {
               </tbody>
             </table>
           </div>
-          <div className="card" style={{ marginTop: 10, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div className="card" style={{ marginTop: 10, display:'flex', gap: 10, alignItems:'flex-end', flexWrap:'wrap' }}>
             <div className="field" style={{ margin: 0, minWidth: 200 }}>
               <label>المورد (اختياري)</label>
               <select className="input" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
@@ -179,9 +179,7 @@ export default function SmartAnalytics() {
                 {(suppliers || []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
-            <button className="btn accent" disabled={poBusy || Object.keys(picks).length === 0} onClick={createPO}>
-              🛒 إنشاء أمر شراء ({Object.keys(picks).length})
-            </button>
+            <button className="btn accent" disabled={poBusy || Object.keys(picks).length === 0} onClick={createPO}> إنشاء أمر شراء ({Object.keys(picks).length}) </button>
           </div>
         </>
       )}
@@ -190,11 +188,11 @@ export default function SmartAnalytics() {
 
       <div className="grid-2" style={{ marginTop: 14 }}>
         <div>
-          <div className="section-title">🏆 الأكثر مبيعاً (30 يوم)</div>
+          <div className="section-title">الأكثر مبيعاً (30 يوم)</div>
           {A.top.length === 0 ? <div className="card empty"><p>لا توجد مبيعات</p></div> : (
             <div className="card">
               {A.top.map((r, i) => (
-                <div key={r.it.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
+                <div key={r.it.id} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', borderBottom:'1px solid var(--line)' }}>
                   <span>{i + 1}. {r.it.name}</span><b className="num">{fmt(r.q)}</b>
                 </div>
               ))}
@@ -202,11 +200,11 @@ export default function SmartAnalytics() {
           )}
         </div>
         <div>
-          <div className="section-title">💤 أصناف راكدة (بدون مبيعات 60 يوم)</div>
-          {A.stagnant.length === 0 ? <div className="card empty"><p>لا توجد أصناف راكدة 👍</p></div> : (
+          <div className="section-title">أصناف راكدة (بدون مبيعات 60 يوم)</div>
+          {A.stagnant.length === 0 ? <div className="card empty"><p>لا توجد أصناف راكدة</p></div> : (
             <div className="card">
               {A.stagnant.slice(0, 10).map((it) => (
-                <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
+                <div key={it.id} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', borderBottom:'1px solid var(--line)' }}>
                   <span>{it.name}</span><b className="num muted">رصيد {fmt(stockOf(it, activeBranch))}</b>
                 </div>
               ))}

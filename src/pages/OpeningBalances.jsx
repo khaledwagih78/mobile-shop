@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSetting, setPartyOpening, postOpeningInventory, totalStock } from '../db';
-import { money, fmt } from '../utils';
-import { useAuth } from '../auth';
-import { Toast } from '../components/UI';
+import { useState } from'react';
+import { Link } from'react-router-dom';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, getSetting, setPartyOpening, postOpeningInventory, totalStock } from'../db';
+import { money, fmt } from'../utils';
+import { useAuth } from'../auth';
+import { Toast } from'../components/UI';
 
 export default function OpeningBalances() {
   const { user } = useAuth();
@@ -14,7 +14,7 @@ export default function OpeningBalances() {
 
   return (
     <>
-      <div className="page-head"><h1>⚖️ الأرصدة الافتتاحية</h1></div>
+      <div className="page-head"><h1> الأرصدة الافتتاحية</h1></div>
       <div className="card" style={{ marginBottom: 12 }}>
         <p className="muted" style={{ margin: 0 }}>
           لما تبدأ البرنامج وعندك بيانات قديمة (ديون/مخزون/كاش من قبل)، تدخلها هنا مرة واحدة
@@ -23,17 +23,17 @@ export default function OpeningBalances() {
         </p>
       </div>
 
-      <div className="tabs" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        <button className={`btn ${tab === 'customers' ? '' : 'ghost'}`} onClick={() => setTab('customers')}>👥 العملاء</button>
-        <button className={`btn ${tab === 'suppliers' ? '' : 'ghost'}`} onClick={() => setTab('suppliers')}>🏭 الموردون</button>
-        <button className={`btn ${tab === 'inventory' ? '' : 'ghost'}`} onClick={() => setTab('inventory')}>📦 المخزون</button>
-        <button className={`btn ${tab === 'cash' ? '' : 'ghost'}`} onClick={() => setTab('cash')}>💵 الكاش/البنك</button>
+      <div className="tabs" style={{ display:'flex', gap: 6, flexWrap:'wrap', marginBottom: 12 }}>
+        <button className={`btn ${tab ==='customers' ?'' :'ghost'}`} onClick={() => setTab('customers')}> العملاء</button>
+        <button className={`btn ${tab ==='suppliers' ?'' :'ghost'}`} onClick={() => setTab('suppliers')}> الموردون</button>
+        <button className={`btn ${tab ==='inventory' ?'' :'ghost'}`} onClick={() => setTab('inventory')}> المخزون</button>
+        <button className={`btn ${tab ==='cash' ?'' :'ghost'}`} onClick={() => setTab('cash')}> الكاش/البنك</button>
       </div>
 
-      {tab === 'customers' && <PartyOpenings kind="customer" userName={user.name} notify={notify} />}
-      {tab === 'suppliers' && <PartyOpenings kind="supplier" userName={user.name} notify={notify} />}
-      {tab === 'inventory' && <InventoryOpening userName={user.name} notify={notify} />}
-      {tab === 'cash' && <CashOpening />}
+      {tab ==='customers' && <PartyOpenings kind="customer" userName={user.name} notify={notify} />}
+      {tab ==='suppliers' && <PartyOpenings kind="supplier" userName={user.name} notify={notify} />}
+      {tab ==='inventory' && <InventoryOpening userName={user.name} notify={notify} />}
+      {tab ==='cash' && <CashOpening />}
 
       <Toast msg={toast} />
     </>
@@ -41,7 +41,7 @@ export default function OpeningBalances() {
 }
 
 function PartyOpenings({ kind, userName, notify }) {
-  const isCust = kind === 'customer';
+  const isCust = kind ==='customer';
   const list = useLiveQuery(() => (isCust ? db.customers : db.suppliers).orderBy('name').toArray(), [kind], []);
   const [q, setQ] = useState('');
   const [draft, setDraft] = useState({}); // { [id]: typedValue }
@@ -49,34 +49,34 @@ function PartyOpenings({ kind, userName, notify }) {
 
   const filtered = (list || []).filter((p) => {
     const t = q.trim().toLowerCase();
-    return !t || (p.name || '').toLowerCase().includes(t) || (p.phone || '').includes(t);
+    return !t || (p.name ||'').toLowerCase().includes(t) || (p.phone ||'').includes(t);
   });
 
   const save = async (p) => {
     const raw = draft[p.id];
     const amount = Number(raw);
-    if (raw == null || raw === '' || Number.isNaN(amount)) { notify('اكتب رقم صحيح'); return; }
+    if (raw == null || raw ==='' || Number.isNaN(amount)) { notify('اكتب رقم صحيح'); return; }
     setBusy(p.id);
     try {
       await setPartyOpening({ partyType: kind, partyId: p.id, amount, userName });
-      notify(`✅ تم ضبط الرصيد الافتتاحي لـ ${p.name}`);
+      notify(` تم ضبط الرصيد الافتتاحي لـ ${p.name}`);
       setDraft((d) => { const n = { ...d }; delete n[p.id]; return n; });
-    } catch (e) { notify('❌ ' + e.message); }
+    } catch (e) { notify('' + e.message); }
     setBusy(0);
   };
 
   return (
     <>
       <div className="list-tools" style={{ marginBottom: 10 }}>
-        <input className="input" placeholder="🔍 بحث بالاسم / الهاتف..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="بحث بالاسم / الهاتف..." value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <p className="muted" style={{ fontSize: 13 }}>
         {isCust
-          ? 'أدخل المبلغ اللي على كل عميل من قبل البرنامج (دين عليه لصالحك).'
-          : 'أدخل المبلغ اللي لكل مورد عليك من قبل البرنامج (مستحق له).'}
+          ?'أدخل المبلغ اللي على كل عميل من قبل البرنامج (دين عليه لصالحك).'
+          :'أدخل المبلغ اللي لكل مورد عليك من قبل البرنامج (مستحق له).'}
       </p>
       {filtered.length === 0 ? (
-        <div className="card empty">لا يوجد {isCust ? 'عملاء' : 'موردون'} بعد — أضفهم أولًا من صفحتهم.</div>
+        <div className="card empty">لا يوجد {isCust ?'عملاء' :'موردون'} بعد — أضفهم أولًا من صفحتهم.</div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -86,12 +86,12 @@ function PartyOpenings({ kind, userName, notify }) {
             <tbody>
               {filtered.map((p) => {
                 const opened = Number(p.openingBalance || 0);
-                const val = draft[p.id] != null ? draft[p.id] : String(opened || '');
+                const val = draft[p.id] != null ? draft[p.id] : String(opened ||'');
                 return (
                   <tr key={p.id}>
-                    <td><b>{p.name}</b>{p.phone ? <span className="muted" style={{ fontSize: 12 }}> · {p.phone}</span> : ''}</td>
-                    <td className="num" style={{ color: (p.balance || 0) > 0 ? 'var(--red)' : 'var(--green)' }}>{money(p.balance)}</td>
-                    <td className="num muted">{opened ? money(opened) : '—'}</td>
+                    <td><b>{p.name}</b>{p.phone ? <span className="muted" style={{ fontSize: 12 }}> · {p.phone}</span> :''}</td>
+                    <td className="num" style={{ color: (p.balance || 0) > 0 ?'var(--red)' :'var(--green)' }}>{money(p.balance)}</td>
+                    <td className="num muted">{opened ? money(opened) :'—'}</td>
                     <td>
                       <input className="input" type="number" min="0" style={{ maxWidth: 140 }}
                         value={val}
@@ -99,7 +99,7 @@ function PartyOpenings({ kind, userName, notify }) {
                         placeholder="0" />
                     </td>
                     <td>
-                      <button className="btn ghost sm" disabled={busy === p.id} onClick={() => save(p)}>💾 حفظ</button>
+                      <button className="btn ghost sm" disabled={busy === p.id} onClick={() => save(p)}> حفظ</button>
                     </td>
                   </tr>
                 );
@@ -123,8 +123,8 @@ function InventoryOpening({ userName, notify }) {
     setBusy(true);
     try {
       await postOpeningInventory({ value: currentValue, userName });
-      notify('✅ تم ترحيل قيمة المخزون كرصيد افتتاحي');
-    } catch (e) { notify('❌ ' + e.message); }
+      notify(' تم ترحيل قيمة المخزون كرصيد افتتاحي');
+    } catch (e) { notify('' + e.message); }
     setBusy(false);
   };
 
@@ -137,11 +137,9 @@ function InventoryOpening({ userName, notify }) {
       <div className="kpis" style={{ marginBottom: 12 }}>
         <div className="kpi"><div className="label">قيمة المخزون الحالية (بالتكلفة)</div><div className="value">{money(currentValue)}</div><div className="sub">{(items || []).length} صنف</div></div>
         <div className="kpi"><div className="label">المُرحَّل سابقًا كافتتاحي</div><div className="value">{money(Number(posted) || 0)}</div></div>
-        <div className={`kpi ${diff !== 0 ? 'tone-amber' : 'tone-green'}`}><div className="label">الفرق اللي هيتسجّل</div><div className="value">{money(diff)}</div></div>
+        <div className={`kpi ${diff !== 0 ?'tone-amber' :'tone-green'}`}><div className="label">الفرق اللي هيتسجّل</div><div className="value">{money(diff)}</div></div>
       </div>
-      <button className="btn big" disabled={busy || diff === 0} onClick={post}>
-        {diff === 0 ? '✓ المخزون مُرحَّل بالكامل' : '⚖️ ترحيل قيمة المخزون كرصيد افتتاحي'}
-      </button>
+      <button className="btn big" disabled={busy || diff === 0} onClick={post}> {diff === 0 ?' المخزون مُرحَّل بالكامل' :' ترحيل قيمة المخزون كرصيد افتتاحي'} </button>
     </div>
   );
 }
@@ -158,7 +156,7 @@ function CashOpening() {
         <div className="empty">لا توجد خزائن بعد — أنشئ خزنة/بنك من صفحة الخزائن وحدّد رصيدها الافتتاحي.</div>
       ) : (
         <ul style={{ margin: 0, paddingInlineStart: 18 }}>
-          {cashboxes.map((c) => <li key={c.id}>{c.cbType === 'bank' ? '🏦' : '💵'} {c.name}</li>)}
+          {cashboxes.map((c) => <li key={c.id}>{c.cbType ==='bank' ?'' :''} {c.name}</li>)}
         </ul>
       )}
       <Link to="/treasury" className="btn ghost" style={{ marginTop: 10 }}>↗ فتح صفحة الخزائن</Link>

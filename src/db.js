@@ -1,99 +1,99 @@
-import Dexie from 'dexie';
+import Dexie from'dexie';
 
 export const db = new Dexie('khaled_erp');
 
 db.version(1).stores({
-  items: '++id, code, barcode, name, brand, category, stock',
-  customers: '++id, name, phone',
-  suppliers: '++id, name, phone',
-  invoices: '++id, number, type, partyId, day, createdAt, status',
-  payments: '++id, partyType, partyId, day, createdAt',
-  stockMoves: '++id, itemId, refType, refId, createdAt',
-  expenses: '++id, day, createdAt',
-  users: '++id, name, role',
-  settings: 'key',
-  syncQueue: '++id, synced, createdAt',
+  items:'++id, code, barcode, name, brand, category, stock',
+  customers:'++id, name, phone',
+  suppliers:'++id, name, phone',
+  invoices:'++id, number, type, partyId, day, createdAt, status',
+  payments:'++id, partyType, partyId, day, createdAt',
+  stockMoves:'++id, itemId, refType, refId, createdAt',
+  expenses:'++id, day, createdAt',
+  users:'++id, name, role',
+  settings:'key',
+  syncQueue:'++id, synced, createdAt',
 });
 
 db.version(2).stores({
-  expenses: '++id, day, createdAt, category',
+  expenses:'++id, day, createdAt, category',
 });
 
 db.version(3).stores({
-  employees:  '++id, name, status, createdAt',
-  empRecords: '++id, employeeId, type, day, createdAt',
+  employees:'++id, name, status, createdAt',
+  empRecords:'++id, employeeId, type, day, createdAt',
 });
 
 db.version(4).stores({
-  expenses:          '++id, day, createdAt, category, recurringId',
-  recurringExpenses: '++id, name, status, createdAt',
+  expenses:'++id, day, createdAt, category, recurringId',
+  recurringExpenses:'++id, name, status, createdAt',
 });
 
 db.version(5).stores({
-  lines:        '++id, number, code, display_name, last_reset_month',
-  transactions: '++id, line_id, type, created_at',
-  profiles:     'id, email',
+  lines:'++id, number, code, display_name, last_reset_month',
+  transactions:'++id, line_id, type, created_at',
+  profiles:'id, email',
 });
 
 db.version(6).stores({
-  auditLog: '++id, action, entityType, entityId, userId, createdAt',
-  deliveries: '++id, invoiceId, status, driverId, createdAt',
+  auditLog:'++id, action, entityType, entityId, userId, createdAt',
+  deliveries:'++id, invoiceId, status, driverId, createdAt',
 });
 
 // ---------- multi-branch support ----------
 // A single shop becomes many branches. Each item keeps ONE master record
-// (code/name/prices) but its quantity is stored per branch in `item.stocks`
+// (code/name/prices) but its quantity is stored per branch in`item.stocks`
 // ({ [branchId]: qty }). Sales, purchases, payments, expenses and stock moves
-// each carry a `branchId`. Users may be pinned to one branch (admins see all).
+// each carry a`branchId`. Users may be pinned to one branch (admins see all).
 db.version(7).stores({
-  branches:   '++id, name, status, createdAt',
-  invoices:   '++id, number, type, partyId, branchId, day, createdAt, status',
-  payments:   '++id, partyType, partyId, branchId, day, createdAt',
-  stockMoves: '++id, itemId, branchId, refType, refId, createdAt',
-  expenses:   '++id, day, createdAt, category, recurringId, branchId',
-  users:      '++id, name, role, branchId',
-  employees:  '++id, name, status, createdAt, branchId',
+  branches:'++id, name, status, createdAt',
+  invoices:'++id, number, type, partyId, branchId, day, createdAt, status',
+  payments:'++id, partyType, partyId, branchId, day, createdAt',
+  stockMoves:'++id, itemId, branchId, refType, refId, createdAt',
+  expenses:'++id, day, createdAt, category, recurringId, branchId',
+  users:'++id, name, role, branchId',
+  employees:'++id, name, status, createdAt, branchId',
 }).upgrade(async (tx) => {
   const B = DEFAULT_BRANCH_ID; // fixed id, identical on every device
   const iso = new Date().toISOString();
   if (!(await tx.table('branches').get(B))) {
-    await tx.table('branches').add({ id: B, name: 'الفرع الرئيسي', status: 'active', createdAt: iso });
+    await tx.table('branches').add({ id: B, name:'الفرع الرئيسي', status:'active', createdAt: iso });
   }
-  // move each item's single `stock` into a per-branch stocks map
+  // move each item's single`stock` into a per-branch stocks map
   await tx.table('items').toCollection().modify((it) => {
     if (!it.stocks) it.stocks = { [B]: Number(it.stock || 0) };
   });
   // tag existing transactional records with the default branch
-  for (const t of ['invoices', 'payments', 'stockMoves', 'expenses']) {
+  for (const t of ['invoices','payments','stockMoves','expenses']) {
     await tx.table(t).toCollection().modify((r) => { if (r.branchId == null) r.branchId = B; });
   }
   // admins keep null (= all branches); others default to the main branch
   await tx.table('users').toCollection().modify((u) => {
-    if (u.branchId === undefined) u.branchId = u.role === 'admin' ? null : B;
+    if (u.branchId === undefined) u.branchId = u.role ==='admin' ? null : B;
   });
   await tx.table('employees').toCollection().modify((e) => { if (e.branchId == null) e.branchId = B; });
 });
 
 // ---------- feature requests / suggestions (any industry) ----------
 db.version(8).stores({
-  requests: '++id, status, category, createdAt',
+  requests:'++id, status, category, createdAt',
 });
 
 // ---------- manufacturing / production (factory & restaurant sectors) ----------
 // A production run consumes raw-material items and yields a finished product,
 // adjusting per-branch stock for both and recording the computed unit cost.
 db.version(9).stores({
-  productions: '++id, number, productId, branchId, day, createdAt',
+  productions:'++id, number, productId, branchId, day, createdAt',
 });
 
 // ---------- double-entry accounting ----------
-// `accounts` is the chart of accounts; `journalEntries` are balanced journal
+//`accounts` is the chart of accounts;`journalEntries` are balanced journal
 // vouchers (debits == credits) posted automatically by every business operation
 // (sale/purchase/return/payment/expense) and manually by the user. Lines are
 // embedded on each entry (like invoices) and totals are computed in JS.
 db.version(10).stores({
-  accounts:       '++id, code, type, role, parentId, createdAt',
-  journalEntries: '++id, number, day, refType, refId, branchId, createdAt',
+  accounts:'++id, code, type, role, parentId, createdAt',
+  journalEntries:'++id, number, day, refType, refId, branchId, createdAt',
 });
 
 // ---------- installment plans (تقسيط) ----------
@@ -101,50 +101,50 @@ db.version(10).stores({
 // normal customer payment (so it flows through balances + accounting) and marks
 // the installment paid — the plan never double-counts the debt.
 db.version(11).stores({
-  installmentPlans: '++id, customerId, invoiceId, status, createdAt',
+  installmentPlans:'++id, customerId, invoiceId, status, createdAt',
 });
 
 // ---------- CRM: leads & sales pipeline ----------
 db.version(12).stores({
-  leads: '++id, stage, status, nextFollowUp, createdAt',
+  leads:'++id, stage, status, nextFollowUp, createdAt',
 });
 
 // ---------- price lists & coupons ----------
 // A price list holds per-item price overrides; a customer can be assigned one.
 // Coupons are codes that compute a discount at checkout.
 db.version(13).stores({
-  priceLists: '++id, name, createdAt',
-  coupons:    '++id, code, active, createdAt',
+  priceLists:'++id, name, createdAt',
+  coupons:'++id, code, active, createdAt',
 });
 
 // ---------- fixed assets & depreciation ----------
 db.version(14).stores({
-  assets: '++id, name, category, status, branchId, createdAt',
+  assets:'++id, name, category, status, branchId, createdAt',
 });
 
 // ---------- payroll (payslips) ----------
 db.version(15).stores({
-  payslips: '++id, employeeId, month, branchId, createdAt',
+  payslips:'++id, employeeId, month, branchId, createdAt',
 });
 
 // ---------- projects ----------
 db.version(16).stores({
-  projects: '++id, status, customerId, branchId, createdAt',
+  projects:'++id, status, customerId, branchId, createdAt',
 });
 
 // ---------- maintenance / work orders ----------
 db.version(17).stores({
-  workOrders: '++id, number, status, customerId, branchId, createdAt',
+  workOrders:'++id, number, status, customerId, branchId, createdAt',
 });
 
 // ---------- sales reps (visits / collections / targets) ----------
 db.version(18).stores({
-  repVisits: '++id, repName, customerId, day, branchId, createdAt',
+  repVisits:'++id, repName, customerId, day, branchId, createdAt',
 });
 
 // ---------- daily cash close / drawer (تقفيل اليومية) ----------
 db.version(19).stores({
-  cashCloses: '++id, day, branchId, createdAt',
+  cashCloses:'++id, day, branchId, createdAt',
 });
 
 
@@ -178,15 +178,11 @@ export function nextId() {
 
 // Stamp a globally-unique id on every new record in the synced tables.
 // Records arriving from the cloud already carry an id, so they pass through
-// untouched (the hook only fills a missing id). 'settings' (keyed by `key`)
-// and 'syncQueue' (device-local, never synced) are intentionally excluded.
-const ID_TABLES = [
-  'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
-  'expenses', 'recurringExpenses', 'employees', 'empRecords', 'users', 'branches',
-  'lines', 'transactions', 'deliveries', 'auditLog', 'requests', 'productions',
-  'accounts', 'journalEntries', 'installmentPlans', 'leads', 'priceLists', 'coupons', 'assets', 'payslips', 'projects', 'workOrders', 'repVisits', 'cashCloses',
+// untouched (the hook only fills a missing id).'settings' (keyed by`key`)
+// and'syncQueue' (device-local, never synced) are intentionally excluded.
+const ID_TABLES = ['items','customers','suppliers','invoices','payments','stockMoves','expenses','recurringExpenses','employees','empRecords','users','branches','lines','transactions','deliveries','auditLog','requests','productions','accounts','journalEntries','installmentPlans','leads','priceLists','coupons','assets','payslips','projects','workOrders','repVisits','cashCloses',
 ];
-// When true, writes come from a cloud pull — don't re-stamp `updatedAt`, so the
+// When true, writes come from a cloud pull — don't re-stamp`updatedAt`, so the
 // record keeps the origin device's edit time and timestamp-merge stays correct.
 let _applyingRemote = false;
 export function setApplyingRemote(v) { _applyingRemote = v; }
@@ -222,12 +218,12 @@ export async function ensureDefaultBranch() {
   if (await db.branches.get(DEFAULT_BRANCH_ID)) return;
   try {
     await db.branches.add({
-      id: DEFAULT_BRANCH_ID, name: 'الفرع الرئيسي', status: 'active', createdAt: nowISO(),
+      id: DEFAULT_BRANCH_ID, name:'الفرع الرئيسي', status:'active', createdAt: nowISO(),
     });
   } catch (e) {
     // A concurrent caller (e.g. StrictMode double-mount) may have created it
     // between the check and the add — that's fine, ignore the key collision.
-    if (e.name !== 'ConstraintError') throw e;
+    if (e.name !=='ConstraintError') throw e;
   }
 }
 
@@ -241,7 +237,7 @@ export async function setSetting(key, value) {
 
 // ---------- custom fields (user-defined, per entity: item/customer/supplier) ----------
 // Stored as one settings array so it syncs with everything else. Each def:
-// { id, entity, label, type: 'text'|'number'|'date' }.
+// { id, entity, label, type:'text'|'number'|'date' }.
 export async function getCustomFields(entity) {
   const all = await getSetting('customFields', []);
   const list = Array.isArray(all) ? all : [];
@@ -253,7 +249,7 @@ export async function saveCustomFields(list) {
 }
 
 // ---------- daily cash close (تقفيل اليومية / درج الكاش) ----------
-// Compute the day's cash movement for a branch. Treats invoice `paid` and cash
+// Compute the day's cash movement for a branch. Treats invoice`paid` and cash
 // payments/expenses as drawer cash (simple single-drawer model).
 export async function computeDayCash(day, branchId = DEFAULT_BRANCH_ID) {
   const b = branchId || DEFAULT_BRANCH_ID;
@@ -264,22 +260,22 @@ export async function computeDayCash(day, branchId = DEFAULT_BRANCH_ID) {
     db.expenses.where('day').equals(day).toArray(),
     db.cashCloses.where('day').equals(day).toArray(),
   ]);
-  const active = invoices.filter((i) => inBranch(i) && i.status === 'active');
-  const salesCash = active.filter((i) => i.type === 'sale').reduce((s, i) => s + (i.paid || 0), 0);
-  const saleReturnsCash = active.filter((i) => i.type === 'sale_return').reduce((s, i) => s + (i.paid || 0), 0);
-  const purchaseCash = active.filter((i) => i.type === 'purchase').reduce((s, i) => s + (i.paid || 0), 0);
-  const custPayIn = payments.filter((p) => inBranch(p) && p.partyType === 'customer').reduce((s, p) => s + (p.amount || 0), 0);
-  const supPayOut = payments.filter((p) => inBranch(p) && p.partyType === 'supplier').reduce((s, p) => s + (p.amount || 0), 0);
+  const active = invoices.filter((i) => inBranch(i) && i.status ==='active');
+  const salesCash = active.filter((i) => i.type ==='sale').reduce((s, i) => s + (i.paid || 0), 0);
+  const saleReturnsCash = active.filter((i) => i.type ==='sale_return').reduce((s, i) => s + (i.paid || 0), 0);
+  const purchaseCash = active.filter((i) => i.type ==='purchase').reduce((s, i) => s + (i.paid || 0), 0);
+  const custPayIn = payments.filter((p) => inBranch(p) && p.partyType ==='customer').reduce((s, p) => s + (p.amount || 0), 0);
+  const supPayOut = payments.filter((p) => inBranch(p) && p.partyType ==='supplier').reduce((s, p) => s + (p.amount || 0), 0);
   const expensesOut = expenses.filter(inBranch).reduce((s, e) => s + (e.amount || 0), 0);
   const cashIn = salesCash + custPayIn;
   const cashOut = purchaseCash + supPayOut + expensesOut + saleReturnsCash;
   // opening = the most recent PRIOR close's counted amount for this branch
   const prior = (await db.cashCloses.where('branchId').equals(b).toArray())
-    .filter((c) => (c.day || '') < day)
-    .sort((a, z) => (z.day || '').localeCompare(a.day || ''))[0];
+    .filter((c) => (c.day ||'') < day)
+    .sort((a, z) => (z.day ||'').localeCompare(a.day ||''))[0];
   const opening = prior ? Number(prior.counted) || 0 : 0;
   const expected = opening + cashIn - cashOut;
-  const existing = closes.filter(inBranch).sort((a, z) => (z.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
+  const existing = closes.filter(inBranch).sort((a, z) => (z.createdAt ||'').localeCompare(a.createdAt ||''))[0] || null;
   return { day, branchId: b, opening, salesCash, custPayIn, purchaseCash, supPayOut, expensesOut, saleReturnsCash, cashIn, cashOut, expected, existing };
 }
 
@@ -290,11 +286,11 @@ export async function saveCashClose({ day, branchId, opening, counted, expected,
     const doc = {
       day, branchId: b, opening: Number(opening) || 0, counted: Number(counted) || 0,
       expected: Number(expected) || 0, difference: (Number(counted) || 0) - (Number(expected) || 0),
-      note: note || '', userName: userName || '', createdAt,
+      note: note ||'', userName: userName ||'', createdAt,
     };
     const id = await db.cashCloses.add(doc);
-    await logAudit('cashClose', 'cashCloses', id, { userName, extra: `تقفيل ${day}: عدّ ${doc.counted} / متوقع ${doc.expected}` });
-    await queueSync('cashCloses', 'add', { ...doc, id });
+    await logAudit('cashClose','cashCloses', id, { userName, extra:`تقفيل ${day}: عدّ ${doc.counted} / متوقع ${doc.expected}` });
+    await queueSync('cashCloses','add', { ...doc, id });
     return id;
   });
 }
@@ -305,7 +301,7 @@ export async function saveCashClose({ day, branchId, opening, counted, expected,
 export async function applySectorFields(sectorId) {
   const { sectorFieldDefs } = await import('./sectors');
   const all = await getCustomFields();
-  const userFields = all.filter((f) => f.origin !== 'sector');
+  const userFields = all.filter((f) => f.origin !=='sector');
   const seeded = sectorFieldDefs(sectorId);
   // don't duplicate a user field that already uses the same id
   const userIds = new Set(userFields.map((f) => f.id));
@@ -350,6 +346,19 @@ export async function nextInvoiceNumber(type) {
   const key = `kerp_inv_seq_${type}`;
   let cur = 0;
   try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+  if (cur === 0) {
+    try {
+      const prefix = type === 'sale' ? 'S' : 'P';
+      const matchPrefix = `${prefix}${dev}-`;
+      const allInvs = await db.invoices.where('type').equals(type).toArray();
+      for (const inv of allInvs) {
+        if (inv.number && inv.number.startsWith(matchPrefix)) {
+          const num = Number(inv.number.slice(matchPrefix.length)) || 0;
+          if (num > cur) cur = num;
+        }
+      }
+    } catch { /* fallback to 0 */ }
+  }
   cur += 1;
   try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
   const prefix = type === 'sale' ? 'S' : 'P';
@@ -362,15 +371,21 @@ export async function ensureSeed() {
   await ensureChartOfAccounts();
   await ensureAssetAccounts();
   await ensureCashboxes();
-  const count = await db.users.count();
-  if (count === 0) {
+  // Ensure exactly one admin user and clean up duplicates from StrictMode double-mounts
+  const allUsers = await db.users.toArray();
+  const admins = allUsers.filter((u) => u.name ==='المدير' && u.role ==='admin');
+  if (admins.length === 0 && allUsers.length === 0) {
     await db.users.add({
-      name: 'المدير',
-      pin: '1234',
-      role: 'admin',
+      name:'المدير',
+      pin:'1234',
+      role:'admin',
       branchId: null, // admin sees all branches
       createdAt: nowISO(),
     });
+  } else if (admins.length > 1) {
+    // Automatically prune duplicate seed records created by React StrictMode double mounts
+    const duplicateIds = admins.slice(1).map((u) => u.id);
+    await db.users.bulkDelete(duplicateIds);
   }
   // First-run setup wizard flag: only a brand-new install should see it. Decide
   // by whether the DB already holds real business data (robust against the
@@ -385,7 +400,7 @@ export async function ensureSeed() {
     if (setupDone === null && hasData) await setSetting('setupDone', true);
     // default edition: a brand-new (promo) copy starts on the free plan and is
     // unlocked by an activation code; an existing install stays full.
-    if (plan === null) await setSetting('plan', hasData ? 'full' : 'free');
+    if (plan === null) await setSetting('plan', hasData ?'full' :'free');
   }
 }
 
@@ -393,14 +408,13 @@ export async function ensureSeed() {
 
 // Save a sale or purchase invoice and update stock / balances atomically
 export async function saveInvoice(inv) {
-  return db.transaction(
-    'rw',
+  return db.transaction('rw',
     [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.settings, db.auditLog, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
       const number = await nextInvoiceNumber(inv.type);
       const createdAt = nowISO();
       const b = inv.branchId || DEFAULT_BRANCH_ID;
-      const doc = { ...inv, number, createdAt, day: dayOf(createdAt), status: 'active', branchId: b };
+      const doc = { ...inv, number, createdAt, day: dayOf(createdAt), status:'active', branchId: b };
       const id = await db.invoices.add(doc);
 
       for (const line of inv.lines) {
@@ -410,20 +424,21 @@ export async function saveInvoice(inv) {
         const qBase = line.qty * (line.factor || 1); // qty converted to base units
         const stocks = { ...(item.stocks || {}) };
         const cur = Number(stocks[b] || 0);
-        if (inv.type === 'sale') {
+        const branchUpdatedAt = { ...(item.branchUpdatedAt || {}), [b]: createdAt };
+        if (inv.type ==='sale') {
           stocks[b] = cur - qBase;
-          await db.items.update(line.itemId, { stocks });
+          await db.items.update(line.itemId, { stocks, branchUpdatedAt });
         } else {
           // purchase: increase this branch's stock and update cost price
           stocks[b] = cur + qBase;
-          await db.items.update(line.itemId, { stocks, costPrice: line.factor > 1 ? item.costPrice : line.price });
+          await db.items.update(line.itemId, { stocks, branchUpdatedAt, costPrice: line.factor > 1 ? item.costPrice : line.price });
         }
         await db.stockMoves.add({
           itemId: line.itemId,
           itemName: line.name,
           qty: qBase,
           branchId: b,
-          direction: inv.type === 'sale' ? 'out' : 'in',
+          direction: inv.type ==='sale' ?'out' :'in',
           refType: inv.type,
           refId: id,
           refNumber: number,
@@ -433,7 +448,7 @@ export async function saveInvoice(inv) {
 
       // credit balance (آجل)
       if (inv.remaining > 0 && inv.partyId) {
-        if (inv.type === 'sale') {
+        if (inv.type ==='sale') {
           const c = await db.customers.get(inv.partyId);
           if (c) await db.customers.update(inv.partyId, { balance: (c.balance || 0) + inv.remaining });
         } else {
@@ -443,7 +458,7 @@ export async function saveInvoice(inv) {
       }
 
       // loyalty points: earn 1 point per 100 EGP spent, minus any points redeemed
-      if (inv.type === 'sale' && inv.partyId) {
+      if (inv.type ==='sale' && inv.partyId) {
         const pts = inv.total >= 100 ? Math.floor(inv.total / 100) : 0;
         const redeemed = Math.max(0, Math.floor(inv.pointsRedeemed || 0));
         if (pts > 0 || redeemed > 0 || inv.total > 0) {
@@ -458,7 +473,7 @@ export async function saveInvoice(inv) {
       }
 
       // audit log
-      await logAudit('create', 'invoice', id, {
+      await logAudit('create','invoice', id, {
         userId: inv.userId, userName: inv.userName,
         extra: { number, type: inv.type, total: inv.total, partyName: inv.partyName },
       });
@@ -466,12 +481,12 @@ export async function saveInvoice(inv) {
       // double-entry posting (skips silently if accounts unseeded / unbalanced)
       const accounts = await db.accounts.toArray();
       await writeJournalEntry({
-        date: doc.day, description: `فاتورة ${inv.type === 'sale' ? 'بيع' : 'شراء'} ${number}`,
-        refType: 'invoice', refId: id, refNumber: number, branchId: b,
+        date: doc.day, description:`فاتورة ${inv.type ==='sale' ?'بيع' :'شراء'} ${number}`,
+        refType:'invoice', refId: id, refNumber: number, branchId: b,
         lines: invoiceJournalLines({ ...inv }), accounts, userId: inv.userId, userName: inv.userName,
       });
 
-      await queueSync('invoices', 'add', { ...doc, id });
+      await queueSync('invoices','add', { ...doc, id });
       return { id, number };
     }
   );
@@ -480,12 +495,11 @@ export async function saveInvoice(inv) {
 // Cancel an invoice: reverse stock and balances (admin only - enforced in UI)
 export async function cancelInvoice(invoiceId, userName) {
   const snapshot = await db.invoices.get(invoiceId);
-  const result = await db.transaction(
-    'rw',
+  const result = await db.transaction('rw',
     [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
       const inv = await db.invoices.get(invoiceId);
-      if (!inv || inv.status === 'cancelled') return;
+      if (!inv || inv.status ==='cancelled') return;
       const b = inv.branchId || DEFAULT_BRANCH_ID;
       for (const line of inv.lines) {
         if (line.itemId == null) continue; // non-stock line (e.g. labor/service)
@@ -493,23 +507,24 @@ export async function cancelInvoice(invoiceId, userName) {
         if (!item) continue;
         const qBase = line.qty * (line.factor || 1);
         const stocks = { ...(item.stocks || {}) };
-        const delta = inv.type === 'sale' ? qBase : -qBase;
+        const delta = inv.type ==='sale' ? qBase : -qBase;
         stocks[b] = Number(stocks[b] || 0) + delta;
-        await db.items.update(line.itemId, { stocks });
+        const branchUpdatedAt = { ...(item.branchUpdatedAt || {}), [b]: nowISO() };
+        await db.items.update(line.itemId, { stocks, branchUpdatedAt });
         await db.stockMoves.add({
           itemId: line.itemId,
           itemName: line.name,
           qty: qBase,
           branchId: b,
-          direction: inv.type === 'sale' ? 'in' : 'out',
-          refType: 'cancel',
+          direction: inv.type ==='sale' ?'in' :'out',
+          refType:'cancel',
           refId: invoiceId,
           refNumber: inv.number,
           createdAt: nowISO(),
         });
       }
       if (inv.remaining > 0 && inv.partyId) {
-        if (inv.type === 'sale') {
+        if (inv.type ==='sale') {
           const c = await db.customers.get(inv.partyId);
           if (c) await db.customers.update(inv.partyId, { balance: (c.balance || 0) - inv.remaining });
         } else {
@@ -518,7 +533,7 @@ export async function cancelInvoice(invoiceId, userName) {
         }
       }
       // reverse loyalty: remove earned points, restore redeemed points
-      if (inv.type === 'sale' && inv.partyId) {
+      if (inv.type ==='sale' && inv.partyId) {
         const pts = inv.total >= 100 ? Math.floor(inv.total / 100) : 0;
         const redeemed = Math.max(0, Math.floor(inv.pointsRedeemed || 0));
         if (pts > 0 || redeemed > 0) {
@@ -530,29 +545,29 @@ export async function cancelInvoice(invoiceId, userName) {
         }
       }
       await db.invoices.update(invoiceId, {
-        status: 'cancelled',
+        status:'cancelled',
         cancelledAt: nowISO(),
         cancelledBy: userName,
       });
-      await logAudit('cancel', 'invoice', invoiceId, {
+      await logAudit('cancel','invoice', invoiceId, {
         userName,
         extra: { number: inv.number, type: inv.type, total: inv.total },
       });
       // reverse the original posting
       const accounts = await db.accounts.toArray();
       await writeJournalEntry({
-        date: today(), description: `إلغاء فاتورة ${inv.number}`,
-        refType: 'cancel', refId: invoiceId, refNumber: inv.number, branchId: b,
+        date: today(), description:`إلغاء فاتورة ${inv.number}`,
+        refType:'cancel', refId: invoiceId, refNumber: inv.number, branchId: b,
         lines: reverseJournalLines(invoiceJournalLines(inv)), accounts, userName,
       });
-      await queueSync('invoices', 'cancel', { id: invoiceId });
+      await queueSync('invoices','cancel', { id: invoiceId });
     }
   );
-  if (snapshot && snapshot.status !== 'cancelled') {
+  if (snapshot && snapshot.status !=='cancelled') {
     import('./notify').then((m) => m.notifyEvent({
-      action: 'cancel',
-      title: `⛔ إلغاء فاتورة ${snapshot.number}`,
-      body: `تم إلغاء فاتورة ${snapshot.type === 'sale' ? 'بيع' : 'شراء'} رقم ${snapshot.number} بإجمالي ${snapshot.total} ج.م — بواسطة ${userName || '—'}.`,
+      action:'cancel',
+      title:`إلغاء فاتورة ${snapshot.number}`,
+      body:`تم إلغاء فاتورة ${snapshot.type ==='sale' ?'بيع' :'شراء'} رقم ${snapshot.number} بإجمالي ${snapshot.total} ج.م — بواسطة ${userName ||'—'}.`,
     })).catch(() => {});
   }
   return result;
@@ -561,12 +576,11 @@ export async function cancelInvoice(invoiceId, userName) {
 // Restore a cancelled invoice: re-apply its original stock & balance effect.
 export async function restoreInvoice(invoiceId, userName) {
   const snapshot = await db.invoices.get(invoiceId);
-  const result = await db.transaction(
-    'rw',
+  const result = await db.transaction('rw',
     [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
       const inv = await db.invoices.get(invoiceId);
-      if (!inv || inv.status !== 'cancelled') return;
+      if (!inv || inv.status !=='cancelled') return;
       const b = inv.branchId || DEFAULT_BRANCH_ID;
       for (const line of inv.lines) {
         if (line.itemId == null) continue; // non-stock line (e.g. labor/service)
@@ -575,16 +589,16 @@ export async function restoreInvoice(invoiceId, userName) {
         const qBase = line.qty * (line.factor || 1);
         const stocks = { ...(item.stocks || {}) };
         // original effect: sale removes stock, purchase adds it
-        stocks[b] = Number(stocks[b] || 0) + (inv.type === 'sale' ? -qBase : qBase);
+        stocks[b] = Number(stocks[b] || 0) + (inv.type ==='sale' ? -qBase : qBase);
         await db.items.update(line.itemId, { stocks });
         await db.stockMoves.add({
           itemId: line.itemId, itemName: line.name, qty: qBase, branchId: b,
-          direction: inv.type === 'sale' ? 'out' : 'in',
+          direction: inv.type ==='sale' ?'out' :'in',
           refType: inv.type, refId: invoiceId, refNumber: inv.number, createdAt: nowISO(),
         });
       }
       if (inv.remaining > 0 && inv.partyId) {
-        if (inv.type === 'sale') {
+        if (inv.type ==='sale') {
           const c = await db.customers.get(inv.partyId);
           if (c) await db.customers.update(inv.partyId, { balance: (c.balance || 0) + inv.remaining });
         } else {
@@ -593,7 +607,7 @@ export async function restoreInvoice(invoiceId, userName) {
         }
       }
       // re-apply loyalty: re-earn points, re-deduct redeemed points
-      if (inv.type === 'sale' && inv.partyId) {
+      if (inv.type ==='sale' && inv.partyId) {
         const pts = inv.total >= 100 ? Math.floor(inv.total / 100) : 0;
         const redeemed = Math.max(0, Math.floor(inv.pointsRedeemed || 0));
         if (pts > 0 || redeemed > 0) {
@@ -604,23 +618,23 @@ export async function restoreInvoice(invoiceId, userName) {
           });
         }
       }
-      await db.invoices.update(invoiceId, { status: 'active', cancelledAt: null, cancelledBy: null, restoredAt: nowISO(), restoredBy: userName });
-      await logAudit('restore', 'invoice', invoiceId, { userName, extra: { number: inv.number, type: inv.type, total: inv.total } });
+      await db.invoices.update(invoiceId, { status:'active', cancelledAt: null, cancelledBy: null, restoredAt: nowISO(), restoredBy: userName });
+      await logAudit('restore','invoice', invoiceId, { userName, extra: { number: inv.number, type: inv.type, total: inv.total } });
       // re-apply the original posting
       const accounts = await db.accounts.toArray();
       await writeJournalEntry({
-        date: today(), description: `استرجاع فاتورة ${inv.number}`,
-        refType: 'restore', refId: invoiceId, refNumber: inv.number, branchId: b,
+        date: today(), description:`استرجاع فاتورة ${inv.number}`,
+        refType:'restore', refId: invoiceId, refNumber: inv.number, branchId: b,
         lines: invoiceJournalLines(inv), accounts, userName,
       });
-      await queueSync('invoices', 'restore', { id: invoiceId });
+      await queueSync('invoices','restore', { id: invoiceId });
     }
   );
-  if (snapshot && snapshot.status === 'cancelled') {
+  if (snapshot && snapshot.status ==='cancelled') {
     import('./notify').then((m) => m.notifyEvent({
-      action: 'restore',
-      title: `♻️ استرجاع فاتورة ${snapshot.number}`,
-      body: `تم استرجاع فاتورة ${snapshot.type === 'sale' ? 'بيع' : 'شراء'} رقم ${snapshot.number} بإجمالي ${snapshot.total} ج.م — بواسطة ${userName || '—'}.`,
+      action:'restore',
+      title:`استرجاع فاتورة ${snapshot.number}`,
+      body:`تم استرجاع فاتورة ${snapshot.type ==='sale' ?'بيع' :'شراء'} رقم ${snapshot.number} بإجمالي ${snapshot.total} ج.م — بواسطة ${userName ||'—'}.`,
     })).catch(() => {});
   }
   return result;
@@ -630,14 +644,14 @@ export async function restoreInvoice(invoiceId, userName) {
 export async function saveQuote(inv) {
   return db.transaction('rw', [db.invoices, db.syncQueue], async () => {
     const dev = deviceBlock();
-    const key = 'kerp_inv_seq_quote';
+    const key ='kerp_inv_seq_quote';
     let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
     cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
-    const number = `Q${dev}-${String(cur).padStart(5, '0')}`;
+    const number =`Q${dev}-${String(cur).padStart(5,'0')}`;
     const createdAt = nowISO();
-    const doc = { ...inv, type: 'quote', number, createdAt, day: dayOf(createdAt), status: 'quote', branchId: inv.branchId || DEFAULT_BRANCH_ID };
+    const doc = { ...inv, type:'quote', number, createdAt, day: dayOf(createdAt), status:'quote', branchId: inv.branchId || DEFAULT_BRANCH_ID };
     const id = await db.invoices.add(doc);
-    await queueSync('invoices', 'add', { ...doc, id });
+    await queueSync('invoices','add', { ...doc, id });
     return { id, number };
   });
 }
@@ -645,14 +659,14 @@ export async function saveQuote(inv) {
 // Turn a quote into a real sale invoice (applies stock & balances via saveInvoice).
 export async function convertQuote(quoteId, userName) {
   const q = await db.invoices.get(quoteId);
-  if (!q || q.type !== 'quote' || q.status === 'converted') return null;
+  if (!q || q.type !=='quote' || q.status ==='converted') return null;
   const res = await saveInvoice({
-    type: 'sale', branchId: q.branchId, partyId: q.partyId, partyName: q.partyName,
+    type:'sale', branchId: q.branchId, partyId: q.partyId, partyName: q.partyName,
     lines: q.lines, subtotal: q.subtotal, discount: q.discount, total: q.total,
     paid: q.paid, remaining: q.remaining, profit: q.profit, userId: q.userId, userName,
   });
-  await db.invoices.update(quoteId, { status: 'converted', convertedTo: res.id, convertedAt: nowISO() });
-  await queueSync('invoices', 'update', { id: quoteId, status: 'converted' });
+  await db.invoices.update(quoteId, { status:'converted', convertedTo: res.id, convertedAt: nowISO() });
+  await queueSync('invoices','update', { id: quoteId, status:'converted' });
   return res;
 }
 
@@ -661,31 +675,31 @@ export async function convertQuote(quoteId, userName) {
 export async function savePurchaseOrder(inv) {
   return db.transaction('rw', [db.invoices, db.syncQueue], async () => {
     const dev = deviceBlock();
-    const key = 'kerp_inv_seq_po';
+    const key ='kerp_inv_seq_po';
     let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
     cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
-    const number = `PO${dev}-${String(cur).padStart(5, '0')}`;
+    const number =`PO${dev}-${String(cur).padStart(5,'0')}`;
     const createdAt = nowISO();
-    const doc = { ...inv, type: 'po', number, createdAt, day: dayOf(createdAt), status: 'po', branchId: inv.branchId || DEFAULT_BRANCH_ID };
+    const doc = { ...inv, type:'po', number, createdAt, day: dayOf(createdAt), status:'po', branchId: inv.branchId || DEFAULT_BRANCH_ID };
     const id = await db.invoices.add(doc);
-    await queueSync('invoices', 'add', { ...doc, id });
+    await queueSync('invoices','add', { ...doc, id });
     return { id, number };
   });
 }
 
 // Convert a PO to a purchase invoice, optionally distributing extra costs
 // (shipping/customs) across the lines to compute the real landed unit cost.
-// allocation: 'value' (by line value) | 'qty' (by quantity).
-export async function convertPurchaseOrder(poId, { extraCosts = 0, allocation = 'value', paid, userName }) {
+// allocation:'value' (by line value) |'qty' (by quantity).
+export async function convertPurchaseOrder(poId, { extraCosts = 0, allocation ='value', paid, userName }) {
   const po = await db.invoices.get(poId);
-  if (!po || po.type !== 'po' || po.status === 'converted') return null;
+  if (!po || po.type !=='po' || po.status ==='converted') return null;
   const extra = Number(extraCosts) || 0;
   const subtotal = Number(po.subtotal) || po.lines.reduce((s, l) => s + l.qty * l.price, 0);
   const discount = Number(po.discount) || 0;
   const total = Math.max(0, subtotal - discount);
   const paidNum = paid != null ? Number(paid) : total;
   const res = await saveInvoice({
-    type: 'purchase', branchId: po.branchId, partyId: po.partyId, partyName: po.partyName,
+    type:'purchase', branchId: po.branchId, partyId: po.partyId, partyName: po.partyName,
     lines: po.lines, subtotal, discount, tax: 0, total,
     paid: paidNum, remaining: Math.max(0, total - paidNum), profit: 0, userId: po.userId, userName,
   });
@@ -693,7 +707,7 @@ export async function convertPurchaseOrder(poId, { extraCosts = 0, allocation = 
     await db.transaction('rw', [db.items, db.accounts, db.journalEntries, db.syncQueue], async () => {
       const totalQty = po.lines.reduce((s, l) => s + l.qty, 0);
       for (const l of po.lines) {
-        const weight = allocation === 'qty'
+        const weight = allocation ==='qty'
           ? (totalQty > 0 ? l.qty / totalQty : 0)
           : (subtotal > 0 ? (l.qty * l.price) / subtotal : 0);
         const perUnit = l.qty > 0 ? (extra * weight) / l.qty : 0;
@@ -702,32 +716,44 @@ export async function convertPurchaseOrder(poId, { extraCosts = 0, allocation = 
       }
       const accounts = await db.accounts.toArray();
       await writeJournalEntry({
-        date: today(), description: `تكاليف إضافية (شحن/جمارك) — ${po.number}`, refType: 'landed',
+        date: today(), description:`تكاليف إضافية (شحن/جمارك) — ${po.number}`, refType:'landed',
         refId: res.id, refNumber: po.number, branchId: po.branchId,
-        lines: [{ role: 'inventory', debit: extra }, { role: 'cash', credit: extra }], accounts, userName,
+        lines: [{ role:'inventory', debit: extra }, { role:'cash', credit: extra }], accounts, userName,
       });
     });
   }
-  await db.invoices.update(poId, { status: 'converted', convertedTo: res.id, convertedAt: nowISO(), extraCosts: extra });
-  await queueSync('invoices', 'update', { id: poId, status: 'converted' });
+  await db.invoices.update(poId, { status:'converted', convertedTo: res.id, convertedAt: nowISO(), extraCosts: extra });
+  await queueSync('invoices','update', { id: poId, status:'converted' });
   return res;
 }
 
 // ---------- returns (مرتجعات) — reverse of a sale/purchase ----------
 export async function saveReturn(inv) {
-  return db.transaction(
-    'rw',
+  return db.transaction('rw',
     [db.invoices, db.items, db.customers, db.suppliers, db.stockMoves, db.auditLog, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
-      const isSaleRet = inv.type === 'sale_return';
+      const isSaleRet = inv.type ==='sale_return';
       const dev = deviceBlock();
-      const key = isSaleRet ? 'kerp_inv_seq_sret' : 'kerp_inv_seq_pret';
+      const key = isSaleRet ?'kerp_inv_seq_sret' :'kerp_inv_seq_pret';
       let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
+      if (cur === 0) {
+        try {
+          const prefix = isSaleRet ? 'RS' : 'RP';
+          const matchPrefix = `${prefix}${dev}-`;
+          const allInvs = await db.invoices.where('type').equals(inv.type).toArray();
+          for (const item of allInvs) {
+            if (item.number && item.number.startsWith(matchPrefix)) {
+              const num = Number(item.number.slice(matchPrefix.length)) || 0;
+              if (num > cur) cur = num;
+            }
+          }
+        } catch { /* ignore */ }
+      }
       cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
-      const number = `${isSaleRet ? 'RS' : 'RP'}${dev}-${String(cur).padStart(5, '0')}`;
+      const number =`${isSaleRet ?'RS' :'RP'}${dev}-${String(cur).padStart(5,'0')}`;
       const createdAt = nowISO();
       const b = inv.branchId || DEFAULT_BRANCH_ID;
-      const doc = { ...inv, number, createdAt, day: dayOf(createdAt), status: 'active', branchId: b };
+      const doc = { ...inv, number, createdAt, day: dayOf(createdAt), status:'active', branchId: b };
       const id = await db.invoices.add(doc);
       for (const line of inv.lines) {
         if (line.itemId == null) continue; // non-stock line (e.g. labor/service)
@@ -737,10 +763,11 @@ export async function saveReturn(inv) {
         const stocks = { ...(item.stocks || {}) };
         // sale return: goods come back (+); purchase return: goods go out (-)
         stocks[b] = Number(stocks[b] || 0) + (isSaleRet ? qBase : -qBase);
-        await db.items.update(line.itemId, { stocks });
+        const branchUpdatedAt = { ...(item.branchUpdatedAt || {}), [b]: createdAt };
+        await db.items.update(line.itemId, { stocks, branchUpdatedAt });
         await db.stockMoves.add({
           itemId: line.itemId, itemName: line.name, qty: qBase, branchId: b,
-          direction: isSaleRet ? 'in' : 'out', refType: inv.type, refId: id, refNumber: number, createdAt,
+          direction: isSaleRet ?'in' :'out', refType: inv.type, refId: id, refNumber: number, createdAt,
         });
       }
       // credit the party's balance by the returned value
@@ -756,11 +783,11 @@ export async function saveReturn(inv) {
       await logAudit('return', inv.type, id, { userName: inv.userName, extra: { number, total: inv.total } });
       const accounts = await db.accounts.toArray();
       await writeJournalEntry({
-        date: doc.day, description: `${isSaleRet ? 'مرتجع بيع' : 'مرتجع شراء'} ${number}`,
-        refType: 'return', refId: id, refNumber: number, branchId: b,
+        date: doc.day, description:`${isSaleRet ?'مرتجع بيع' :'مرتجع شراء'} ${number}`,
+        refType:'return', refId: id, refNumber: number, branchId: b,
         lines: invoiceJournalLines({ ...inv }), accounts, userId: inv.userId, userName: inv.userName,
       });
-      await queueSync('invoices', 'add', { ...doc, id });
+      await queueSync('invoices','add', { ...doc, id });
       return { id, number };
     }
   );
@@ -773,7 +800,7 @@ export async function recordPayment({ partyType, partyId, partyName, amount, not
     const b = branchId || DEFAULT_BRANCH_ID;
     const doc = { partyType, partyId, partyName, amount, note, userName, branchId: b, createdAt, day: dayOf(createdAt) };
     const id = await db.payments.add(doc);
-    if (partyType === 'customer') {
+    if (partyType ==='customer') {
       const c = await db.customers.get(partyId);
       if (c) await db.customers.update(partyId, { balance: (c.balance || 0) - amount });
     } else {
@@ -784,14 +811,14 @@ export async function recordPayment({ partyType, partyId, partyName, amount, not
     const accounts = await db.accounts.toArray();
     const amt = Number(amount || 0);
     await writeJournalEntry({
-      date: doc.day, description: `${partyType === 'customer' ? 'تحصيل من' : 'دفعة إلى'} ${partyName || ''}`.trim(),
-      refType: 'payment', refId: id, refNumber: null, branchId: b,
-      lines: partyType === 'customer'
-        ? [{ role: 'cash', debit: amt }, { role: 'ar', credit: amt }]
-        : [{ role: 'ap', debit: amt }, { role: 'cash', credit: amt }],
+      date: doc.day, description:`${partyType ==='customer' ?'تحصيل من' :'دفعة إلى'} ${partyName ||''}`.trim(),
+      refType:'payment', refId: id, refNumber: null, branchId: b,
+      lines: partyType ==='customer'
+        ? [{ role:'cash', debit: amt }, { role:'ar', credit: amt }]
+        : [{ role:'ap', debit: amt }, { role:'cash', credit: amt }],
       accounts, userName,
     });
-    await queueSync('payments', 'add', { ...doc, id });
+    await queueSync('payments','add', { ...doc, id });
     return id;
   });
 }
@@ -805,18 +832,18 @@ export async function recordExpense(doc) {
     const accounts = await db.accounts.toArray();
     const amt = Number(full.amount || 0);
     await writeJournalEntry({
-      date: full.day, description: `مصروف: ${full.description || full.category || ''}`.trim(),
-      refType: 'expense', refId: id, refNumber: null, branchId: full.branchId,
-      lines: [{ role: 'expense', debit: amt }, { role: 'cash', credit: amt }],
+      date: full.day, description:`مصروف: ${full.description || full.category ||''}`.trim(),
+      refType:'expense', refId: id, refNumber: null, branchId: full.branchId,
+      lines: [{ role:'expense', debit: amt }, { role:'cash', credit: amt }],
       accounts, userName: full.userName,
     });
-    await queueSync('expenses', 'add', { ...full, id });
+    await queueSync('expenses','add', { ...full, id });
     return id;
   });
 }
 
 // ---------- installments (تقسيط) ----------
-// Build a monthly schedule over `total − downPayment` across `count` installments.
+// Build a monthly schedule over`total − downPayment` across`count` installments.
 export async function createInstallmentPlan({ customerId, customerName, invoiceId, invoiceNumber, total, downPayment = 0, count, startDate, branchId, userName }) {
   const t = Number(total) || 0, dp = Number(downPayment) || 0, n = Math.max(1, Number(count) || 1);
   const financed = Math.max(0, Math.round((t - dp) * 100) / 100);
@@ -829,16 +856,16 @@ export async function createInstallmentPlan({ customerId, customerName, invoiceI
     const d = new Date(sy, (sm - 1) + i, sd || 1);
     const amount = i === n - 1 ? Math.round((financed - allocated) * 100) / 100 : per;
     allocated = Math.round((allocated + amount) * 100) / 100;
-    installments.push({ no: i + 1, dueDate: d.toISOString().slice(0, 10), amount, paidAmount: 0, status: 'due' });
+    installments.push({ no: i + 1, dueDate: d.toISOString().slice(0, 10), amount, paidAmount: 0, status:'due' });
   }
   return db.transaction('rw', [db.installmentPlans, db.syncQueue], async () => {
     const doc = {
       customerId, customerName, invoiceId: invoiceId || null, invoiceNumber: invoiceNumber || null,
       total: t, downPayment: dp, financed, count: n, startDate: start,
-      branchId: branchId || DEFAULT_BRANCH_ID, installments, status: 'active', createdAt: nowISO(), userName,
+      branchId: branchId || DEFAULT_BRANCH_ID, installments, status:'active', createdAt: nowISO(), userName,
     };
     const id = await db.installmentPlans.add(doc);
-    await queueSync('installmentPlans', 'add', { ...doc, id });
+    await queueSync('installmentPlans','add', { ...doc, id });
     return { id };
   });
 }
@@ -846,8 +873,7 @@ export async function createInstallmentPlan({ customerId, customerName, invoiceI
 // Pay one installment: records a customer payment (balance + ledger) and marks
 // the installment paid/partial — all in one transaction.
 export async function payInstallment({ planId, no, amount, note, userName }) {
-  return db.transaction(
-    'rw',
+  return db.transaction('rw',
     [db.installmentPlans, db.payments, db.customers, db.suppliers, db.accounts, db.journalEntries, db.syncQueue],
     async () => {
       const plan = await db.installmentPlans.get(planId);
@@ -859,13 +885,13 @@ export async function payInstallment({ planId, no, amount, note, userName }) {
       const pay = Math.min(Number(amount) || 0, due);
       if (pay <= 0) return null;
       // nested recordPayment — its table scope is a subset, so it joins this tx
-      await recordPayment({ partyType: 'customer', partyId: plan.customerId, partyName: plan.customerName, amount: pay, note: note || `قسط #${no}`, userName, branchId: plan.branchId });
+      await recordPayment({ partyType:'customer', partyId: plan.customerId, partyName: plan.customerName, amount: pay, note: note ||`قسط #${no}`, userName, branchId: plan.branchId });
       inst.paidAmount = Math.round(((inst.paidAmount || 0) + pay) * 100) / 100;
-      inst.status = inst.paidAmount >= inst.amount - 0.01 ? 'paid' : 'partial';
-      const allPaid = insts.every((x) => x.status === 'paid');
-      const status = allPaid ? 'completed' : 'active';
+      inst.status = inst.paidAmount >= inst.amount - 0.01 ?'paid' :'partial';
+      const allPaid = insts.every((x) => x.status ==='paid');
+      const status = allPaid ?'completed' :'active';
       await db.installmentPlans.update(planId, { installments: insts, status });
-      await queueSync('installmentPlans', 'update', { id: planId, installments: insts, status });
+      await queueSync('installmentPlans','update', { id: planId, installments: insts, status });
       return { pay };
     }
   );
@@ -878,11 +904,11 @@ export async function convertLead(leadId) {
     const lead = await db.leads.get(leadId);
     if (!lead) return null;
     if (lead.customerId) return lead.customerId;
-    const cdoc = { name: lead.name, phone: lead.phone || '', address: lead.company || '', balance: 0, points: 0, totalSpent: 0, creditLimit: 0, createdAt: nowISO() };
+    const cdoc = { name: lead.name, phone: lead.phone ||'', address: lead.company ||'', balance: 0, points: 0, totalSpent: 0, creditLimit: 0, createdAt: nowISO() };
     const cid = await db.customers.add(cdoc);
-    await queueSync('customers', 'add', { ...cdoc, id: cid });
-    await db.leads.update(leadId, { status: 'won', stage: 'won', customerId: cid });
-    await queueSync('leads', 'update', { id: leadId, status: 'won', stage: 'won', customerId: cid });
+    await queueSync('customers','add', { ...cdoc, id: cid });
+    await db.leads.update(leadId, { status:'won', stage:'won', customerId: cid });
+    await queueSync('leads','update', { id: leadId, status:'won', stage:'won', customerId: cid });
     return cid;
   });
 }
@@ -890,16 +916,16 @@ export async function convertLead(leadId) {
 // ---------- coupons ----------
 // Validate a coupon code against an order total; returns the computed discount.
 export async function validateCoupon(code, total) {
-  const key = String(code || '').trim().toLowerCase();
-  if (!key) return { ok: false, reason: 'أدخل كود الكوبون' };
-  const c = (await db.coupons.toArray()).find((x) => (x.code || '').toLowerCase() === key);
-  if (!c) return { ok: false, reason: 'كوبون غير موجود' };
-  if (c.active === false) return { ok: false, reason: 'الكوبون غير مفعّل' };
-  if (c.expiry && c.expiry < today()) return { ok: false, reason: 'انتهت صلاحية الكوبون' };
-  if (c.maxUses && (c.uses || 0) >= c.maxUses) return { ok: false, reason: 'تم استهلاك الكوبون بالكامل' };
-  if (c.minTotal && Number(total) < c.minTotal) return { ok: false, reason: `الحد الأدنى للفاتورة ${c.minTotal}` };
+  const key = String(code ||'').trim().toLowerCase();
+  if (!key) return { ok: false, reason:'أدخل كود الكوبون' };
+  const c = (await db.coupons.toArray()).find((x) => (x.code ||'').toLowerCase() === key);
+  if (!c) return { ok: false, reason:'كوبون غير موجود' };
+  if (c.active === false) return { ok: false, reason:'الكوبون غير مفعّل' };
+  if (c.expiry && c.expiry < today()) return { ok: false, reason:'انتهت صلاحية الكوبون' };
+  if (c.maxUses && (c.uses || 0) >= c.maxUses) return { ok: false, reason:'تم استهلاك الكوبون بالكامل' };
+  if (c.minTotal && Number(total) < c.minTotal) return { ok: false, reason:`الحد الأدنى للفاتورة ${c.minTotal}` };
   const t = Number(total) || 0;
-  const discount = c.type === 'percent'
+  const discount = c.type ==='percent'
     ? Math.round(t * (Number(c.value) || 0)) / 100
     : Math.min(Number(c.value) || 0, t);
   return { ok: true, discount, coupon: c };
@@ -910,7 +936,7 @@ export async function redeemCoupon(couponId) {
   if (!c) return;
   const uses = (c.uses || 0) + 1;
   await db.coupons.update(couponId, { uses });
-  await queueSync('coupons', 'update', { id: couponId, uses });
+  await queueSync('coupons','update', { id: couponId, uses });
 }
 
 // ---------- fixed assets & depreciation (straight-line) ----------
@@ -922,20 +948,20 @@ export const assetMonthlyDep = (a) => {
 };
 export const assetBookValue = (a) => Math.round(((Number(a.cost) || 0) - (Number(a.accumulatedDep) || 0)) * 100) / 100;
 
-export async function createAsset({ name, category, cost, salvage = 0, usefulYears, purchaseDate, branchId, recordPurchase, cashRole = 'cash', userName }) {
+export async function createAsset({ name, category, cost, salvage = 0, usefulYears, purchaseDate, branchId, recordPurchase, cashRole ='cash', userName }) {
   return db.transaction('rw', [db.assets, db.accounts, db.journalEntries, db.syncQueue], async () => {
     const doc = {
-      name: (name || '').trim(), category: category || '', cost: Number(cost) || 0, salvage: Number(salvage) || 0,
-      usefulYears: Number(usefulYears) || 1, purchaseDate: purchaseDate || today(), method: 'straight',
-      accumulatedDep: 0, lastDepMonth: null, status: 'active', branchId: branchId || DEFAULT_BRANCH_ID, createdAt: nowISO(),
+      name: (name ||'').trim(), category: category ||'', cost: Number(cost) || 0, salvage: Number(salvage) || 0,
+      usefulYears: Number(usefulYears) || 1, purchaseDate: purchaseDate || today(), method:'straight',
+      accumulatedDep: 0, lastDepMonth: null, status:'active', branchId: branchId || DEFAULT_BRANCH_ID, createdAt: nowISO(),
     };
     const id = await db.assets.add(doc);
-    await queueSync('assets', 'add', { ...doc, id });
+    await queueSync('assets','add', { ...doc, id });
     if (recordPurchase && doc.cost > 0) {
       const accounts = await db.accounts.toArray();
       await writeJournalEntry({
-        date: doc.purchaseDate, description: `شراء أصل: ${doc.name}`, refType: 'asset_buy', refId: id,
-        branchId: doc.branchId, lines: [{ role: 'fixedAsset', debit: doc.cost }, { role: cashRole, credit: doc.cost }], accounts, userName,
+        date: doc.purchaseDate, description:`شراء أصل: ${doc.name}`, refType:'asset_buy', refId: id,
+        branchId: doc.branchId, lines: [{ role:'fixedAsset', debit: doc.cost }, { role: cashRole, credit: doc.cost }], accounts, userName,
       });
     }
     return { id };
@@ -958,11 +984,11 @@ export async function runDepreciation(month, userName) {
       const dep = Math.min(assetMonthlyDep(a), remaining);
       if (dep <= 0) continue;
       await writeJournalEntry({
-        date: `${mk}-28`, description: `إهلاك ${mk}: ${a.name}`, refType: 'depreciation', refId: a.id,
-        branchId: a.branchId, lines: [{ role: 'depExpense', debit: dep }, { role: 'accumDep', credit: dep }], accounts, userName,
+        date:`${mk}-28`, description:`إهلاك ${mk}: ${a.name}`, refType:'depreciation', refId: a.id,
+        branchId: a.branchId, lines: [{ role:'depExpense', debit: dep }, { role:'accumDep', credit: dep }], accounts, userName,
       });
       await db.assets.update(a.id, { accumulatedDep: Math.round(((Number(a.accumulatedDep) || 0) + dep) * 100) / 100, lastDepMonth: mk });
-      await queueSync('assets', 'update', { id: a.id });
+      await queueSync('assets','update', { id: a.id });
       count++; total = Math.round((total + dep) * 100) / 100;
     }
     return { count, total, month: mk };
@@ -974,22 +1000,22 @@ export async function runDepreciation(month, userName) {
 export async function disposeAsset(assetId, disposalValue, userName) {
   return db.transaction('rw', [db.assets, db.accounts, db.journalEntries, db.syncQueue], async () => {
     const a = await db.assets.get(assetId);
-    if (!a || a.status === 'disposed') return null;
+    if (!a || a.status ==='disposed') return null;
     const dv = Number(disposalValue) || 0;
     const cost = Number(a.cost) || 0, accum = Number(a.accumulatedDep) || 0;
     const book = cost - accum;
     const diff = book - dv; // >0 loss, <0 gain
     const lines = [
-      { role: 'cash', debit: dv },
-      { role: 'accumDep', debit: accum },
-      { role: 'fixedAsset', credit: cost },
+      { role:'cash', debit: dv },
+      { role:'accumDep', debit: accum },
+      { role:'fixedAsset', credit: cost },
     ];
-    if (diff > 0) lines.push({ role: 'depExpense', debit: diff });
-    else if (diff < 0) lines.push({ role: 'depExpense', credit: -diff });
+    if (diff > 0) lines.push({ role:'depExpense', debit: diff });
+    else if (diff < 0) lines.push({ role:'depExpense', credit: -diff });
     const accounts = await db.accounts.toArray();
-    await writeJournalEntry({ date: today(), description: `استبعاد أصل: ${a.name}`, refType: 'asset_dispose', refId: assetId, branchId: a.branchId, lines, accounts, userName });
-    await db.assets.update(assetId, { status: 'disposed', disposedDate: today(), disposalValue: dv });
-    await queueSync('assets', 'update', { id: assetId, status: 'disposed' });
+    await writeJournalEntry({ date: today(), description:`استبعاد أصل: ${a.name}`, refType:'asset_dispose', refId: assetId, branchId: a.branchId, lines, accounts, userName });
+    await db.assets.update(assetId, { status:'disposed', disposedDate: today(), disposalValue: dv });
+    await queueSync('assets','update', { id: assetId, status:'disposed' });
     return { book, diff };
   });
 }
@@ -997,25 +1023,25 @@ export async function disposeAsset(assetId, disposalValue, userName) {
 // ---------- payroll ----------
 // Create & pay one payslip: net = basic + allowances + overtime + commission
 // − deductions − advances, posting Dr salaries / Cr cash|bank.
-export async function runPayslip({ employeeId, employeeName, month, basic = 0, allowances = 0, overtime = 0, commission = 0, deductions = 0, advances = 0, cashRole = 'cash', branchId, userName }) {
+export async function runPayslip({ employeeId, employeeName, month, basic = 0, allowances = 0, overtime = 0, commission = 0, deductions = 0, advances = 0, cashRole ='cash', branchId, userName }) {
   const gross = (Number(basic) || 0) + (Number(allowances) || 0) + (Number(overtime) || 0) + (Number(commission) || 0);
   const net = Math.round((gross - (Number(deductions) || 0) - (Number(advances) || 0)) * 100) / 100;
   return db.transaction('rw', [db.payslips, db.accounts, db.journalEntries, db.syncQueue], async () => {
     const doc = {
       employeeId, employeeName, month, basic: Number(basic) || 0, allowances: Number(allowances) || 0,
       overtime: Number(overtime) || 0, commission: Number(commission) || 0, deductions: Number(deductions) || 0,
-      advances: Number(advances) || 0, net, branchId: branchId || DEFAULT_BRANCH_ID, cashRole, status: 'posted',
+      advances: Number(advances) || 0, net, branchId: branchId || DEFAULT_BRANCH_ID, cashRole, status:'posted',
       createdAt: nowISO(), day: today(), userName,
     };
     const id = await db.payslips.add(doc);
     if (net > 0) {
       const accounts = await db.accounts.toArray();
       await writeJournalEntry({
-        date: doc.day, description: `راتب ${month}: ${employeeName}`, refType: 'payroll', refId: id,
-        branchId: doc.branchId, lines: [{ role: 'salaries', debit: net }, { role: cashRole, credit: net }], accounts, userName,
+        date: doc.day, description:`راتب ${month}: ${employeeName}`, refType:'payroll', refId: id,
+        branchId: doc.branchId, lines: [{ role:'salaries', debit: net }, { role: cashRole, credit: net }], accounts, userName,
       });
     }
-    await queueSync('payslips', 'add', { ...doc, id });
+    await queueSync('payslips','add', { ...doc, id });
     return { id, net };
   });
 }
@@ -1036,16 +1062,16 @@ export async function adjustStock({ itemId, branchId, countedQty, note, userName
     stocks[b] = counted;
     await db.items.update(itemId, { stocks });
     const createdAt = nowISO();
-    await db.stockMoves.add({ itemId, itemName: item.name, qty: Math.abs(diff), branchId: b, direction: diff > 0 ? 'in' : 'out', refType: 'adjust', refNumber: note || 'جرد', createdAt });
+    await db.stockMoves.add({ itemId, itemName: item.name, qty: Math.abs(diff), branchId: b, direction: diff > 0 ?'in' :'out', refType:'adjust', refNumber: note ||'جرد', createdAt });
     const value = Math.round(Math.abs(diff) * (Number(item.costPrice) || 0) * 100) / 100;
     if (value > 0) {
       const accounts = await db.accounts.toArray();
       const lines = diff > 0
-        ? [{ role: 'inventory', debit: value }, { role: 'invAdjust', credit: value }] // surplus
-        : [{ role: 'invAdjust', debit: value }, { role: 'inventory', credit: value }]; // shortage
-      await writeJournalEntry({ date: dayOf(createdAt), description: `تسوية جرد: ${item.name}`, refType: 'adjust', refId: itemId, branchId: b, lines, accounts, userName });
+        ? [{ role:'inventory', debit: value }, { role:'invAdjust', credit: value }] // surplus
+        : [{ role:'invAdjust', debit: value }, { role:'inventory', credit: value }]; // shortage
+      await writeJournalEntry({ date: dayOf(createdAt), description:`تسوية جرد: ${item.name}`, refType:'adjust', refId: itemId, branchId: b, lines, accounts, userName });
     }
-    await queueSync('items', 'update', { id: itemId, stocks });
+    await queueSync('items','update', { id: itemId, stocks });
     return { diff, value };
   });
 }
@@ -1062,13 +1088,13 @@ export async function writeOffStock({ itemId, branchId, qty, reason, userName })
     stocks[b] = Number(stocks[b] || 0) - q;
     await db.items.update(itemId, { stocks });
     const createdAt = nowISO();
-    await db.stockMoves.add({ itemId, itemName: item.name, qty: q, branchId: b, direction: 'out', refType: 'damage', refNumber: reason || 'تالف', createdAt });
+    await db.stockMoves.add({ itemId, itemName: item.name, qty: q, branchId: b, direction:'out', refType:'damage', refNumber: reason ||'تالف', createdAt });
     const value = Math.round(q * (Number(item.costPrice) || 0) * 100) / 100;
     if (value > 0) {
       const accounts = await db.accounts.toArray();
-      await writeJournalEntry({ date: dayOf(createdAt), description: `تالف/هالك: ${item.name}${reason ? ' — ' + reason : ''}`, refType: 'damage', refId: itemId, branchId: b, lines: [{ role: 'invAdjust', debit: value }, { role: 'inventory', credit: value }], accounts, userName });
+      await writeJournalEntry({ date: dayOf(createdAt), description:`تالف/هالك: ${item.name}${reason ?' —' + reason :''}`, refType:'damage', refId: itemId, branchId: b, lines: [{ role:'invAdjust', debit: value }, { role:'inventory', credit: value }], accounts, userName });
     }
-    await queueSync('items', 'update', { id: itemId, stocks });
+    await queueSync('items','update', { id: itemId, stocks });
     return { qty: q, value };
   });
 }
@@ -1079,16 +1105,16 @@ export async function writeOffStock({ itemId, branchId, qty, reason, userName })
 export async function addRepVisit(v) {
   return db.transaction('rw', [db.repVisits, db.payments, db.customers, db.suppliers, db.accounts, db.journalEntries, db.syncQueue], async () => {
     const doc = {
-      repName: v.repName || '', customerId: v.customerId || null, customerName: v.customerName || '',
-      date: v.date || today(), purpose: v.purpose || 'visit', result: v.result || '',
-      orderAmount: Number(v.orderAmount) || 0, collectedAmount: Number(v.collectedAmount) || 0, notes: v.notes || '',
+      repName: v.repName ||'', customerId: v.customerId || null, customerName: v.customerName ||'',
+      date: v.date || today(), purpose: v.purpose ||'visit', result: v.result ||'',
+      orderAmount: Number(v.orderAmount) || 0, collectedAmount: Number(v.collectedAmount) || 0, notes: v.notes ||'',
       day: v.date || today(), branchId: v.branchId || DEFAULT_BRANCH_ID, createdAt: nowISO(),
     };
     const id = await db.repVisits.add(doc);
     if (v.recordCollection && doc.collectedAmount > 0 && doc.customerId) {
-      await recordPayment({ partyType: 'customer', partyId: doc.customerId, partyName: doc.customerName, amount: doc.collectedAmount, note: `تحصيل مندوب: ${doc.repName}`, userName: doc.repName, branchId: doc.branchId });
+      await recordPayment({ partyType:'customer', partyId: doc.customerId, partyName: doc.customerName, amount: doc.collectedAmount, note:`تحصيل مندوب: ${doc.repName}`, userName: doc.repName, branchId: doc.branchId });
     }
-    await queueSync('repVisits', 'add', { ...doc, id });
+    await queueSync('repVisits','add', { ...doc, id });
     return { id };
   });
 }
@@ -1097,17 +1123,17 @@ export async function addRepVisit(v) {
 export async function createWorkOrder(wo) {
   return db.transaction('rw', [db.workOrders, db.syncQueue], async () => {
     const dev = deviceBlock();
-    const key = 'kerp_wo_seq';
+    const key ='kerp_wo_seq';
     let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
     cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
-    const number = `WO${dev}-${String(cur).padStart(5, '0')}`;
+    const number =`WO${dev}-${String(cur).padStart(5,'0')}`;
     const doc = {
-      ...wo, number, status: wo.status || 'received', parts: wo.parts || [],
+      ...wo, number, status: wo.status ||'received', parts: wo.parts || [],
       laborCost: Number(wo.laborCost) || 0, createdAt: nowISO(), day: today(),
       branchId: wo.branchId || DEFAULT_BRANCH_ID,
     };
     const id = await db.workOrders.add(doc);
-    await queueSync('workOrders', 'add', { ...doc, id });
+    await queueSync('workOrders','add', { ...doc, id });
     return { id, number };
   });
 }
@@ -1117,20 +1143,20 @@ export async function createWorkOrder(wo) {
 export async function invoiceWorkOrder(woId, { paid, userName, branchId }) {
   const wo = await db.workOrders.get(woId);
   if (!wo || wo.invoiceId) return null;
-  const parts = (wo.parts || []).map((p) => ({ itemId: p.itemId, name: p.name, code: p.code || '', qty: Number(p.qty) || 0, price: Number(p.price) || 0, cost: Number(p.cost) || 0, factor: 1 }));
+  const parts = (wo.parts || []).map((p) => ({ itemId: p.itemId, name: p.name, code: p.code ||'', qty: Number(p.qty) || 0, price: Number(p.price) || 0, cost: Number(p.cost) || 0, factor: 1 }));
   const labor = Number(wo.laborCost) || 0;
   const lines = [...parts];
-  if (labor > 0) lines.push({ itemId: null, name: 'أجر الصيانة / العمالة', code: '', qty: 1, price: labor, cost: 0, factor: 1 });
+  if (labor > 0) lines.push({ itemId: null, name:'أجر الصيانة / العمالة', code:'', qty: 1, price: labor, cost: 0, factor: 1 });
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
   const total = subtotal;
   const paidNum = paid != null ? Number(paid) : total;
   const res = await saveInvoice({
-    type: 'sale', branchId: branchId || wo.branchId, partyId: wo.customerId || null, partyName: wo.customerName || null,
+    type:'sale', branchId: branchId || wo.branchId, partyId: wo.customerId || null, partyName: wo.customerName || null,
     lines, subtotal, discount: 0, tax: 0, total, paid: paidNum, remaining: Math.max(0, total - paidNum),
     profit: lines.reduce((s, l) => s + l.qty * (l.price - l.cost), 0), userId: null, userName,
   });
-  await db.workOrders.update(woId, { status: 'delivered', invoiceId: res.id, invoiceNumber: res.number, deliveredDate: today(), total, paid: paidNum });
-  await queueSync('workOrders', 'update', { id: woId, status: 'delivered', invoiceId: res.id });
+  await db.workOrders.update(woId, { status:'delivered', invoiceId: res.id, invoiceNumber: res.number, deliveredDate: today(), total, paid: paidNum });
+  await queueSync('workOrders','update', { id: woId, status:'delivered', invoiceId: res.id });
   return res;
 }
 
@@ -1138,47 +1164,47 @@ export async function invoiceWorkOrder(woId, { paid, userName, branchId }) {
 export async function createProject({ name, customerId, customerName, budget = 0, startDate, endDate, notes, branchId, userName }) {
   return db.transaction('rw', [db.projects, db.syncQueue], async () => {
     const doc = {
-      name: (name || '').trim(), customerId: customerId || null, customerName: customerName || '',
-      budget: Number(budget) || 0, startDate: startDate || today(), endDate: endDate || null, notes: notes || '',
-      status: 'active', tasks: [], entries: [], branchId: branchId || DEFAULT_BRANCH_ID, createdAt: nowISO(), userName,
+      name: (name ||'').trim(), customerId: customerId || null, customerName: customerName ||'',
+      budget: Number(budget) || 0, startDate: startDate || today(), endDate: endDate || null, notes: notes ||'',
+      status:'active', tasks: [], entries: [], branchId: branchId || DEFAULT_BRANCH_ID, createdAt: nowISO(), userName,
     };
     const id = await db.projects.add(doc);
-    await queueSync('projects', 'add', { ...doc, id });
+    await queueSync('projects','add', { ...doc, id });
     return { id };
   });
 }
 
 // Add a cost or income entry to a project and post it to the ledger
 // (cost → Dr expense / Cr cash; income → Dr cash / Cr sales).
-export async function addProjectEntry({ projectId, type, amount, note, cashRole = 'cash', userName }) {
+export async function addProjectEntry({ projectId, type, amount, note, cashRole ='cash', userName }) {
   return db.transaction('rw', [db.projects, db.accounts, db.journalEntries, db.syncQueue], async () => {
     const p = await db.projects.get(projectId);
     if (!p) return null;
     const amt = Number(amount) || 0;
     if (amt <= 0) return null;
-    const entry = { key: `${Date.now()}_${Math.floor(Math.random() * 1e4)}`, type, amount: amt, note: note || '', date: today(), createdAt: nowISO() };
+    const entry = { key:`${Date.now()}_${Math.floor(Math.random() * 1e4)}`, type, amount: amt, note: note ||'', date: today(), createdAt: nowISO() };
     const entries = [...(p.entries || []), entry];
     await db.projects.update(projectId, { entries });
     const accounts = await db.accounts.toArray();
-    const lines = type === 'cost'
-      ? [{ role: 'expense', debit: amt }, { role: cashRole, credit: amt }]
-      : [{ role: cashRole, debit: amt }, { role: 'sales', credit: amt }];
+    const lines = type ==='cost'
+      ? [{ role:'expense', debit: amt }, { role: cashRole, credit: amt }]
+      : [{ role: cashRole, debit: amt }, { role:'sales', credit: amt }];
     await writeJournalEntry({
-      date: entry.date, description: `مشروع ${p.name}: ${type === 'cost' ? 'تكلفة' : 'إيراد'}${note ? ' — ' + note : ''}`,
-      refType: 'project', refId: projectId, branchId: p.branchId, lines, accounts, userName,
+      date: entry.date, description:`مشروع ${p.name}: ${type ==='cost' ?'تكلفة' :'إيراد'}${note ?' —' + note :''}`,
+      refType:'project', refId: projectId, branchId: p.branchId, lines, accounts, userName,
     });
-    await queueSync('projects', 'update', { id: projectId, entries });
+    await queueSync('projects','update', { id: projectId, entries });
     return { entry };
   });
 }
 
 // Transfer stock quantities from one branch to another (atomic).
-// `lines` = [{ itemId, name, qty }]. Records two stock moves per item.
+//`lines` = [{ itemId, name, qty }]. Records two stock moves per item.
 export async function transferStock({ fromBranch, toBranch, lines, userName }) {
   if (fromBranch === toBranch) throw new Error('اختر فرعين مختلفين');
   return db.transaction('rw', [db.items, db.stockMoves, db.auditLog, db.syncQueue], async () => {
     const createdAt = nowISO();
-    const ref = `TRF-${deviceBlock()}-${String(Date.now()).slice(-6)}`;
+    const ref =`TRF-${deviceBlock()}-${String(Date.now()).slice(-6)}`;
     let count = 0;
     for (const line of lines) {
       const qty = Number(line.qty || 0);
@@ -1188,22 +1214,27 @@ export async function transferStock({ fromBranch, toBranch, lines, userName }) {
       const stocks = { ...(item.stocks || {}) };
       stocks[fromBranch] = Number(stocks[fromBranch] || 0) - qty;
       stocks[toBranch] = Number(stocks[toBranch] || 0) + qty;
-      await db.items.update(line.itemId, { stocks });
-      await db.stockMoves.add({ itemId: line.itemId, itemName: line.name || item.name, qty, branchId: fromBranch, direction: 'out', refType: 'transfer', refNumber: ref, createdAt });
-      await db.stockMoves.add({ itemId: line.itemId, itemName: line.name || item.name, qty, branchId: toBranch, direction: 'in', refType: 'transfer', refNumber: ref, createdAt });
+      const branchUpdatedAt = {
+        ...(item.branchUpdatedAt || {}),
+        [fromBranch]: createdAt,
+        [toBranch]: createdAt,
+      };
+      await db.items.update(line.itemId, { stocks, branchUpdatedAt });
+      await db.stockMoves.add({ itemId: line.itemId, itemName: line.name || item.name, qty, branchId: fromBranch, direction:'out', refType:'transfer', refNumber: ref, createdAt });
+      await db.stockMoves.add({ itemId: line.itemId, itemName: line.name || item.name, qty, branchId: toBranch, direction:'in', refType:'transfer', refNumber: ref, createdAt });
       count++;
     }
-    await logAudit('transfer', 'stock', ref, { userName, extra: { ref, fromBranch, toBranch, count } });
-    await queueSync('items', 'transfer', { ref, fromBranch, toBranch, count });
+    await logAudit('transfer','stock', ref, { userName, extra: { ref, fromBranch, toBranch, count } });
+    await queueSync('items','transfer', { ref, fromBranch, toBranch, count });
     return { ref, count };
   });
 }
 
 // ---------- manufacturing / production ----------
-// Consume raw-material `components` and produce `qty` of a finished `productId`,
+// Consume raw-material`components` and produce`qty` of a finished`productId`,
 // all within one branch. Adjusts per-branch stock for every item involved,
 // writes stock moves, computes the finished unit cost (materials + labor + other)
-// and stores it on the product, and records the run. `components` = [{ itemId, qty }].
+// and stores it on the product, and records the run.`components` = [{ itemId, qty }].
 export async function recordProduction({ branchId, productId, productName, qty, components, laborCost, otherCost, saveRecipe, userId, userName }) {
   const q = Number(qty || 0);
   if (!productId || q <= 0) throw new Error('اختر المنتج النهائي والكمية');
@@ -1213,10 +1244,10 @@ export async function recordProduction({ branchId, productId, productName, qty, 
     const b = branchId || DEFAULT_BRANCH_ID;
     const createdAt = nowISO();
     const dev = deviceBlock();
-    const key = 'kerp_prod_seq';
+    const key ='kerp_prod_seq';
     let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
     cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
-    const number = `MFG${dev}-${String(cur).padStart(5, '0')}`;
+    const number =`MFG${dev}-${String(cur).padStart(5,'0')}`;
 
     let materialsCost = 0;
     for (const c of comps) {
@@ -1229,7 +1260,7 @@ export async function recordProduction({ branchId, productId, productName, qty, 
       materialsCost += cq * Number(item.costPrice || 0);
       await db.stockMoves.add({
         itemId: c.itemId, itemName: item.name, qty: cq, branchId: b,
-        direction: 'out', refType: 'production', refId: number, refNumber: number, createdAt,
+        direction:'out', refType:'production', refId: number, refNumber: number, createdAt,
       });
     }
 
@@ -1246,52 +1277,52 @@ export async function recordProduction({ branchId, productId, productName, qty, 
       await db.items.update(productId, patch);
       await db.stockMoves.add({
         itemId: productId, itemName: product.name, qty: q, branchId: b,
-        direction: 'in', refType: 'production', refId: number, refNumber: number, createdAt,
+        direction:'in', refType:'production', refId: number, refNumber: number, createdAt,
       });
     }
 
     const doc = {
-      number, branchId: b, productId, productName: productName || (product && product.name) || '',
+      number, branchId: b, productId, productName: productName || (product && product.name) ||'',
       qty: q, components: comps.map((c) => ({ itemId: c.itemId, name: c.name, qty: Number(c.qty) || 0 })),
       laborCost: Number(laborCost || 0), otherCost: Number(otherCost || 0),
       materialsCost, totalCost, unitCost, userId, userName, createdAt, day: dayOf(createdAt),
     };
     const id = await db.productions.add(doc);
-    await logAudit('production', 'production', id, { userId, userName, extra: { number, productName: doc.productName, qty: q } });
-    await queueSync('productions', 'add', { ...doc, id });
+    await logAudit('production','production', id, { userId, userName, extra: { number, productName: doc.productName, qty: q } });
+    await queueSync('productions','add', { ...doc, id });
     return { id, number, unitCost };
   });
 }
 
 // ---------- double-entry accounting ----------
-// Account types and their "normal" balance side. asset/expense are debit-normal
+// Account types and their"normal" balance side. asset/expense are debit-normal
 // (balance = debits − credits); liability/equity/revenue are credit-normal.
 export const ACCOUNT_TYPES = {
-  asset:     { label: 'أصول',        normal: 'debit'  },
-  liability: { label: 'خصوم',        normal: 'credit' },
-  equity:    { label: 'حقوق ملكية',  normal: 'credit' },
-  revenue:   { label: 'إيرادات',     normal: 'credit' },
-  expense:   { label: 'مصروفات',     normal: 'debit'  },
+  asset:     { label:'أصول',        normal:'debit'  },
+  liability: { label:'خصوم',        normal:'credit' },
+  equity:    { label:'حقوق ملكية',  normal:'credit' },
+  revenue:   { label:'إيرادات',     normal:'credit' },
+  expense:   { label:'مصروفات',     normal:'debit'  },
 };
 
-// Default chart of accounts, seeded once. `role` marks the "system" accounts the
+// Default chart of accounts, seeded once.`role` marks the"system" accounts the
 // auto-posting engine targets (resolved by role so renames/re-codes don't break it).
 // System accounts use FIXED ids (like DEFAULT_BRANCH_ID) so every device agrees
 // on them and a concurrent double-seed (React StrictMode / racing callers) hits a
 // ConstraintError on the duplicate id instead of creating a second set.
 const DEFAULT_ACCOUNTS = [
-  { id: 1,  code: '1100', name: 'الصندوق (النقدية)',        type: 'asset',     role: 'cash', cashbox: true, cbType: 'cash' },
-  { id: 2,  code: '1200', name: 'البنك',                    type: 'asset',     role: 'bank', cashbox: true, cbType: 'bank' },
-  { id: 3,  code: '1300', name: 'العملاء (المدينون)',       type: 'asset',     role: 'ar' },
-  { id: 4,  code: '1400', name: 'المخزون',                  type: 'asset',     role: 'inventory' },
-  { id: 5,  code: '2100', name: 'الموردون (الدائنون)',      type: 'liability', role: 'ap' },
-  { id: 6,  code: '2200', name: 'ضريبة القيمة المضافة',     type: 'liability', role: 'vat' },
-  { id: 7,  code: '3100', name: 'رأس المال',                type: 'equity',    role: 'capital' },
-  { id: 8,  code: '3200', name: 'الأرباح المحتجزة',         type: 'equity',    role: 'retained' },
-  { id: 9,  code: '4100', name: 'إيرادات المبيعات',         type: 'revenue',   role: 'sales' },
-  { id: 10, code: '5100', name: 'تكلفة البضاعة المباعة',    type: 'expense',   role: 'cogs' },
-  { id: 11, code: '5200', name: 'مصروفات تشغيلية',          type: 'expense',   role: 'expense' },
-  { id: 12, code: '5300', name: 'الخصومات الممنوحة',        type: 'expense',   role: 'discount' },
+  { id: 1,  code:'1100', name:'الصندوق (النقدية)',        type:'asset',     role:'cash', cashbox: true, cbType:'cash' },
+  { id: 2,  code:'1200', name:'البنك',                    type:'asset',     role:'bank', cashbox: true, cbType:'bank' },
+  { id: 3,  code:'1300', name:'العملاء (المدينون)',       type:'asset',     role:'ar' },
+  { id: 4,  code:'1400', name:'المخزون',                  type:'asset',     role:'inventory' },
+  { id: 5,  code:'2100', name:'الموردون (الدائنون)',      type:'liability', role:'ap' },
+  { id: 6,  code:'2200', name:'ضريبة القيمة المضافة',     type:'liability', role:'vat' },
+  { id: 7,  code:'3100', name:'رأس المال',                type:'equity',    role:'capital' },
+  { id: 8,  code:'3200', name:'الأرباح المحتجزة',         type:'equity',    role:'retained' },
+  { id: 9,  code:'4100', name:'إيرادات المبيعات',         type:'revenue',   role:'sales' },
+  { id: 10, code:'5100', name:'تكلفة البضاعة المباعة',    type:'expense',   role:'cogs' },
+  { id: 11, code:'5200', name:'مصروفات تشغيلية',          type:'expense',   role:'expense' },
+  { id: 12, code:'5300', name:'الخصومات الممنوحة',        type:'expense',   role:'discount' },
 ];
 
 export async function ensureChartOfAccounts() {
@@ -1300,17 +1331,17 @@ export async function ensureChartOfAccounts() {
   for (const a of DEFAULT_ACCOUNTS) {
     // explicit id → the creating hook leaves it; a racing duplicate is ignored
     try { await db.accounts.add({ ...a, parentId: null, isGroup: false, system: true, createdAt: iso }); }
-    catch (e) { if (e.name !== 'ConstraintError') throw e; }
+    catch (e) { if (e.name !=='ConstraintError') throw e; }
   }
 }
 
 // Extra system accounts the later modules need (added by role if missing, fixed ids).
 const ASSET_ACCOUNTS = [
-  { id: 15, code: '1500', name: 'الأصول الثابتة',       type: 'asset',     role: 'fixedAsset' },
-  { id: 16, code: '1600', name: 'مجمع إهلاك الأصول',    type: 'liability', role: 'accumDep' },
-  { id: 17, code: '5400', name: 'مصروف الإهلاك',        type: 'expense',   role: 'depExpense' },
-  { id: 18, code: '5500', name: 'الرواتب والأجور',      type: 'expense',   role: 'salaries' },
-  { id: 19, code: '5600', name: 'تسويات وتوالف المخزون', type: 'expense',  role: 'invAdjust' },
+  { id: 15, code:'1500', name:'الأصول الثابتة',       type:'asset',     role:'fixedAsset' },
+  { id: 16, code:'1600', name:'مجمع إهلاك الأصول',    type:'liability', role:'accumDep' },
+  { id: 17, code:'5400', name:'مصروف الإهلاك',        type:'expense',   role:'depExpense' },
+  { id: 18, code:'5500', name:'الرواتب والأجور',      type:'expense',   role:'salaries' },
+  { id: 19, code:'5600', name:'تسويات وتوالف المخزون', type:'expense',  role:'invAdjust' },
 ];
 export async function ensureAssetAccounts() {
   const iso = nowISO();
@@ -1318,13 +1349,13 @@ export async function ensureAssetAccounts() {
     const exists = await db.accounts.where('role').equals(a.role).first();
     if (exists) continue;
     try { await db.accounts.add({ ...a, parentId: null, isGroup: false, system: true, createdAt: iso }); }
-    catch (e) { if (e.name !== 'ConstraintError') throw e; }
+    catch (e) { if (e.name !=='ConstraintError') throw e; }
   }
 }
 
 // Core writer — MUST run inside a transaction whose scope includes
-// db.journalEntries and db.syncQueue. `accounts` is the pre-read accounts array.
-// `lines` = [{ role|accountId, debit, credit }]. Skips silently (returns null)
+// db.journalEntries and db.syncQueue.`accounts` is the pre-read accounts array.
+//`lines` = [{ role|accountId, debit, credit }]. Skips silently (returns null)
 // if it can't resolve ≥2 lines or the entry doesn't balance — never throws, so a
 // business operation is never rolled back just because posting couldn't complete.
 async function writeJournalEntry({ date, description, refType, refId, refNumber, branchId, lines, accounts, userId, userName }) {
@@ -1347,24 +1378,24 @@ async function writeJournalEntry({ date, description, refType, refId, refNumber,
     return null;
   }
   const dev = deviceBlock();
-  const key = 'kerp_jv_seq';
+  const key ='kerp_jv_seq';
   let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
   cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
-  const number = `JV${dev}-${String(cur).padStart(5, '0')}`;
+  const number =`JV${dev}-${String(cur).padStart(5,'0')}`;
   const day = date || today();
   const doc = {
-    number, date: day, day, description: description || '', refType: refType || 'manual',
+    number, date: day, day, description: description ||'', refType: refType ||'manual',
     refId: refId ?? null, refNumber: refNumber ?? null, branchId: branchId || DEFAULT_BRANCH_ID,
     lines: resolved, totalDebit, totalCredit, userId: userId || null, userName: userName || null,
-    createdAt: nowISO(), status: 'posted',
+    createdAt: nowISO(), status:'posted',
   };
   const id = await db.journalEntries.add(doc);
-  await queueSync('journalEntries', 'add', { ...doc, id });
+  await queueSync('journalEntries','add', { ...doc, id });
   return { id, number };
 }
 
 // The journal lines an invoice-type document generates (double-entry).
-// `inv.total` is the grand total INCLUDING tax; `inv.tax` is the VAT amount, so
+//`inv.total` is the grand total INCLUDING tax;`inv.tax` is the VAT amount, so
 // the taxable-goods value (revenue / inventory) is the net = total − tax.
 function invoiceJournalLines(inv) {
   const total = Number(inv.total || 0), paid = Number(inv.paid || 0);
@@ -1372,39 +1403,39 @@ function invoiceJournalLines(inv) {
   const subtotal = Number(inv.subtotal || 0), tax = Number(inv.tax || 0);
   const cogs = Math.round((inv.lines || []).reduce((s, l) => s + Number(l.qty || 0) * Number(l.cost || 0), 0) * 100) / 100;
   const hasParty = !!inv.partyId;
-  if (inv.type === 'sale') {
+  if (inv.type ==='sale') {
     const lines = [
-      { role: 'cash', debit: paid },
-      { role: 'ar', debit: remaining },
-      { role: 'discount', debit: discount },
-      { role: 'sales', credit: subtotal },
-      { role: 'vat', credit: tax }, // VAT collected on behalf of the tax authority
+      { role:'cash', debit: paid },
+      { role:'ar', debit: remaining },
+      { role:'discount', debit: discount },
+      { role:'sales', credit: subtotal },
+      { role:'vat', credit: tax }, // VAT collected on behalf of the tax authority
     ];
-    if (cogs > 0) { lines.push({ role: 'cogs', debit: cogs }, { role: 'inventory', credit: cogs }); }
+    if (cogs > 0) { lines.push({ role:'cogs', debit: cogs }, { role:'inventory', credit: cogs }); }
     return lines;
   }
-  if (inv.type === 'purchase') {
+  if (inv.type ==='purchase') {
     return [
-      { role: 'inventory', debit: total - tax }, // goods at net cost
-      { role: 'vat', debit: tax },               // recoverable input VAT
-      { role: 'cash', credit: paid },
-      { role: 'ap', credit: remaining },
+      { role:'inventory', debit: total - tax }, // goods at net cost
+      { role:'vat', debit: tax },               // recoverable input VAT
+      { role:'cash', credit: paid },
+      { role:'ap', credit: remaining },
     ];
   }
-  if (inv.type === 'sale_return') {
+  if (inv.type ==='sale_return') {
     const lines = [
-      { role: 'sales', debit: total - tax },
-      { role: 'vat', debit: tax },
-      { role: hasParty ? 'ar' : 'cash', credit: total },
+      { role:'sales', debit: total - tax },
+      { role:'vat', debit: tax },
+      { role: hasParty ?'ar' :'cash', credit: total },
     ];
-    if (cogs > 0) { lines.push({ role: 'inventory', debit: cogs }, { role: 'cogs', credit: cogs }); }
+    if (cogs > 0) { lines.push({ role:'inventory', debit: cogs }, { role:'cogs', credit: cogs }); }
     return lines;
   }
-  if (inv.type === 'purchase_return') {
+  if (inv.type ==='purchase_return') {
     return [
-      { role: hasParty ? 'ap' : 'cash', debit: total },
-      { role: 'inventory', credit: total - tax },
-      { role: 'vat', credit: tax },
+      { role: hasParty ?'ap' :'cash', debit: total },
+      { role:'inventory', credit: total - tax },
+      { role:'vat', credit: tax },
     ];
   }
   return [];
@@ -1420,14 +1451,14 @@ export async function postJournal(args) {
 }
 
 // ---------- treasury: cashboxes & banks ----------
-// A cashbox/bank IS a chart-of-accounts asset account flagged `cashbox: true`,
+// A cashbox/bank IS a chart-of-accounts asset account flagged`cashbox: true`,
 // so its balance is exactly its ledger balance — one source of truth, no drift.
 // Backfill flags on the seeded cash/bank accounts for databases created before this.
 export async function ensureCashboxes() {
   const cash = await db.accounts.where('role').equals('cash').first();
-  if (cash && !cash.cashbox) await db.accounts.update(cash.id, { cashbox: true, cbType: 'cash' });
+  if (cash && !cash.cashbox) await db.accounts.update(cash.id, { cashbox: true, cbType:'cash' });
   const bank = await db.accounts.where('role').equals('bank').first();
-  if (bank && !bank.cashbox) await db.accounts.update(bank.id, { cashbox: true, cbType: 'bank' });
+  if (bank && !bank.cashbox) await db.accounts.update(bank.id, { cashbox: true, cbType:'bank' });
 }
 
 function nextAssetCode(accounts) {
@@ -1439,18 +1470,18 @@ function nextAssetCode(accounts) {
 
 // Create a new cashbox/bank (an asset account); an opening balance posts
 // Dr cashbox / Cr capital.
-export async function createCashbox({ name, cbType = 'cash', openingBalance = 0, branchId, userName }) {
+export async function createCashbox({ name, cbType ='cash', openingBalance = 0, branchId, userName }) {
   return db.transaction('rw', [db.accounts, db.journalEntries, db.syncQueue], async () => {
     const accounts = await db.accounts.toArray();
     const code = nextAssetCode(accounts);
-    const doc = { code, name: (name || '').trim(), type: 'asset', role: null, cashbox: true, cbType, parentId: null, isGroup: false, system: false, createdAt: nowISO() };
+    const doc = { code, name: (name ||'').trim(), type:'asset', role: null, cashbox: true, cbType, parentId: null, isGroup: false, system: false, createdAt: nowISO() };
     const id = await db.accounts.add(doc);
-    await queueSync('accounts', 'add', { ...doc, id });
+    await queueSync('accounts','add', { ...doc, id });
     const opening = Number(openingBalance || 0);
     if (opening > 0) {
-      const capital = accounts.find((a) => a.role === 'capital');
+      const capital = accounts.find((a) => a.role ==='capital');
       await writeJournalEntry({
-        date: today(), description: `رصيد افتتاحي — ${doc.name}`, refType: 'opening', refId: id,
+        date: today(), description:`رصيد افتتاحي — ${doc.name}`, refType:'opening', refId: id,
         branchId: branchId || DEFAULT_BRANCH_ID,
         lines: [{ accountId: id, debit: opening }, capital && { accountId: capital.id, credit: opening }].filter(Boolean),
         accounts: [...accounts, { ...doc, id }], userName,
@@ -1465,12 +1496,12 @@ export async function postCashMovement({ cashboxId, direction, counterAccountId,
   const amt = Number(amount || 0);
   if (amt <= 0) throw new Error('أدخل مبلغاً صحيحاً');
   if (!counterAccountId) throw new Error('اختر الحساب المقابل');
-  const lines = direction === 'in'
+  const lines = direction ==='in'
     ? [{ accountId: Number(cashboxId), debit: amt }, { accountId: Number(counterAccountId), credit: amt }]
     : [{ accountId: Number(counterAccountId), debit: amt }, { accountId: Number(cashboxId), credit: amt }];
   return postJournal({
-    date: day || today(), description: description || (direction === 'in' ? 'سند قبض' : 'سند صرف'),
-    refType: direction === 'in' ? 'receipt' : 'payment', branchId, lines, userName,
+    date: day || today(), description: description || (direction ==='in' ?'سند قبض' :'سند صرف'),
+    refType: direction ==='in' ?'receipt' :'payment', branchId, lines, userName,
   });
 }
 
@@ -1480,7 +1511,7 @@ export async function postCashTransfer({ fromId, toId, amount, description, day,
   if (amt <= 0) throw new Error('أدخل مبلغاً صحيحاً');
   if (Number(fromId) === Number(toId)) throw new Error('اختر خزينتين مختلفتين');
   return postJournal({
-    date: day || today(), description: description || 'تحويل بين الخزائن', refType: 'cash_transfer', branchId,
+    date: day || today(), description: description ||'تحويل بين الخزائن', refType:'cash_transfer', branchId,
     lines: [{ accountId: Number(toId), debit: amt }, { accountId: Number(fromId), credit: amt }], userName,
   });
 }
@@ -1495,29 +1526,29 @@ export function accountBalance(account, entries) {
     }
   }
   const net = debit - credit;
-  return (ACCOUNT_TYPES[account.type]?.normal === 'credit') ? -net : net;
+  return (ACCOUNT_TYPES[account.type]?.normal ==='credit') ? -net : net;
 }
 
 // ---------- demo data ----------
 export async function loadDemoData() {
   const items = [
-    { code: 'SCR-A10', barcode: '6221001001', name: 'شاشة سامسونج A10', brand: 'Samsung', category: 'شاشات', costPrice: 320, salePrice: 420, minStock: 3, stock: 12 },
-    { code: 'SCR-IP11', barcode: '6221001002', name: 'شاشة ايفون 11 OLED', brand: 'Apple', category: 'شاشات', costPrice: 950, salePrice: 1250, minStock: 2, stock: 5 },
-    { code: 'BAT-OPA54', barcode: '6221001003', name: 'بطارية اوبو A54', brand: 'Oppo', category: 'بطاريات', costPrice: 110, salePrice: 170, minStock: 5, stock: 20 },
-    { code: 'BAT-RN10', barcode: '6221001004', name: 'بطارية ريدمي نوت 10', brand: 'Xiaomi', category: 'بطاريات', costPrice: 95, salePrice: 150, minStock: 5, stock: 4 },
-    { code: 'FLX-SHN', barcode: '6221001005', name: 'فلاتة شحن سامسونج A12', brand: 'Samsung', category: 'فلات', costPrice: 25, salePrice: 50, minStock: 10, stock: 35 },
-    { code: 'GLS-9D', barcode: '6221001006', name: 'اسكرينة 9D حماية', brand: 'عام', category: 'اكسسوارات', costPrice: 8, salePrice: 25, minStock: 20, stock: 150 },
-    { code: 'CBL-TYPC', barcode: '6221001007', name: 'كابل Type-C اصلي', brand: 'عام', category: 'اكسسوارات', costPrice: 18, salePrice: 40, minStock: 15, stock: 60 },
-    { code: 'TCH-OPA15', barcode: '6221001008', name: 'تاتش اوبو A15', brand: 'Oppo', category: 'شاشات', costPrice: 140, salePrice: 200, minStock: 3, stock: 2 },
+    { code:'SCR-A10', barcode:'6221001001', name:'شاشة سامسونج A10', brand:'Samsung', category:'شاشات', costPrice: 320, salePrice: 420, minStock: 3, stock: 12 },
+    { code:'SCR-IP11', barcode:'6221001002', name:'شاشة ايفون 11 OLED', brand:'Apple', category:'شاشات', costPrice: 950, salePrice: 1250, minStock: 2, stock: 5 },
+    { code:'BAT-OPA54', barcode:'6221001003', name:'بطارية اوبو A54', brand:'Oppo', category:'بطاريات', costPrice: 110, salePrice: 170, minStock: 5, stock: 20 },
+    { code:'BAT-RN10', barcode:'6221001004', name:'بطارية ريدمي نوت 10', brand:'Xiaomi', category:'بطاريات', costPrice: 95, salePrice: 150, minStock: 5, stock: 4 },
+    { code:'FLX-SHN', barcode:'6221001005', name:'فلاتة شحن سامسونج A12', brand:'Samsung', category:'فلات', costPrice: 25, salePrice: 50, minStock: 10, stock: 35 },
+    { code:'GLS-9D', barcode:'6221001006', name:'اسكرينة 9D حماية', brand:'عام', category:'اكسسوارات', costPrice: 8, salePrice: 25, minStock: 20, stock: 150 },
+    { code:'CBL-TYPC', barcode:'6221001007', name:'كابل Type-C اصلي', brand:'عام', category:'اكسسوارات', costPrice: 18, salePrice: 40, minStock: 15, stock: 60 },
+    { code:'TCH-OPA15', barcode:'6221001008', name:'تاتش اوبو A15', brand:'Oppo', category:'شاشات', costPrice: 140, salePrice: 200, minStock: 3, stock: 2 },
   ];
   const customers = [
-    { name: 'محل النور للموبايلات', phone: '01001234567', address: 'المنيا - شارع الحسيني', balance: 0 },
-    { name: 'عيد ابو سعد', phone: '01112345678', address: 'بني مزار', balance: 0 },
-    { name: 'محل الامانة', phone: '01223456789', address: 'مغاغة - السوق', balance: 0 },
+    { name:'محل النور للموبايلات', phone:'01001234567', address:'المنيا - شارع الحسيني', balance: 0 },
+    { name:'عيد ابو سعد', phone:'01112345678', address:'بني مزار', balance: 0 },
+    { name:'محل الامانة', phone:'01223456789', address:'مغاغة - السوق', balance: 0 },
   ];
   const suppliers = [
-    { name: 'شركة التوحيد لقطع الغيار', phone: '01099887766', balance: 0 },
-    { name: 'مكتب الصين للاستيراد', phone: '01155443322', balance: 0 },
+    { name:'شركة التوحيد لقطع الغيار', phone:'01099887766', balance: 0 },
+    { name:'مكتب الصين للاستيراد', phone:'01155443322', balance: 0 },
   ];
   await db.transaction('rw', [db.items, db.customers, db.suppliers, db.branches], async () => {
     await ensureDefaultBranch();
@@ -1535,20 +1566,15 @@ export async function loadDemoData() {
 // settings (sector/plan/custom fields/etc.), branches and the chart of accounts,
 // so login and the shop's configuration stay intact. Local only — if cloud sync
 // is enabled, a later pull can restore cloud rows.
-const CLEARABLE_TABLES = [
-  'items', 'customers', 'suppliers', 'invoices', 'payments', 'stockMoves',
-  'expenses', 'recurringExpenses', 'employees', 'empRecords', 'deliveries',
-  'requests', 'productions', 'installmentPlans', 'leads', 'priceLists', 'coupons',
-  'assets', 'payslips', 'projects', 'workOrders', 'repVisits', 'cashCloses', 'auditLog',
-  'journalEntries', 'lines', 'transactions', 'profiles', 'syncQueue',
+const CLEARABLE_TABLES = ['items','customers','suppliers','invoices','payments','stockMoves','expenses','recurringExpenses','employees','empRecords','deliveries','requests','productions','installmentPlans','leads','priceLists','coupons','assets','payslips','projects','workOrders','repVisits','cashCloses','auditLog','journalEntries','lines','transactions','profiles','syncQueue',
 ];
 // ---------- opening balances (adoption: starting figures from before the app) ----------
-// Idempotent & editable: each party stores its last `openingBalance`; re-saving posts
+// Idempotent & editable: each party stores its last`openingBalance`; re-saving posts
 // only the delta, so running it twice never double-counts. Customer opening debt →
 // Dr AR / Cr capital; supplier opening payable → Dr capital / Cr AP (reversed if lowered).
 export async function setPartyOpening({ partyType, partyId, amount, userName }) {
   amount = Number(amount) || 0;
-  const isCust = partyType === 'customer';
+  const isCust = partyType ==='customer';
   const table = isCust ? db.customers : db.suppliers;
   return db.transaction('rw', [db.customers, db.suppliers, db.journalEntries, db.accounts, db.auditLog, db.syncQueue], async () => {
     const p = await table.get(partyId);
@@ -1561,23 +1587,23 @@ export async function setPartyOpening({ partyType, partyId, amount, userName }) 
     const amt = Math.abs(delta);
     const inc = delta > 0;
     const lines = isCust
-      ? (inc ? [{ role: 'ar', debit: amt }, { role: 'capital', credit: amt }]
-             : [{ role: 'capital', debit: amt }, { role: 'ar', credit: amt }])
-      : (inc ? [{ role: 'capital', debit: amt }, { role: 'ap', credit: amt }]
-             : [{ role: 'ap', debit: amt }, { role: 'capital', credit: amt }]);
+      ? (inc ? [{ role:'ar', debit: amt }, { role:'capital', credit: amt }]
+             : [{ role:'capital', debit: amt }, { role:'ar', credit: amt }])
+      : (inc ? [{ role:'capital', debit: amt }, { role:'ap', credit: amt }]
+             : [{ role:'ap', debit: amt }, { role:'capital', credit: amt }]);
     const accounts = await db.accounts.toArray();
     await writeJournalEntry({
-      date: today(), description: `رصيد افتتاحي — ${p.name}`,
-      refType: 'opening', refId: partyId, branchId: DEFAULT_BRANCH_ID,
+      date: today(), description:`رصيد افتتاحي — ${p.name}`,
+      refType:'opening', refId: partyId, branchId: DEFAULT_BRANCH_ID,
       lines, accounts, userName,
     });
-    await logAudit('opening', isCust ? 'customer' : 'supplier', partyId, { userName, extra: `رصيد افتتاحي ${amount}` });
-    await queueSync(isCust ? 'customers' : 'suppliers', 'update', { id: partyId, balance: newBalance, openingBalance: amount });
+    await logAudit('opening', isCust ?'customer' :'supplier', partyId, { userName, extra:`رصيد افتتاحي ${amount}` });
+    await queueSync(isCust ?'customers' :'suppliers','update', { id: partyId, balance: newBalance, openingBalance: amount });
   });
 }
 
 // Post the opening inventory value (Dr inventory / Cr capital). Stores the posted
-// total in `openingInventoryValue`; re-running posts only the difference.
+// total in`openingInventoryValue`; re-running posts only the difference.
 export async function postOpeningInventory({ value, userName }) {
   value = Number(value) || 0;
   return db.transaction('rw', [db.settings, db.journalEntries, db.accounts, db.auditLog, db.syncQueue], async () => {
@@ -1587,16 +1613,16 @@ export async function postOpeningInventory({ value, userName }) {
     const amt = Math.abs(delta);
     const inc = delta > 0;
     const lines = inc
-      ? [{ role: 'inventory', debit: amt }, { role: 'capital', credit: amt }]
-      : [{ role: 'capital', debit: amt }, { role: 'inventory', credit: amt }];
+      ? [{ role:'inventory', debit: amt }, { role:'capital', credit: amt }]
+      : [{ role:'capital', debit: amt }, { role:'inventory', credit: amt }];
     const accounts = await db.accounts.toArray();
     await writeJournalEntry({
-      date: today(), description: 'رصيد افتتاحي — المخزون',
-      refType: 'opening', refId: 'inventory', branchId: DEFAULT_BRANCH_ID,
+      date: today(), description:'رصيد افتتاحي — المخزون',
+      refType:'opening', refId:'inventory', branchId: DEFAULT_BRANCH_ID,
       lines, accounts, userName,
     });
     await setSetting('openingInventoryValue', value);
-    await logAudit('opening', 'inventory', 0, { userName, extra: `قيمة مخزون افتتاحية ${value}` });
+    await logAudit('opening','inventory', 0, { userName, extra:`قيمة مخزون افتتاحية ${value}` });
   });
 }
 

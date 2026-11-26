@@ -1,17 +1,18 @@
-import { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { getCustomFields, saveCustomFields } from '../db';
-import { Toast } from '../components/UI';
+import { Icon } from'../components/Icon';
+import { useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { getCustomFields, saveCustomFields } from'../db';
+import { Toast } from'../components/UI';
 
 const ENTITIES = [
-  { id: 'item', label: '📦 الأصناف' },
-  { id: 'customer', label: '👥 العملاء' },
-  { id: 'supplier', label: '🚚 الموردين' },
+  { id:'item', label:'الأصناف' },
+  { id:'customer', label:'العملاء' },
+  { id:'supplier', label:' الموردين' },
 ];
 const TYPES = [
-  { id: 'text', label: 'نص' },
-  { id: 'number', label: 'رقم' },
-  { id: 'date', label: 'تاريخ' },
+  { id:'text', label:'نص' },
+  { id:'number', label:'رقم' },
+  { id:'date', label:'تاريخ' },
 ];
 const entityLabel = (id) => ENTITIES.find((e) => e.id === id)?.label || id;
 const typeLabel = (id) => TYPES.find((t) => t.id === id)?.label || id;
@@ -25,26 +26,26 @@ export default function CustomFields() {
 
   const add = async () => {
     if (!label.trim()) return;
-    const id = 'cf_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
+    const id ='cf_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
     await saveCustomFields([...(fields || []), { id, entity, label: label.trim(), type }]);
     setLabel('');
-    setToast('✅ تم إضافة الحقل');
+    setToast(' تم إضافة الحقل');
     setTimeout(() => setToast(''), 2000);
   };
 
   const remove = async (f) => {
-    if (!confirm(`حذف الحقل "${f.label}"؟ (القيم المسجّلة تفضل محفوظة على السجلات)`)) return;
+    if (!confirm(`حذف الحقل"${f.label}"؟ (القيم المسجّلة تفضل محفوظة على السجلات)`)) return;
     await saveCustomFields((fields || []).filter((x) => x.id !== f.id));
   };
 
   return (
     <>
-      <div className="page-head"><h1>🧩 الحقول المخصّصة</h1></div>
+      <div className="page-head"><h1>الحقول المخصّصة</h1></div>
 
       <div className="card" style={{ maxWidth: 720, marginBottom: 16 }}>
         <p className="muted" style={{ marginTop: 0 }}>
-          أضف خانات خاصة بمجالك تظهر في شاشة الأصناف/العملاء. مثال: للمقاولات "رقم المشروع"،
-          للصيدلية "تاريخ الصلاحية"، للسوبر ماركت "الوحدة". أي حقل تضيفه هيظهر في نموذج
+          أضف خانات خاصة بمجالك تظهر في شاشة الأصناف/العملاء. مثال: للمقاولات"رقم المشروع"،
+          للصيدلية"تاريخ الصلاحية"، للسوبر ماركت"الوحدة". أي حقل تضيفه هيظهر في نموذج
           الإضافة/التعديل للسجل المرتبط بيه.
         </p>
         <div className="row">
@@ -54,7 +55,7 @@ export default function CustomFields() {
             </select></div>
           <div className="field"><label>اسم الحقل *</label>
             <input className="input" value={label} onChange={(e) => setLabel(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="مثال: رقم المشروع" /></div>
+              onKeyDown={(e) => e.key ==='Enter' && add()} placeholder="مثال: رقم المشروع" /></div>
           <div className="field"><label>النوع</label>
             <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
               {TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -65,7 +66,7 @@ export default function CustomFields() {
 
       <div className="section-title">الحقول الحالية ({fields.length})</div>
       {fields.length === 0 ? (
-        <div className="card empty"><div className="big-ico">🧩</div><p>لا توجد حقول مخصّصة — أضف أول حقل لمجالك.</p></div>
+        <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="Sliders" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا توجد حقول مخصّصة — أضف أول حقل لمجالك.</p></div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -99,8 +100,8 @@ export function CustomFieldInputs({ fields, values, onChange }) {
           <label>{f.label}</label>
           <input
             className="input"
-            type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
-            value={(values && values[f.id]) || ''}
+            type={f.type ==='number' ?'number' : f.type ==='date' ?'date' :'text'}
+            value={(values && values[f.id]) ||''}
             onChange={(e) => onChange(f.id, e.target.value)}
           />
         </div>

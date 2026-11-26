@@ -1,25 +1,25 @@
-import { db, nowISO, setSetting } from './db';
+import { db, nowISO, setSetting } from'./db';
 
 // Back up EVERY table (except the device-local sync queue) so a restore on a new
 // device is complete — accounting, installments, assets, payroll, cash closes, …
 // Computed from the live schema so new tables are covered automatically.
-const backupTables = () => db.tables.map((t) => t.name).filter((n) => n !== 'syncQueue');
+const backupTables = () => db.tables.map((t) => t.name).filter((n) => n !=='syncQueue');
 
 async function deriveKey(password, salt) {
   const enc = new TextEncoder();
-  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  const base = await crypto.subtle.importKey('raw', enc.encode(password),'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 150000, hash: 'SHA-256' },
+    { name:'PBKDF2', salt, iterations: 150000, hash:'SHA-256' },
     base,
-    { name: 'AES-GCM', length: 256 },
+    { name:'AES-GCM', length: 256 },
     false,
-    ['encrypt', 'decrypt']
+    ['encrypt','decrypt']
   );
 }
 
 export async function exportBackup(password) {
   const TABLES = backupTables();
-  const data = { app: 'khaled-erp', version: 2, exportedAt: nowISO(), tables: {} };
+  const data = { app:'khaled-erp', version: 2, exportedAt: nowISO(), tables: {} };
   for (const t of TABLES) data.tables[t] = await db[t].toArray();
   const json = JSON.stringify(data);
 
@@ -29,22 +29,22 @@ export async function exportBackup(password) {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await deriveKey(password, salt);
-    const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(json));
+    const cipher = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(json));
     const out = new Uint8Array(4 + salt.length + iv.length + cipher.byteLength);
-    out.set([0x4b, 0x45, 0x52, 0x50], 0); // "KERP" magic
+    out.set([0x4b, 0x45, 0x52, 0x50], 0); //"KERP" magic
     out.set(salt, 4);
     out.set(iv, 20);
     out.set(new Uint8Array(cipher), 32);
-    blob = new Blob([out], { type: 'application/octet-stream' });
-    ext = 'kerp';
+    blob = new Blob([out], { type:'application/octet-stream' });
+    ext ='kerp';
   } else {
-    blob = new Blob([json], { type: 'application/json' });
-    ext = 'json';
+    blob = new Blob([json], { type:'application/json' });
+    ext ='json';
   }
   const day = nowISO().slice(0, 10);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `khaled-backup-${day}.${ext}`;
+  a.download =`khaled-backup-${day}.${ext}`;
   a.click();
   URL.revokeObjectURL(a.href);
   // remember when we last backed up (drives the reminder banner)
@@ -61,7 +61,7 @@ export async function importBackup(file, password) {
     const iv = buf.slice(20, 32);
     const key = await deriveKey(password, salt);
     try {
-      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, buf.slice(32));
+      const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, buf.slice(32));
       json = new TextDecoder().decode(plain);
     } catch {
       throw new Error('كلمة السر غير صحيحة');
@@ -70,7 +70,7 @@ export async function importBackup(file, password) {
     json = new TextDecoder().decode(buf);
   }
   const data = JSON.parse(json);
-  if (data.app !== 'khaled-erp') throw new Error('ملف نسخة احتياطية غير صالح');
+  if (data.app !=='khaled-erp') throw new Error('ملف نسخة احتياطية غير صالح');
 
   // Restore every table the current schema has (except syncQueue): clear it, then
   // reload the rows the file holds for it. Tables the (older) file lacks are just

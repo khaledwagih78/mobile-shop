@@ -1,63 +1,109 @@
-import { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSetting } from '../db';
-import { useAuth } from '../auth';
-import { ROLES } from '../utils';
+import { useState, useEffect, useMemo } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, getSetting } from'../db';
+import { useAuth } from'../auth';
+import { ROLES } from'../utils';
 
 export default function Login() {
-  const users = useLiveQuery(() => db.users.toArray(), [], []);
-  const bizName = useLiveQuery(() => getSetting('bizName', ''), [], '');
+  const rawUsers = useLiveQuery(() => db.users.toArray(), [], []);
+  const bizName = useLiveQuery(() => getSetting('bizName',''), [],'');
   const { login } = useAuth();
+
+  // Deduplicate users so multiple admins never appear
+  const users = useMemo(() => {
+    if (!rawUsers || !rawUsers.length) return [];
+    const map = new Map();
+    for (const u of rawUsers) {
+      const key =`${u.name}_${u.role}`;
+      if (!map.has(key)) map.set(key, u);
+    }
+    return Array.from(map.values());
+  }, [rawUsers]);
+
   const [userId, setUserId] = useState('');
   const [pin, setPin] = useState('');
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const submit = async () => {
+  useEffect(() => {
+    if (users && users.length && !userId) {
+      const defaultUser = users.find((u) => u.role ==='admin') || users[0];
+      setUserId(String(defaultUser.id));
+    }
+  }, [users, userId]);
+
+  const submit = async (e) => {
+    if (e) e.preventDefault();
+    if (!userId || !pin) return;
     setErr('');
-    const ok = await login(Number(userId), pin);
-    if (!ok) setErr('الرقم السري غير صحيح');
+    setLoading(true);
+    try {
+      const ok = await login(Number(userId), pin);
+      if (!ok) {
+        setErr('الرمز السري غير صحيح');
+        setPin('');
+      }
+    } catch {
+      setErr('تعذر تسجيل الدخول، يرجى المحاولة لاحقاً');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <div className="logo">{bizName || 'اسم المتجر'}</div>
-        <div className="tag">نظام المبيعات والمخزون — يعمل بدون إنترنت</div>
-
-        <div className="field">
-          <label>المستخدم</label>
-          <select className="input lg" value={userId} onChange={(e) => setUserId(e.target.value)}>
-            <option value="">اختر المستخدم</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} — {ROLES[u.role]}
-              </option>
-            ))}
-          </select>
+        <div className="login-header">
+          <div className="login-brand-bar" />
+          <h1 className="login-title">{bizName ||'نظام إدارة المبيعات'}</h1>
+          <p className="login-subtitle">تسجيل الدخول إلى حساب المنشأة</p>
         </div>
 
-        <div className="field">
-          <label>الرقم السري (PIN)</label>
-          <input
-            className="input lg"
-            type="password"
-            inputMode="numeric"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="••••"
-          />
-        </div>
+        <form onSubmit={submit}>
+          <div className="login-field">
+            <label className="login-label">المستخدم</label>
+            <select
+              className="login-input"
+              value={userId}
+              onChange={(e) => {
+                setUserId(e.target.value);
+                setErr('');
+              }}
+            >
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} — {ROLES[u.role] || u.role}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {err && <div style={{ color: 'var(--red)', fontWeight: 700, marginBottom: 10 }}>{err}</div>}
+          <div className="login-field">
+            <label className="login-label">الرمز السري</label>
+            <input
+              className="login-input"
+              type="password"
+              inputMode="numeric"
+              maxLength={12}
+              value={pin}
+              autoFocus
+              onChange={(e) => {
+                setPin(e.target.value);
+                setErr('');
+              }}
+              placeholder="••••"
+            />
+            {err && <div className="login-error">{err}</div>}
+          </div>
 
-        <button className="btn big block" onClick={submit} disabled={!userId || !pin}>
-          دخول
-        </button>
-
-        <p className="muted" style={{ textAlign: 'center', marginTop: 16 }}>
-          أول مرة؟ المستخدم: المدير — الرقم السري: 1234
-        </p>
+          <button
+            type="submit"
+            className="login-btn"
+            disabled={!userId || !pin || loading}
+          >
+            {loading ? 'جارٍ التحقق...' : 'تسجيل الدخول'}
+          </button>
+        </form>
       </div>
     </div>
   );

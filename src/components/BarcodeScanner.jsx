@@ -1,12 +1,12 @@
-import { useRef, useEffect } from 'react';
-import { Modal } from './UI';
+import { useRef, useEffect } from'react';
+import { Modal } from'./UI';
 
 // Shared barcode / QR / serial scanner. Works with:
 //  - the phone/laptop camera (BarcodeDetector API when available), and
 //  - a USB/Bluetooth hardware scanner, which behaves like a keyboard — it types
 //    into the manual field and sends Enter (handled here).
-// `title` lets callers relabel it (e.g. "مسح سيريال الجهاز").
-export default function BarcodeScanner({ onDetected, onClose, title = '📷 مسح باركود' }) {
+//`title` lets callers relabel it (e.g."مسح سيريال الجهاز").
+export default function BarcodeScanner({ onDetected, onClose, title ='مسح باركود' }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const activeRef = useRef(true);
@@ -24,12 +24,12 @@ export default function BarcodeScanner({ onDetected, onClose, title = '📷 مس
     (async () => {
       if (!navigator.mediaDevices?.getUserMedia) return; // no camera → manual entry only
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
         if (!activeRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play().catch(() => {}); }
         if ('BarcodeDetector' in window) {
-          const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'code_93', 'codabar', 'itf', 'upc_a', 'upc_e', 'qr_code', 'data_matrix'] });
+          const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','code_93','codabar','itf','upc_a','upc_e','qr_code','data_matrix'] });
           const tick = async () => {
             if (!activeRef.current || !videoRef.current) return;
             if (videoRef.current.readyState >= 2) {
@@ -51,22 +51,22 @@ export default function BarcodeScanner({ onDetected, onClose, title = '📷 مس
   }, []);
 
   const handleManual = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key ==='Enter') {
       e.preventDefault();
       const v = e.target.value.trim();
       if (v) { stopCamera(); onDetected(v); }
     }
   };
 
-  const hasDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+  const hasDetector = typeof window !=='undefined' &&'BarcodeDetector' in window;
 
   return (
     <Modal title={title} onClose={() => { stopCamera(); onClose(); }}>
-      <div style={{ textAlign: 'center' }}>
+      <div style={{ textAlign:'center' }}>
         <video ref={videoRef} autoPlay playsInline muted
-          style={{ width: '100%', maxWidth: 400, borderRadius: 8, background: '#000' }} />
-        <p className="muted" style={{ margin: '10px 0' }}>
-          {hasDetector ? 'وجّه الكاميرا نحو الباركود / QR — يُمسح تلقائياً' : 'المتصفح لا يدعم المسح بالكاميرا — استخدم جهاز الاسكان أو اكتب يدوياً'}
+          style={{ width:'100%', maxWidth: 400, borderRadius: 8, background:'#000' }} />
+        <p className="muted" style={{ margin:'10px 0' }}>
+          {hasDetector ?'وجّه الكاميرا نحو الباركود / QR — يُمسح تلقائياً' :'المتصفح لا يدعم المسح بالكاميرا — استخدم جهاز الاسكان أو اكتب يدوياً'}
         </p>
         <div className="field">
           <label>أو استخدم جهاز الاسكان / اكتب الكود يدوياً</label>

@@ -1,40 +1,41 @@
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today } from '../db';
-import { money, fmt, fmtDate, monthOf } from '../utils';
-import { useAuth } from '../auth';
+import { useMemo, useState } from'react';
+import { NavLink } from'react-router-dom';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, today } from'../db';
+import { money, fmt, fmtDate, monthOf } from'../utils';
+import { useAuth } from'../auth';
 
 const TABS = [
-  { id: 'daily', label: 'مبيعات يومية' },
-  { id: 'monthly', label: 'مبيعات شهرية' },
-  { id: 'byItem', label: 'أرباح الأصناف' },
-  { id: 'byCustomer', label: 'أرباح العملاء' },
-  { id: 'top', label: 'الأكثر مبيعاً' },
-  { id: 'moves', label: 'حركة المخزون' },
-  { id: 'debts', label: 'الديون والآجل' },
+  { id:'daily', label:'مبيعات يومية' },
+  { id:'monthly', label:'مبيعات شهرية' },
+  { id:'byItem', label:'أرباح الأصناف' },
+  { id:'byCustomer', label:'أرباح العملاء' },
+  { id:'top', label:'الأكثر مبيعاً' },
+  { id:'moves', label:'حركة المخزون' },
+  { id:'debts', label:'الديون والآجل' },
 ];
 
 export default function Reports() {
   const { user, branches, activeBranch } = useAuth();
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role ==='admin';
   const [tab, setTab] = useState('daily');
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [month, setMonth] = useState(monthOf(today()));
-  const [branchFilter, setBranchFilter] = useState(isAdmin ? 'all' : activeBranch);
-  const matchBranch = (r) => branchFilter === 'all' || (r.branchId || 1) === Number(branchFilter);
+  const [branchFilter, setBranchFilter] = useState(isAdmin ?'all' : activeBranch);
+  const matchBranch = (r) => branchFilter ==='all' || (r.branchId || 1) === Number(branchFilter);
 
   const invoices = useLiveQuery(() => db.invoices.toArray(), [], []);
   const expenses = useLiveQuery(() => db.expenses.toArray(), [], []);
   const moves = useLiveQuery(() => db.stockMoves.orderBy('createdAt').reverse().limit(500).toArray(), [], []);
   const customers = useLiveQuery(() => db.customers.toArray(), [], []);
 
-  const range = tab === 'monthly'
-    ? { from: month + '-01', to: month + '-31' }
+  const range = tab ==='monthly'
+    ? { from: month +'-01', to: month +'-31' }
     : { from, to };
 
   const sales = useMemo(
-    () => invoices.filter((i) => i.type === 'sale' && i.status === 'active' && matchBranch(i) && i.day >= range.from && i.day <= range.to),
+    () => invoices.filter((i) => i.type ==='sale' && i.status ==='active' && matchBranch(i) && i.day >= range.from && i.day <= range.to),
     [invoices, range.from, range.to, branchFilter]
   );
   const exp = useMemo(
@@ -61,7 +62,7 @@ export default function Reports() {
   const byCustomer = useMemo(() => {
     const m = new Map();
     for (const inv of sales) {
-      const key = inv.partyName || 'نقدي';
+      const key = inv.partyName ||'نقدي';
       const cur = m.get(key) || { name: key, count: 0, sales: 0, profit: 0 };
       cur.count++; cur.sales += inv.total; cur.profit += inv.profit || 0;
       m.set(key, cur);
@@ -83,7 +84,18 @@ export default function Reports() {
 
   return (
     <>
-      <div className="page-head"><h1>📈 التقارير</h1></div>
+      <div className="page-head">
+        <h1>التقارير</h1>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <NavLink to="/profit-reports" className="btn ghost" title="تحليل وهوامش الأرباح">تحليل الأرباح المفصل</NavLink>
+          {isAdmin && (
+            <>
+              <NavLink to="/report-builder" className="btn ghost" title="تخصيص وإنشاء تقارير">منشئ التقارير</NavLink>
+              <NavLink to="/audit" className="btn ghost" title="سجل الرقابة والعمليات">سجل الرقابة</NavLink>
+            </>
+          )}
+        </div>
+      </div>
 
       <div className="list-tools">
         <select className="input" style={{ maxWidth: 200 }} value={tab} onChange={(e) => setTab(e.target.value)}>
@@ -91,13 +103,13 @@ export default function Reports() {
         </select>
         {branches.length > 1 && (
           <select className="input" style={{ maxWidth: 170 }} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} disabled={!isAdmin}>
-            {isAdmin && <option value="all">🏢 كل الفروع</option>}
+            {isAdmin && <option value="all"> كل الفروع</option>}
             {branches.filter((b) => isAdmin || b.id === activeBranch).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         )}
-        {tab === 'monthly' ? (
+        {tab ==='monthly' ? (
           <input className="input" style={{ maxWidth: 170 }} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-        ) : tab !== 'moves' && tab !== 'debts' ? (
+        ) : tab !=='moves' && tab !=='debts' ? (
           <>
             <input className="input" style={{ maxWidth: 170 }} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             <input className="input" style={{ maxWidth: 170 }} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
@@ -105,7 +117,7 @@ export default function Reports() {
         ) : null}
       </div>
 
-      {(tab === 'daily' || tab === 'monthly') && (
+      {(tab ==='daily' || tab ==='monthly') && (
         <>
           {kpiBlock}
           <div className="table-wrap">
@@ -114,9 +126,9 @@ export default function Reports() {
               <tbody>
                 {sales.map((i) => (
                   <tr key={i.id}>
-                    <td className="num">{i.number}</td><td>{i.partyName || 'نقدي'}</td>
+                    <td className="num">{i.number}</td><td>{i.partyName ||'نقدي'}</td>
                     <td className="num">{money(i.total)}</td>
-                    <td className="num" style={{ color: 'var(--green)' }}>{money(i.profit)}</td>
+                    <td className="num" style={{ color:'var(--green)' }}>{money(i.profit)}</td>
                     <td className="muted">{fmtDate(i.createdAt)}</td>
                   </tr>
                 ))}
@@ -127,35 +139,35 @@ export default function Reports() {
         </>
       )}
 
-      {tab === 'byItem' && (
+      {tab ==='byItem' && (
         <ReportTable
-          head={['الصنف', 'الكمية', 'المبيعات', 'التكلفة', 'الربح', 'ربح %']}
-          rows={byItem.sort((a, b) => b.profit - a.profit).map((r) => [r.name, fmt(r.qty), money(r.sales), money(r.cost), money(r.profit), (r.cost > 0 ? Math.round((r.profit / r.cost) * 100) : 0) + '%'])}
+          head={['الصنف','الكمية','المبيعات','التكلفة','الربح','ربح %']}
+          rows={byItem.sort((a, b) => b.profit - a.profit).map((r) => [r.name, fmt(r.qty), money(r.sales), money(r.cost), money(r.profit), (r.cost > 0 ? Math.round((r.profit / r.cost) * 100) : 0) +'%'])}
         />
       )}
 
-      {tab === 'byCustomer' && (
+      {tab ==='byCustomer' && (
         <ReportTable
-          head={['العميل', 'عدد الفواتير', 'المبيعات', 'الربح']}
+          head={['العميل','عدد الفواتير','المبيعات','الربح']}
           rows={byCustomer.map((r) => [r.name, fmt(r.count), money(r.sales), money(r.profit)])}
         />
       )}
 
-      {tab === 'top' && (
+      {tab ==='top' && (
         <ReportTable
-          head={['#', 'الصنف', 'الكمية المباعة', 'المبيعات']}
+          head={['#','الصنف','الكمية المباعة','المبيعات']}
           rows={byItem.sort((a, b) => b.qty - a.qty).slice(0, 20).map((r, i) => [i + 1, r.name, fmt(r.qty), money(r.sales)])}
         />
       )}
 
-      {tab === 'moves' && (
+      {tab ==='moves' && (
         <ReportTable
-          head={['الصنف', 'الحركة', 'الكمية', 'المرجع', 'التاريخ']}
-          rows={moves.filter(matchBranch).map((m) => [m.itemName, m.direction === 'in' ? 'دخل ⬇' : 'خرج ⬆', fmt(m.qty), m.refNumber, fmtDate(m.createdAt)])}
+          head={['الصنف','الحركة','الكمية','المرجع','التاريخ']}
+          rows={moves.filter(matchBranch).map((m) => [m.itemName, m.direction ==='in' ?'دخل ⬇' :'خرج ⬆', fmt(m.qty), m.refNumber, fmtDate(m.createdAt)])}
         />
       )}
 
-      {tab === 'debts' && (
+      {tab ==='debts' && (
         <>
           <div className="kpis">
             <div className="kpi tone-red">
@@ -165,8 +177,8 @@ export default function Reports() {
             </div>
           </div>
           <ReportTable
-            head={['العميل', 'الهاتف', 'المديونية']}
-            rows={debtors.map((c) => [c.name, c.phone || '—', money(c.balance)])}
+            head={['العميل','الهاتف','المديونية']}
+            rows={debtors.map((c) => [c.name, c.phone ||'—', money(c.balance)])}
           />
         </>
       )}
@@ -183,7 +195,7 @@ function ReportTable({ head, rows }) {
           {rows.length === 0 ? (
             <tr><td colSpan={head.length} className="empty">لا توجد بيانات</td></tr>
           ) : rows.map((r, i) => (
-            <tr key={i}>{r.map((c, j) => <td key={j} className={j > 0 ? 'num' : ''}>{c}</td>)}</tr>
+            <tr key={i}>{r.map((c, j) => <td key={j} className={j > 0 ?'num' :''}>{c}</td>)}</tr>
           ))}
         </tbody>
       </table>

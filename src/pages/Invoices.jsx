@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today } from '../db';
-import { money, fmt, fmtDate } from '../utils';
+import { useMemo, useState } from'react';
+import { useNavigate } from'react-router-dom';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, today } from'../db';
+import { money, fmt, fmtDate } from'../utils';
+import { Files } from'lucide-react';
 
 export default function Invoices() {
   const nav = useNavigate();
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [from, setFrom] = useState(today().slice(0, 7) + '-01');
+  const [from, setFrom] = useState(today().slice(0, 7) +'-01');
   const [to, setTo] = useState(today());
   const [q, setQ] = useState('');
 
@@ -19,24 +20,24 @@ export default function Invoices() {
 
   const filtered = useMemo(() => {
     let list = invoices.filter((i) => i.day >= from && i.day <= to);
-    if (typeFilter !== 'all') list = list.filter((i) => i.type === typeFilter);
-    if (statusFilter !== 'all') list = list.filter((i) => i.status === statusFilter);
+    if (typeFilter !=='all') list = list.filter((i) => i.type === typeFilter);
+    if (statusFilter !=='all') list = list.filter((i) => i.status === statusFilter);
     const t = q.trim().toLowerCase();
     if (t) list = list.filter(
-      (i) => (i.number || '').toLowerCase().includes(t) || (i.partyName || '').toLowerCase().includes(t)
+      (i) => (i.number ||'').toLowerCase().includes(t) || (i.partyName ||'').toLowerCase().includes(t)
     );
     return list;
   }, [invoices, typeFilter, statusFilter, from, to, q]);
 
-  const activeSales = filtered.filter((i) => i.type === 'sale' && i.status === 'active');
-  const activePurchases = filtered.filter((i) => i.type === 'purchase' && i.status === 'active');
+  const activeSales = filtered.filter((i) => i.type ==='sale' && i.status ==='active');
+  const activePurchases = filtered.filter((i) => i.type ==='purchase' && i.status ==='active');
   const totSales = activeSales.reduce((s, i) => s + i.total, 0);
   const totPurchases = activePurchases.reduce((s, i) => s + i.total, 0);
   const totProfit = activeSales.reduce((s, i) => s + (i.profit || 0), 0);
 
   return (
     <>
-      <div className="page-head"><h1>🗂️ الفواتير</h1></div>
+      <div className="page-head"><h1>الفواتير</h1></div>
 
       <div className="kpis">
         <div className="kpi">
@@ -83,7 +84,9 @@ export default function Invoices() {
 
       {filtered.length === 0 ? (
         <div className="card empty">
-          <div className="big-ico">🗂️</div>
+          <div className="big-ico" style={{ display:'flex', justifyContent:'center' }}>
+            <Files size={40} color="var(--ink-soft)" strokeWidth={1.5} />
+          </div>
           <p>لا توجد فواتير في هذه الفترة</p>
         </div>
       ) : (
@@ -105,21 +108,21 @@ export default function Invoices() {
                 <tr key={inv.id} className="clickable" onClick={() => nav(`/invoices/${inv.id}`)}>
                   <td className="num">{inv.number}</td>
                   <td>
-                    {inv.type === 'sale' ? <span className="badge primary">بيع</span>
-                      : inv.type === 'purchase' ? <span className="badge gray">شراء</span>
-                      : inv.type === 'quote' ? <span className="badge amber">عرض سعر</span>
-                      : inv.type === 'po' ? <span className="badge amber">طلب شراء</span>
-                      : inv.type === 'sale_return' ? <span className="badge red">مرتجع بيع</span>
-                      : inv.type === 'purchase_return' ? <span className="badge red">مرتجع شراء</span>
+                    {inv.type ==='sale' ? <span className="badge primary">بيع</span>
+                      : inv.type ==='purchase' ? <span className="badge gray">شراء</span>
+                      : inv.type ==='quote' ? <span className="badge amber">عرض سعر</span>
+                      : inv.type ==='po' ? <span className="badge amber">طلب شراء</span>
+                      : inv.type ==='sale_return' ? <span className="badge red">مرتجع بيع</span>
+                      : inv.type ==='purchase_return' ? <span className="badge red">مرتجع شراء</span>
                       : <span className="badge gray">{inv.type}</span>}
                   </td>
-                  <td>{inv.partyName || 'نقدي'}</td>
+                  <td>{inv.partyName ||'نقدي'}</td>
                   <td className="num">{money(inv.total)}</td>
                   <td>
-                    {inv.status === 'cancelled' ? <span className="badge red">ملغاة</span>
-                      : inv.status === 'quote' ? <span className="badge amber">عرض</span>
-                      : inv.status === 'po' ? <span className="badge amber">طلب</span>
-                      : inv.status === 'converted' ? <span className="badge green">محوّل</span>
+                    {inv.status ==='cancelled' ? <span className="badge red">ملغاة</span>
+                      : inv.status ==='quote' ? <span className="badge amber">عرض</span>
+                      : inv.status ==='po' ? <span className="badge amber">طلب</span>
+                      : inv.status ==='converted' ? <span className="badge green">محوّل</span>
                       : inv.remaining > 0
                         ? <span className="badge amber">آجل {money(inv.remaining)}</span>
                         : <span className="badge green">مدفوعة</span>}
@@ -130,7 +133,7 @@ export default function Invoices() {
               ))}
             </tbody>
           </table>
-          <p className="muted" style={{ padding: '8px 14px' }}>
+          <p className="muted" style={{ padding:'8px 14px' }}>
             إجمالي النتائج: {fmt(filtered.length)} فاتورة
           </p>
         </div>

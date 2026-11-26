@@ -1,71 +1,70 @@
 export const fmt = (n) =>
   Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
-export const money = (n) => `${fmt(n)} ج.م`;
+export const money = (n) =>`${fmt(n)} ج.م`;
 
 export const fmtDate = (iso) => {
-  if (!iso) return '';
+  if (!iso) return'';
   const d = new Date(iso);
-  return d.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' }) +
-    ' ' + d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('ar-EG', { year:'numeric', month:'2-digit', day:'2-digit' }) +'' + d.toLocaleTimeString('ar-EG', { hour:'2-digit', minute:'2-digit' });
 };
 
 export const fmtDay = (day) => {
-  if (!day) return '';
-  return new Date(day + 'T00:00:00').toLocaleDateString('ar-EG', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  if (!day) return'';
+  return new Date(day +'T00:00:00').toLocaleDateString('ar-EG', {
+    weekday:'long', year:'numeric', month:'long', day:'numeric',
   });
 };
 
-export const monthOf = (day) => (day || '').slice(0, 7); // YYYY-MM
+export const monthOf = (day) => (day ||'').slice(0, 7); // YYYY-MM
 
 // WhatsApp helpers: Egyptian 01xxxxxxxxx -> 201xxxxxxxxx
 export const waPhone = (phone) => {
-  let p = String(phone || '').replace(/\D/g, '');
+  let p = String(phone ||'').replace(/\D/g,'');
   if (p.startsWith('00')) p = p.slice(2);
-  if (p.startsWith('0') && p.length === 11) p = '2' + p;
+  if (p.startsWith('0') && p.length === 11) p ='2' + p;
   return p;
 };
 export const waLink = (phone, text) => {
   const p = waPhone(phone);
   const t = encodeURIComponent(text);
-  return p ? `https://wa.me/${p}?text=${t}` : `https://wa.me/?text=${t}`;
+  return p ?`https://wa.me/${p}?text=${t}` :`https://wa.me/?text=${t}`;
 };
 export const marginPct = (cost, sale) => (cost > 0 ? Math.round(((sale - cost) / cost) * 100) : 0);
 
-// Generate a unique 13-digit numeric barcode (valid EAN-13 checksum; '2' = in-store).
+// Generate a unique 13-digit numeric barcode (valid EAN-13 checksum;'2' = in-store).
 export const genBarcode = () => {
-  let d = '2' + Date.now().toString().slice(-9);
+  let d ='2' + Date.now().toString().slice(-9);
   while (d.length < 12) d += Math.floor(Math.random() * 10);
   d = d.slice(0, 12);
   let sum = 0;
   for (let i = 0; i < 12; i++) sum += (+d[i]) * (i % 2 === 0 ? 1 : 3);
   return d + ((10 - (sum % 10)) % 10);
 };
-export const normAr = (s) => (s || '')
-  .replace(/[ً-ْٰ]/g, '')
-  .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ـ/g, '')
-  .replace(/\s+/g, ' ').trim().toLowerCase();
+export const normAr = (s) => (s ||'')
+  .replace(/[ً-ْٰ]/g,'')
+  .replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'')
+  .replace(/\s+/g,'').trim().toLowerCase();
 
 // ---------- smart invoice import: line matching ----------
 // Score how well a free-text line matches an item, then pick the best.
 // Handles model numbers ("شاشة 530"), token overlap, code/barcode, brand.
 export function matchItem(text, items) {
-  const raw = String(text || '');
+  const raw = String(text ||'');
   const q = normAr(raw);
   if (!q || !items || !items.length) return null;
-  const qTokens = q.split(' ').filter((x) => x.length >= 2);
+  const qTokens = q.split('').filter((x) => x.length >= 2);
   const qNums = raw.match(/\d+/g) || [];
   let best = null, bestScore = 0;
   for (const it of items) {
     const name = normAr(it.name);
-    const hay = (name + ' ' + normAr(it.brand || '') + ' ' + normAr(it.category || '')).split(' ').filter(Boolean);
+    const hay = (name +'' + normAr(it.brand ||'') +'' + normAr(it.category ||'')).split('').filter(Boolean);
     let score = 0;
     let overlap = 0;
     for (const tkn of qTokens) if (hay.includes(tkn)) overlap++;
     if (qTokens.length) score += overlap / qTokens.length;
     if (name && (name.includes(q) || q.includes(name))) score += 0.5;
-    const itNums = (String(it.name).match(/\d+/g) || []).concat(String(it.code || '').match(/\d+/g) || []);
+    const itNums = (String(it.name).match(/\d+/g) || []).concat(String(it.code ||'').match(/\d+/g) || []);
     for (const n of qNums) if (itNums.includes(n)) score += 0.6;
     if (it.code && q.includes(normAr(it.code))) score += 1;
     if (it.barcode && raw.includes(it.barcode)) score += 1.5;
@@ -78,12 +77,12 @@ export function matchItem(text, items) {
 // comma / pipe) → [name, qty, price]; otherwise the whole line is the name.
 export function parseInvoiceLines(text) {
   const rows = [];
-  for (const line of String(text || '').split('\n')) {
+  for (const line of String(text ||'').split('\n')) {
     const l = line.trim();
     if (!l) continue;
     const parts = l.split(/\t|\s{2,}|،|,|\|/).map((s) => s.trim()).filter(Boolean);
     let name = l, qty = 1, price = 0;
-    if (parts.length >= 3) { name = parts.slice(0, parts.length - 2).join(' '); qty = Number(parts[parts.length - 2]) || 1; price = Number(parts[parts.length - 1]) || 0; }
+    if (parts.length >= 3) { name = parts.slice(0, parts.length - 2).join(''); qty = Number(parts[parts.length - 2]) || 1; price = Number(parts[parts.length - 1]) || 0; }
     else if (parts.length === 2) { name = parts[0]; price = Number(parts[1]) || 0; }
     rows.push({ raw: l, name, qty, price });
   }
@@ -91,17 +90,17 @@ export function parseInvoiceLines(text) {
 }
 
 export const ROLES = {
-  admin: 'مدير النظام',
-  sales: 'موظف مبيعات',
-  store: 'أمين مخزن',
+  admin:'مدير النظام',
+  sales:'موظف مبيعات',
+  store:'أمين مخزن',
 };
 
 // permissions per role
 export const can = (role, action) => {
   const map = {
-    admin: ['pos', 'purchase', 'items', 'customers', 'suppliers', 'invoices', 'reports', 'expenses', 'employees', 'backup', 'users', 'import', 'insights', 'settings', 'cancelInvoice', 'editItem', 'branches', 'transfer', 'voice', 'requests', 'quote', 'returns', 'sector', 'production', 'accounting', 'treasury', 'installments', 'crm', 'pricing', 'assets', 'payroll', 'projects', 'maintenance', 'reps', 'invops', 'reportbuilder', 'alerts', 'smart', 'smartimport', 'cashclose', 'opening', 'guide', 'viewCost', 'viewProfit', 'changePrice'],
-    sales: ['pos', 'customers', 'invoices', 'requests', 'quote', 'returns', 'installments', 'crm', 'maintenance', 'reps', 'alerts', 'cashclose', 'guide'],
-    store: ['purchase', 'items', 'suppliers', 'invoices', 'editItem', 'transfer', 'requests', 'returns', 'production', 'maintenance', 'invops', 'alerts', 'viewCost', 'changePrice', 'smartimport', 'guide'],
+    admin: ['pos','purchase','items','customers','suppliers','invoices','reports','expenses','employees','backup','users','import','insights','settings','cancelInvoice','editItem','branches','transfer','voice','requests','quote','returns','sector','production','accounting','treasury','installments','crm','pricing','assets','payroll','projects','maintenance','reps','invops','reportbuilder','alerts','smart','smartimport','cashclose','opening','guide','viewCost','viewProfit','changePrice'],
+    sales: ['pos','customers','invoices','requests','quote','returns','installments','crm','maintenance','reps','alerts','cashclose','guide'],
+    store: ['purchase','items','suppliers','invoices','editItem','transfer','requests','returns','production','maintenance','invops','alerts','viewCost','changePrice','smartimport','guide'],
   };
   return (map[role] || []).includes(action);
 };
@@ -110,14 +109,14 @@ export const can = (role, action) => {
 // used for sensitive UI (viewCost / viewProfit / changePrice). Admins get all.
 export const canUser = (user, action) => {
   if (!user) return false;
-  if (user.role === 'admin') return true;
+  if (user.role ==='admin') return true;
   if (Array.isArray(user.perms) && user.perms.includes(action)) return true;
   return can(user.role, action);
 };
 
 // The optional per-user sensitive grants exposed in the Users screen.
 export const EXTRA_PERMS = [
-  { key: 'viewCost', label: 'عرض التكلفة' },
-  { key: 'viewProfit', label: 'عرض الربح' },
-  { key: 'changePrice', label: 'تعديل السعر في الفاتورة' },
+  { key:'viewCost', label:'عرض التكلفة' },
+  { key:'viewProfit', label:'عرض الربح' },
+  { key:'changePrice', label:'تعديل السعر في الفاتورة' },
 ];

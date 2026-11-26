@@ -1,27 +1,28 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, saveInvoice, saveQuote, saveReturn, savePurchaseOrder, nowISO, stockOf, getSetting, validateCoupon, redeemCoupon } from '../db';
-import { money, fmt, normAr, canUser } from '../utils';
-import { useAuth } from '../auth';
-import { Modal, Toast } from './UI';
-import MicButton from './MicButton';
-import BarcodeScanner from './BarcodeScanner';
+import { useMemo, useRef, useState, useEffect } from'react';
+import { useNavigate } from'react-router-dom';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, saveInvoice, saveQuote, saveReturn, savePurchaseOrder, nowISO, stockOf, getSetting, validateCoupon, redeemCoupon } from'../db';
+import { money, fmt, normAr, canUser } from'../utils';
+import { useAuth } from'../auth';
+import { Modal, Toast } from'./UI';
+import MicButton from'./MicButton';
+import BarcodeScanner from'./BarcodeScanner';
+import { Camera, ShoppingCart, Save, AlertTriangle, Lock } from'lucide-react';
 
 const TITLES = {
-  sale: '🧾 فاتورة بيع جديدة',
-  purchase: '📥 فاتورة شراء جديدة',
-  quote: '📄 عرض سعر جديد',
-  po: '📝 طلب شراء جديد',
-  sale_return: '↩️ مرتجع بيع',
-  purchase_return: '↪️ مرتجع شراء',
+  sale:'فاتورة بيع جديدة',
+  purchase:'فاتورة شراء جديدة',
+  quote:'عرض سعر جديد',
+  po:'طلب شراء جديد',
+  sale_return:'مرتجع بيع',
+  purchase_return:'مرتجع شراء',
 };
 
 export default function InvoiceEditor({ type }) {
-  const isSale = type === 'sale' || type === 'quote' || type === 'sale_return';
-  const isQuote = type === 'quote';
-  const isPO = type === 'po';
-  const isReturn = type === 'sale_return' || type === 'purchase_return';
+  const isSale = type ==='sale' || type ==='quote' || type ==='sale_return';
+  const isQuote = type ==='quote';
+  const isPO = type ==='po';
+  const isReturn = type ==='sale_return' || type ==='purchase_return';
   const nav = useNavigate();
   const { user, activeBranch } = useAuth();
   const searchRef = useRef(null);
@@ -33,7 +34,7 @@ export default function InvoiceEditor({ type }) {
   );
   const taxEnabled = useLiveQuery(() => getSetting('taxEnabled', false), [], false);
   const taxRateSetting = useLiveQuery(() => getSetting('taxRate', 0), [], 0);
-  const taxName = useLiveQuery(() => getSetting('taxName', 'ضريبة القيمة المضافة'), [], 'ضريبة القيمة المضافة');
+  const taxName = useLiveQuery(() => getSetting('taxName','ضريبة القيمة المضافة'), [],'ضريبة القيمة المضافة');
   const discountApprovalPct = useLiveQuery(() => getSetting('discountApprovalPct', 0), [], 0);
   const creditDays = useLiveQuery(() => getSetting('creditDays', 30), [], 30);
   const pointEGP = useLiveQuery(() => getSetting('pointEGP', 1), [], 1);
@@ -49,7 +50,7 @@ export default function InvoiceEditor({ type }) {
   const [dueDate, setDueDate] = useState('');
   const [dueTouched, setDueTouched] = useState(false);
   const [showNewParty, setShowNewParty] = useState(false);
-  const [newParty, setNewParty] = useState({ name: '', phone: '', address: '' });
+  const [newParty, setNewParty] = useState({ name:'', phone:'', address:'' });
   const [toast, setToast] = useState('');
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -74,7 +75,7 @@ export default function InvoiceEditor({ type }) {
         normAr(it.name).includes(t) ||
         normAr(it.code).includes(t) ||
         (it.brand && normAr(it.brand).includes(t)) ||
-        (it.barcode || '') === raw
+        (it.barcode ||'') === raw
       )
       .slice(0, 12);
   }, [q, items]);
@@ -83,7 +84,7 @@ export default function InvoiceEditor({ type }) {
   const partyResults = useMemo(() => {
     const t = normAr(partyQ);
     const list = t
-      ? parties.filter((p) => normAr(p.name).includes(t) || (p.phone || '').includes(partyQ.trim()))
+      ? parties.filter((p) => normAr(p.name).includes(t) || (p.phone ||'').includes(partyQ.trim()))
       : parties;
     return list.slice(0, 8);
   }, [partyQ, parties]);
@@ -106,9 +107,9 @@ export default function InvoiceEditor({ type }) {
           stock: stockOf(it, activeBranch),
           wholesalePrice: it.wholesalePrice || 0,
           wholesaleMinQty: it.wholesaleMinQty || 0,
-          unit: it.baseUnit || 'قطعة',
+          unit: it.baseUnit ||'قطعة',
           factor: 1,
-          baseUnit: it.baseUnit || 'قطعة',
+          baseUnit: it.baseUnit ||'قطعة',
           salePrice: it.salePrice || 0,
           costPrice: it.costPrice || 0,
           units: it.units || [],
@@ -140,7 +141,7 @@ export default function InvoiceEditor({ type }) {
 
   const changeUnit = (itemId, unitName) => setLines((ls) => ls.map((l) => {
     if (l.itemId !== itemId) return l;
-    const all = [{ name: l.baseUnit || 'قطعة', factor: 1 }, ...(l.units || [])];
+    const all = [{ name: l.baseUnit ||'قطعة', factor: 1 }, ...(l.units || [])];
     const u = all.find((x) => x.name === unitName) || all[0];
     const factor = Number(u.factor) || 1;
     return { ...l, unit: u.name, factor, price: (isSale ? l.salePrice : l.costPrice) * factor, cost: (l.costPrice || 0) * factor };
@@ -170,7 +171,7 @@ export default function InvoiceEditor({ type }) {
   const effDueDate = dueTouched && dueDate ? dueDate : defaultDue;
   const profit = isSale ? lines.reduce((s, l) => s + l.qty * (l.price - l.cost), 0) - disc : 0;
   const discountPct = subtotal > 0 ? (manualDisc / subtotal) * 100 : 0;
-  const needsApproval = isSale && Number(discountApprovalPct) > 0 && discountPct > Number(discountApprovalPct) && user.role !== 'admin';
+  const needsApproval = isSale && Number(discountApprovalPct) > 0 && discountPct > Number(discountApprovalPct) && user.role !=='admin';
 
   const save = async () => {
     if (lines.length === 0) return;
@@ -180,7 +181,7 @@ export default function InvoiceEditor({ type }) {
       return;
     }
     if (!isQuote && !isPO && remaining > 0 && !partyId) {
-      setToast(isSale ? 'البيع الآجل يحتاج اختيار عميل' : 'الشراء الآجل يحتاج اختيار مورد');
+      setToast(isSale ?'البيع الآجل يحتاج اختيار عميل' :'الشراء الآجل يحتاج اختيار مورد');
       setTimeout(() => setToast(''), 2500);
       return;
     }
@@ -212,8 +213,8 @@ export default function InvoiceEditor({ type }) {
     const res = isQuote ? await saveQuote(payload) : isPO ? await savePurchaseOrder(payload) : isReturn ? await saveReturn(payload) : await saveInvoice(payload);
     if (coupon) await redeemCoupon(coupon.id).catch(() => {});
     // Signal auto WhatsApp send for sale/quote invoices addressed to a customer with a phone
-    const wantSend = (type === 'sale' || type === 'quote') && party && (party.phone || '').trim();
-    nav(`/invoices/${res.id}?new=1${wantSend ? '&send=1' : ''}`);
+    const wantSend = (type ==='sale' || type ==='quote') && party && (party.phone ||'').trim();
+    nav(`/invoices/${res.id}?new=1${wantSend ?'&send=1' :''}`);
   };
 
   const saveNewParty = async () => {
@@ -222,7 +223,7 @@ export default function InvoiceEditor({ type }) {
     const id = await table.add({ ...newParty, balance: 0, points: 0, totalSpent: 0, createdAt: nowISO() });
     setPartyId(String(id));
     setShowNewParty(false);
-    setNewParty({ name: '', phone: '', address: '' });
+    setNewParty({ name:'', phone:'', address:'' });
   };
 
   // reset loyalty redemption when the selected customer changes
@@ -242,10 +243,10 @@ export default function InvoiceEditor({ type }) {
     if (res.ok) {
       setCoupon(res.coupon);
       setDiscount(String(res.discount));
-      setCouponMsg(`✅ خصم ${res.coupon.type === 'percent' ? res.coupon.value + '%' : res.discount} مطبّق`);
+      setCouponMsg(`خصم ${res.coupon.type ==='percent' ? res.coupon.value +'%' : res.discount} مطبّق`);
     } else {
       setCoupon(null);
-      setCouponMsg('⚠️ ' + res.reason);
+      setCouponMsg(res.reason);
     }
   };
 
@@ -254,9 +255,9 @@ export default function InvoiceEditor({ type }) {
     const it = items.find((i) => i.barcode === code || i.code === code);
     if (it) {
       addItem(it);
-      setToast(`✅ تم إضافة: ${it.name}`);
+      setToast(`تم إضافة: ${it.name}`);
     } else {
-      setToast(`❌ لم يتم العثور على صنف بالكود: ${code}`);
+      setToast(`لم يتم العثور على صنف بالكود: ${code}`);
     }
     setTimeout(() => setToast(''), 2500);
   };
@@ -264,25 +265,27 @@ export default function InvoiceEditor({ type }) {
   return (
     <>
       <div className="page-head">
-        <h1>{TITLES[type] || '🧾 فاتورة'}</h1>
+        <h1>{TITLES[type] ||'فاتورة'}</h1>
       </div>
 
       <div className="pos-grid">
         <div className="card">
           <div className="search-results">
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display:'flex', gap: 8 }}>
               <input
                 ref={searchRef}
                 className="input lg"
-                placeholder="🔍 ابحث بالاسم أو الكود أو امسح الباركود..."
+                placeholder="ابحث بالاسم أو الكود أو امسح الباركود..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && onSearchEnter()}
+                onKeyDown={(e) => e.key ==='Enter' && onSearchEnter()}
                 autoFocus
                 style={{ flex: 1 }}
               />
               {navigator.mediaDevices && (
-                <button className="btn" onClick={() => setScanning(true)} title="مسح باركود بالكاميرا">📷</button>
+                <button className="btn" onClick={() => setScanning(true)} title="مسح باركود بالكاميرا">
+                  <Camera size={18} />
+                </button>
               )}
               <MicButton size={44} title="ابحث عن منتج بصوتك" onResult={(t) => { setQ(t); searchRef.current?.focus(); }} />
             </div>
@@ -292,9 +295,9 @@ export default function InvoiceEditor({ type }) {
                   <div key={it.id} className="search-item" onClick={() => addItem(it)}>
                     <div>
                       <b>{it.name}</b>
-                      <div className="meta">{it.code} · {it.brand || '—'}</div>
+                      <div className="meta">{it.code} · {it.brand ||'—'}</div>
                     </div>
-                    <div style={{ textAlign: 'left' }}>
+                    <div style={{ textAlign:'left' }}>
                       <b className="num">{money(isSale ? it.salePrice : it.costPrice)}</b>
                       <div className="meta">رصيد: {fmt(stockOf(it, activeBranch))}</div>
                     </div>
@@ -307,16 +310,18 @@ export default function InvoiceEditor({ type }) {
           <div style={{ marginTop: 14 }}>
             {lines.length === 0 ? (
               <div className="empty">
-                <div className="big-ico">🛒</div>
+                <div className="big-ico" style={{ display:'flex', justifyContent:'center' }}>
+                  <ShoppingCart size={42} strokeWidth={1.5} color="var(--ink-soft)" />
+                </div>
                 <p>ابحث عن صنف لإضافته للفاتورة</p>
               </div>
             ) : (
               <>
-                <div className="cart-line" style={{ borderBottom: '2px solid var(--line)' }}>
+                <div className="cart-line" style={{ borderBottom:'2px solid var(--line)' }}>
                   <b className="muted">الصنف</b>
-                  <b className="muted" style={{ textAlign: 'center' }}>الكمية</b>
-                  <b className="muted" style={{ textAlign: 'center' }}>السعر</b>
-                  <b className="muted" style={{ textAlign: 'center' }}>الإجمالي</b>
+                  <b className="muted" style={{ textAlign:'center' }}>الكمية</b>
+                  <b className="muted" style={{ textAlign:'center' }}>السعر</b>
+                  <b className="muted" style={{ textAlign:'center' }}>الإجمالي</b>
                   <span />
                 </div>
                 {lines.map((l) => (
@@ -326,30 +331,30 @@ export default function InvoiceEditor({ type }) {
                       <small>
                         {l.code}
                         {isSale && l.qty * (l.factor || 1) > l.stock && (
-                          <span style={{ color: 'var(--red)', fontWeight: 700 }}> · الرصيد {fmt(l.stock)} فقط!</span>
+                          <span style={{ color:'var(--red)', fontWeight: 700 }}> · الرصيد {fmt(l.stock)} فقط!</span>
                         )}
                         {isSale && l.wholesaleMinQty > 0 && l.qty < l.wholesaleMinQty && (
-                          <span style={{ color: 'var(--amber)', fontSize: 11 }}> · جملة({l.wholesaleMinQty}+) {money(l.wholesalePrice)}</span>
+                          <span style={{ color:'var(--amber)', fontSize: 11 }}> · جملة({l.wholesaleMinQty}+) {money(l.wholesalePrice)}</span>
                         )}
                       </small>
                       {(l.units && l.units.length > 0) && (
                         <select
                           value={l.unit}
                           onChange={(e) => changeUnit(l.itemId, e.target.value)}
-                          style={{ marginTop: 4, fontSize: 12, padding: '2px 4px', maxWidth: 150 }}
+                          style={{ marginTop: 4, fontSize: 12, padding:'2px 4px', maxWidth: 150 }}
                         >
-                          {[{ name: l.baseUnit || 'قطعة', factor: 1 }, ...l.units].map((u) => (
-                            <option key={u.name} value={u.name}>{u.name}{Number(u.factor) > 1 ? ` (${u.factor})` : ''}</option>
+                          {[{ name: l.baseUnit ||'قطعة', factor: 1 }, ...l.units].map((u) => (
+                            <option key={u.name} value={u.name}>{u.name}{Number(u.factor) > 1 ?` (${u.factor})` :''}</option>
                           ))}
                         </select>
                       )}
                     </div>
                     <input type="number" min="0" step="any" value={l.qty}
                       onChange={(e) => setLine(l.itemId, { qty: Number(e.target.value) })} />
-                    <input type="number" min="0" step="any" value={l.price} readOnly={!canUser(user, 'changePrice')}
+                    <input type="number" min="0" step="any" value={l.price} readOnly={!canUser(user,'changePrice')}
                       onChange={(e) => setLine(l.itemId, { price: Number(e.target.value) })} />
-                    <div className="num" style={{ textAlign: 'center' }}>{fmt(l.qty * l.price)}</div>
-                    <button className="x" onClick={() => removeLine(l.itemId)}>✕</button>
+                    <div className="num" style={{ textAlign:'center' }}>{fmt(l.qty * l.price)}</div>
+                    <button className="x" onClick={() => removeLine(l.itemId)}></button>
                   </div>
                 ))}
               </>
@@ -359,25 +364,25 @@ export default function InvoiceEditor({ type }) {
 
         <div className="card">
           <div className="field">
-            <label>{isSale ? 'العميل' : 'المورد'}</label>
+            <label>{isSale ?'العميل' :'المورد'}</label>
             {selectedParty ? (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div className="input" style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display:'flex', gap: 8, alignItems:'center' }}>
+                <div className="input" style={{ flex: 1, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <b>{selectedParty.name}</b>
-                  <span className="muted" style={{ fontSize: 12 }}>{selectedParty.phone || ''}{selectedParty.points ? ` · ⭐${selectedParty.points}` : ''}</span>
+                  <span className="muted" style={{ fontSize: 12 }}>{selectedParty.phone ||''}{selectedParty.points ?` · ⭐${selectedParty.points}` :''}</span>
                 </div>
-                <button className="btn ghost sm" title="تغيير" onClick={() => { setPartyId(''); setPartyQ(''); setPartyOpen(false); }}>✕</button>
+                <button className="btn ghost sm" title="تغيير" onClick={() => { setPartyId(''); setPartyQ(''); setPartyOpen(false); }}></button>
               </div>
             ) : (
-              <div style={{ position: 'relative' }}>
-                <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ position:'relative' }}>
+                <div style={{ display:'flex', gap: 8 }}>
                   <input
                     className="input" style={{ flex: 1 }} value={partyQ}
-                    placeholder={isSale ? '🔍 ابحث عن عميل (أو اتركه نقدي)' : '🔍 ابحث عن مورد'}
+                    placeholder={isSale ?'ابحث عن عميل (أو اتركه نقدي)' :'ابحث عن مورد'}
                     onChange={(e) => { setPartyQ(e.target.value); setPartyOpen(true); }}
                     onFocus={() => setPartyOpen(true)}
                   />
-                  <MicButton title={isSale ? 'ابحث عن عميل بصوتك' : 'ابحث عن مورد بصوتك'} onResult={(t) => { setPartyQ(t); setPartyOpen(true); }} />
+                  <MicButton title={isSale ?'ابحث عن عميل بصوتك' :'ابحث عن مورد بصوتك'} onResult={(t) => { setPartyQ(t); setPartyOpen(true); }} />
                   <button className="btn ghost sm" onClick={() => setShowNewParty(true)}>＋ جديد</button>
                 </div>
                 {partyOpen && partyResults.length > 0 && (
@@ -385,7 +390,7 @@ export default function InvoiceEditor({ type }) {
                     {partyResults.map((p) => (
                       <div key={p.id} className="search-item" onClick={() => { setPartyId(String(p.id)); setPartyOpen(false); }}>
                         <b>{p.name}</b>
-                        <span className="meta">{p.phone || '—'}{p.points ? ` · ⭐${p.points}` : ''}</span>
+                        <span className="meta">{p.phone ||'—'}{p.points ?` · رصيد نقاط: ${p.points}` :''}</span>
                       </div>
                     ))}
                   </div>
@@ -395,16 +400,16 @@ export default function InvoiceEditor({ type }) {
           </div>
 
           {isSale && partyId && selectedParty && selectedParty.points > 0 && (
-            <div className="card" style={{ background: 'var(--bg)', marginBottom: 12, padding: 10, fontSize: 13 }}>
-              <div>⭐ نقاط العميل: <b>{selectedParty.points}</b> · إجمالي مشتريات: {money(selectedParty.totalSpent || 0)}</div>
+            <div className="card" style={{ background:'var(--bg)', marginBottom: 12, padding: 10, fontSize: 13 }}>
+              <div>نقاط العميل: <b>{selectedParty.points}</b> · إجمالي مشتريات: {money(selectedParty.totalSpent || 0)}</div>
               {egpPerPoint > 0 && maxRedeemPts > 0 && (
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                <div style={{ display:'flex', gap: 6, alignItems:'center', marginTop: 8, flexWrap:'wrap' }}>
                   <span>استخدم نقاط:</span>
                   <input className="input" type="number" min="0" max={maxRedeemPts} style={{ width: 90 }}
                     value={pointsRedeem}
                     onChange={(e) => setPointsRedeem(e.target.value)} placeholder="0" />
                   <button className="btn ghost sm" type="button" onClick={() => setPointsRedeem(String(maxRedeemPts))}>استخدم الكل ({maxRedeemPts})</button>
-                  {redeemPts > 0 && <span style={{ color: 'var(--green)' }}>= خصم {money(pointDisc)}</span>}
+                  {redeemPts > 0 && <span style={{ color:'var(--green)' }}>= خصم {money(pointDisc)}</span>}
                   <span className="muted" style={{ fontSize: 11 }}>(النقطة = {money(egpPerPoint)})</span>
                 </div>
               )}
@@ -413,26 +418,26 @@ export default function InvoiceEditor({ type }) {
 
           {isSale && !isReturn && (
             <div className="field">
-              <label>🎟️ كوبون خصم</label>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <label>كوبون خصم</label>
+              <div style={{ display:'flex', gap: 6 }}>
                 <input className="input" style={{ flex: 1 }} value={couponCode}
                   onChange={(e) => setCouponCode(e.target.value)} placeholder="أدخل كود الكوبون" />
                 <button className="btn ghost" type="button" onClick={applyCoupon} disabled={!couponCode.trim()}>تطبيق</button>
               </div>
-              {couponMsg && <div style={{ fontSize: 12, color: coupon ? 'var(--green)' : 'var(--amber)', marginTop: 4 }}>{couponMsg}</div>}
+              {couponMsg && <div style={{ fontSize: 12, color: coupon ?'var(--green)' :'var(--amber)', marginTop: 4 }}>{couponMsg}</div>}
             </div>
           )}
 
           <div className="row">
             <div className="field">
-              <label>الخصم{coupon ? ` (كوبون ${coupon.code})` : ''}</label>
+              <label>الخصم{coupon ?` (كوبون ${coupon.code})` :''}</label>
               <input className="input" type="number" min="0" value={discount}
                 onChange={(e) => { setDiscount(e.target.value); setCoupon(null); setCouponMsg(''); }} placeholder="0" />
             </div>
             <div className="field">
               <label>المدفوع</label>
               <input className="input" type="number" min="0"
-                value={paidTouched ? paid : total || ''}
+                value={paidTouched ? paid : total ||''}
                 onChange={(e) => { setPaidTouched(true); setPaid(e.target.value); }}
                 placeholder={String(total)} />
             </div>
@@ -447,12 +452,12 @@ export default function InvoiceEditor({ type }) {
               <div className="trow"><span>{taxName} ({fmt(taxRate)}%)</span><span className="num">+ {money(tax)}</span></div>
             )}
             {remaining > 0 && (
-              <div className="trow" style={{ color: 'var(--amber)' }}>
+              <div className="trow" style={{ color:'var(--amber)' }}>
                 <span>المتبقي (آجل)</span><span className="num">{money(remaining)}</span>
               </div>
             )}
-            {isSale && canUser(user, 'viewProfit') && (
-              <div className="trow" style={{ color: 'var(--green)' }}>
+            {isSale && canUser(user,'viewProfit') && (
+              <div className="trow" style={{ color:'var(--green)' }}>
                 <span>ربح الفاتورة</span><span className="num">{money(profit)}</span>
               </div>
             )}
@@ -474,25 +479,32 @@ export default function InvoiceEditor({ type }) {
 
           {isSale && !isQuote && selectedParty && (selectedParty.creditLimit || 0) > 0 &&
             ((selectedParty.balance || 0) + remaining) > selectedParty.creditLimit && (
-            <div className="card" style={{ borderColor: 'var(--amber)', color: 'var(--amber)', fontWeight: 700, marginTop: 12, padding: 10, fontSize: 13 }}>
-              ⚠️ تنبيه: هذه الفاتورة تتجاوز الحد الائتماني للعميل ({money(selectedParty.creditLimit)}).
-              الرصيد بعد البيع سيكون {money((selectedParty.balance || 0) + remaining)}.
+            <div className="card" style={{ borderColor:'var(--amber)', color:'var(--amber)', fontWeight: 700, marginTop: 12, padding: 10, fontSize: 13, display:'flex', alignItems:'center', gap: 6 }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              <div>
+                تنبيه: هذه الفاتورة تتجاوز الحد الائتماني للعميل ({money(selectedParty.creditLimit)}).
+                الرصيد بعد البيع سيكون {money((selectedParty.balance || 0) + remaining)}.
+              </div>
             </div>
           )}
           {needsApproval && (
-            <div className="card" style={{ borderColor: 'var(--red)', color: 'var(--red)', fontWeight: 700, marginTop: 12, padding: 10, fontSize: 13 }}>
-              🔒 الخصم ({fmt(Math.round(discountPct))}%) يتجاوز الحد المسموح ({fmt(discountApprovalPct)}%) — يتطلب موافقة/دخول المدير لإتمام الفاتورة.
+            <div className="card" style={{ borderColor:'var(--red)', color:'var(--red)', fontWeight: 700, marginTop: 12, padding: 10, fontSize: 13, display:'flex', alignItems:'center', gap: 6 }}>
+              <Lock size={16} style={{ flexShrink: 0 }} />
+              <div>
+                الخصم ({fmt(Math.round(discountPct))}%) يتجاوز الحد المسموح ({fmt(discountApprovalPct)}%) — يتطلب موافقة/دخول المدير لإتمام الفاتورة.
+              </div>
             </div>
           )}
           <button className="btn accent big block" style={{ marginTop: 14 }}
             onClick={save} disabled={lines.length === 0 || saving || needsApproval}>
-            {saving ? '...جاري الحفظ' : isQuote ? '💾 حفظ عرض السعر' : isPO ? '💾 حفظ طلب الشراء' : isReturn ? '💾 حفظ المرتجع' : '💾 حفظ الفاتورة'}
+            <Save size={18} />
+            {saving ?'...جاري الحفظ' : isQuote ?'حفظ عرض السعر' : isPO ?'حفظ طلب الشراء' : isReturn ?'حفظ المرتجع' :'حفظ الفاتورة'}
           </button>
         </div>
       </div>
 
       {showNewParty && (
-        <Modal title={isSale ? 'عميل جديد' : 'مورد جديد'} onClose={() => setShowNewParty(false)}>
+        <Modal title={isSale ?'عميل جديد' :'مورد جديد'} onClose={() => setShowNewParty(false)}>
           <div className="field">
             <label>الاسم *</label>
             <input className="input" value={newParty.name}

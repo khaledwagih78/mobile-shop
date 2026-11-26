@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, computeDayCash, saveCashClose } from '../db';
-import { money, fmtDate } from '../utils';
-import { Toast } from '../components/UI';
-import { useAuth } from '../auth';
+import { Icon } from'../components/Icon';
+import { useEffect, useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, today, computeDayCash, saveCashClose } from'../db';
+import { money, fmtDate } from'../utils';
+import { Toast } from'../components/UI';
+import { useAuth } from'../auth';
 
 export default function CashClose() {
   const { user, activeBranch } = useAuth();
@@ -40,19 +41,19 @@ export default function CashClose() {
   const doSave = async () => {
     if (!data) return;
     await saveCashClose({ day, branchId: activeBranch, opening: data.opening, counted: Number(counted) || 0, expected: data.expected, note, userName: user.name });
-    notify('✅ تم حفظ تقفيل اليومية');
+    notify(' تم حفظ تقفيل اليومية');
     setCounted(''); setNote('');
   };
 
   const Row = ({ label, value, sign, strong, color }) => (
-    <div className="trow" style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontWeight: strong ? 800 : 400, color: color || '' }}>
-      <span>{label}</span><span className="num">{sign || ''}{money(value)}</span>
+    <div className="trow" style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontWeight: strong ? 800 : 400, color: color ||'' }}>
+      <span>{label}</span><span className="num">{sign ||''}{money(value)}</span>
     </div>
   );
 
   return (
     <>
-      <div className="page-head"><h1>🧮 تقفيل اليومية / درج الكاش</h1></div>
+      <div className="page-head"><h1>تقفيل اليومية / درج الكاش</h1></div>
 
       <div className="card" style={{ maxWidth: 560 }}>
         <div className="row">
@@ -62,19 +63,19 @@ export default function CashClose() {
 
         {data && (
           <>
-            <div style={{ borderTop: '1px solid var(--line,#eee)', marginTop: 8, paddingTop: 8 }}>
+            <div style={{ borderTop:'1px solid var(--line,#eee)', marginTop: 8, paddingTop: 8 }}>
               <Row label="رصيد أول اليوم (من آخر تقفيل)" value={data.opening} />
-              <div style={{ color: 'var(--green)' }}>
-                <Row label="مبيعات نقدية" value={data.salesCash} sign="+ " />
-                <Row label="تحصيل من العملاء" value={data.custPayIn} sign="+ " />
+              <div style={{ color:'var(--green)' }}>
+                <Row label="مبيعات نقدية" value={data.salesCash} sign="+" />
+                <Row label="تحصيل من العملاء" value={data.custPayIn} sign="+" />
               </div>
-              <div style={{ color: 'var(--red)' }}>
-                <Row label="مشتريات مدفوعة نقداً" value={data.purchaseCash} sign="− " />
-                <Row label="دفعات للموردين" value={data.supPayOut} sign="− " />
-                <Row label="مصروفات" value={data.expensesOut} sign="− " />
-                {data.saleReturnsCash > 0 && <Row label="مرتجعات بيع (مرتجع نقدي)" value={data.saleReturnsCash} sign="− " />}
+              <div style={{ color:'var(--red)' }}>
+                <Row label="مشتريات مدفوعة نقداً" value={data.purchaseCash} sign="−" />
+                <Row label="دفعات للموردين" value={data.supPayOut} sign="−" />
+                <Row label="مصروفات" value={data.expensesOut} sign="−" />
+                {data.saleReturnsCash > 0 && <Row label="مرتجعات بيع (مرتجع نقدي)" value={data.saleReturnsCash} sign="−" />}
               </div>
-              <div style={{ borderTop: '2px solid var(--line,#ddd)', marginTop: 6 }}>
+              <div style={{ borderTop:'2px solid var(--line,#ddd)', marginTop: 6 }}>
                 <Row label="المفروض في الدرج (المتوقع)" value={data.expected} strong />
               </div>
             </div>
@@ -83,23 +84,23 @@ export default function CashClose() {
               <label>الكاش الفعلي في الدرج (العدّ)</label>
               <input className="input lg" type="number" min="0" value={counted} onChange={(e) => setCounted(e.target.value)} placeholder="اعدّ الكاش واكتب الرقم" />
             </div>
-            {counted !== '' && (
-              <div className="card" style={{ padding: 10, background: Math.abs(diff) < 0.5 ? 'rgba(39,174,96,.08)' : 'rgba(231,76,60,.08)', border: 0 }}>
-                <b style={{ color: Math.abs(diff) < 0.5 ? 'var(--green)' : 'var(--red)' }}>
-                  {Math.abs(diff) < 0.5 ? '✅ مطابق — لا يوجد فرق' : diff > 0 ? `📈 زيادة: ${money(diff)}` : `📉 عجز: ${money(Math.abs(diff))}`}
+            {counted !=='' && (
+              <div className="card" style={{ padding: 10, background: Math.abs(diff) < 0.5 ?'rgba(39,174,96,.08)' :'rgba(231,76,60,.08)', border: 0 }}>
+                <b style={{ color: Math.abs(diff) < 0.5 ?'var(--green)' :'var(--red)' }}>
+                  {Math.abs(diff) < 0.5 ?' مطابق — لا يوجد فرق' : diff > 0 ?` زيادة: ${money(diff)}` :` عجز: ${money(Math.abs(diff))}`}
                 </b>
               </div>
             )}
             <div className="field"><label>ملاحظة (اختياري)</label>
               <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="سبب الفرق أو أي ملاحظة" /></div>
-            <button className="btn accent block" onClick={doSave} disabled={counted === ''}>💾 حفظ التقفيل</button>
+            <button className="btn accent block" onClick={doSave} disabled={counted ===''}> حفظ التقفيل</button>
           </>
         )}
       </div>
 
       <div className="section-title">سجل التقفيلات</div>
       {history.length === 0 ? (
-        <div className="card empty"><div className="big-ico">🧮</div><p>لا توجد تقفيلات بعد</p></div>
+        <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="Calculator" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا توجد تقفيلات بعد</p></div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -110,10 +111,10 @@ export default function CashClose() {
                   <td className="num">{c.day}</td>
                   <td className="num">{money(c.expected)}</td>
                   <td className="num">{money(c.counted)}</td>
-                  <td className="num" style={{ color: Math.abs(c.difference) < 0.5 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>
-                    {c.difference > 0 ? '+' : ''}{money(c.difference)}
+                  <td className="num" style={{ color: Math.abs(c.difference) < 0.5 ?'var(--green)' :'var(--red)', fontWeight: 700 }}>
+                    {c.difference > 0 ?'+' :''}{money(c.difference)}
                   </td>
-                  <td className="muted">{c.userName || '—'}</td>
+                  <td className="muted">{c.userName ||'—'}</td>
                   <td className="muted" style={{ fontSize: 11 }}>{fmtDate(c.createdAt)}</td>
                 </tr>
               ))}

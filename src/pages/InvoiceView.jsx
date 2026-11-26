@@ -1,28 +1,29 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, cancelInvoice, restoreInvoice, convertQuote, convertPurchaseOrder, getSetting } from '../db';
-import { money, fmt, fmtDate, fmtDay, can, canUser, waLink } from '../utils';
-import { useAuth } from '../auth';
-import PasswordGate from '../components/PasswordGate';
-import { Modal } from '../components/UI';
+import { useState, useEffect, useRef } from'react';
+import { useParams, useNavigate, useSearchParams } from'react-router-dom';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, cancelInvoice, restoreInvoice, convertQuote, convertPurchaseOrder, getSetting } from'../db';
+import { money, fmt, fmtDate, fmtDay, can, canUser, waLink } from'../utils';
+import { useAuth } from'../auth';
+import PasswordGate from'../components/PasswordGate';
+import { Modal } from'../components/UI';
+import { FileText, Printer, Receipt, MessageSquare, Check, RotateCcw, CheckCircle2, WifiOff, Ban, ClipboardList } from'lucide-react';
 
 // Build the WhatsApp message text for an invoice (no hooks — safe to call anywhere).
 function buildWaText(inv, bizName) {
-  const isSale = inv.type === 'sale' || inv.type === 'quote';
-  const head = inv.type === 'quote' ? 'عرض سعر' : isSale ? 'بيع' : 'شراء';
-  let t = `*${bizName}*\nفاتورة ${head} رقم: ${inv.number}\n`;
-  t += `التاريخ: ${fmtDate(inv.createdAt)}\n`;
-  if (inv.partyName) t += `${isSale ? 'العميل' : 'المورد'}: ${inv.partyName}\n`;
-  t += `------------------\n`;
-  inv.lines.forEach((l) => { t += `${l.name} × ${fmt(l.qty)} = ${fmt(l.qty * l.price)}\n`; });
-  t += `------------------\n`;
-  if (inv.discount > 0) t += `الخصم: ${money(inv.discount)}\n`;
-  if (inv.tax > 0) t += `${inv.taxName || 'ضريبة'}: ${money(inv.tax)}\n`;
-  t += `*الإجمالي: ${money(inv.total)}*\n`;
-  if (inv.remaining > 0) t += `المتبقي: ${money(inv.remaining)}\n`;
-  if (inv.remaining > 0 && inv.dueDate) t += `تاريخ الاستحقاق: ${inv.dueDate}\n`;
-  t += `شكراً لتعاملكم معنا 🌹`;
+  const isSale = inv.type ==='sale' || inv.type ==='quote';
+  const head = inv.type ==='quote' ?'عرض سعر' : isSale ?'بيع' :'شراء';
+  let t =`*${bizName}*\nفاتورة ${head} رقم: ${inv.number}\n`;
+  t +=`التاريخ: ${fmtDate(inv.createdAt)}\n`;
+  if (inv.partyName) t +=`${isSale ?'العميل' :'المورد'}: ${inv.partyName}\n`;
+  t +=`------------------\n`;
+  inv.lines.forEach((l) => { t +=`${l.name} × ${fmt(l.qty)} = ${fmt(l.qty * l.price)}\n`; });
+  t +=`------------------\n`;
+  if (inv.discount > 0) t +=`الخصم: ${money(inv.discount)}\n`;
+  if (inv.tax > 0) t +=`${inv.taxName ||'ضريبة'}: ${money(inv.tax)}\n`;
+  t +=`*الإجمالي: ${money(inv.total)}*\n`;
+  if (inv.remaining > 0) t +=`المتبقي: ${money(inv.remaining)}\n`;
+  if (inv.remaining > 0 && inv.dueDate) t +=`تاريخ الاستحقاق: ${inv.dueDate}\n`;
+  t +=`شكراً لتعاملكم معنا`;
   return t;
 }
 
@@ -37,29 +38,29 @@ export default function InvoiceView() {
   const sentRef = useRef(false);
   const inv = useLiveQuery(() => db.invoices.get(Number(id)), [id]);
   // empty company name falls back to a neutral label so printed invoices aren't blank
-  const bizNameRaw = useLiveQuery(() => getSetting('bizName', ''), [], '');
-  const bizName = bizNameRaw || 'نظام المبيعات والمخزون';
+  const bizNameRaw = useLiveQuery(() => getSetting('bizName',''), [],'');
+  const bizName = bizNameRaw ||'نظام المبيعات والمخزون';
   const waAutoSend = useLiveQuery(() => getSetting('waAutoSend', false), [], false);
-  const logo = useLiveQuery(() => getSetting('bizLogo', ''), [], '');
-  const address = useLiveQuery(() => getSetting('bizAddress', ''), [], '');
-  const shopPhone = useLiveQuery(() => getSetting('bizPhone', ''), [], '');
-  const returnPolicy = useLiveQuery(() => getSetting('returnPolicy', ''), [], '');
-  const warranty = useLiveQuery(() => getSetting('warranty', ''), [], '');
+  const logo = useLiveQuery(() => getSetting('bizLogo',''), [],'');
+  const address = useLiveQuery(() => getSetting('bizAddress',''), [],'');
+  const shopPhone = useLiveQuery(() => getSetting('bizPhone',''), [],'');
+  const returnPolicy = useLiveQuery(() => getSetting('returnPolicy',''), [],'');
+  const warranty = useLiveQuery(() => getSetting('warranty',''), [],'');
   const party = useLiveQuery(
-    () => (inv?.partyId ? (inv.type === 'sale' || inv.type === 'quote' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
+    () => (inv?.partyId ? (inv.type ==='sale' || inv.type ==='quote' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
     [inv?.partyId, inv?.type]
   );
 
   // Auto-send to WhatsApp when arriving with ?send=1 from a freshly-saved sale/quote.
   useEffect(() => {
     if (sentRef.current) return;
-    if (sp.get('send') !== '1' || waAutoSend !== true) return;
+    if (sp.get('send') !=='1' || waAutoSend !== true) return;
     if (!inv || party === undefined) return; // still loading
-    const phone = (party && party.phone || '').trim();
+    const phone = (party && party.phone ||'').trim();
     if (!phone) return;
     sentRef.current = true;
     if (navigator.onLine) {
-      window.open(waLink(phone, buildWaText(inv, bizName)), '_blank');
+      window.open(waLink(phone, buildWaText(inv, bizName)),'_blank');
     } else {
       setWaPending(true); // no internet — keep it ready to send from the button
     }
@@ -67,22 +68,22 @@ export default function InvoiceView() {
 
   if (!inv) return <div className="card empty">جاري التحميل...</div>;
 
-  const isSale = inv.type === 'sale';
+  const isSale = inv.type ==='sale';
 
   const waText = () => buildWaText(inv, bizName);
 
   const doCancel = () => {
     setGate({
-      title: `إلغاء الفاتورة ${inv.number}`,
-      message: 'سيتم عكس حركة المخزون والأرصدة. الفاتورة تفضل محفوظة وتقدر ترجّعها في أي وقت.',
+      title:`إلغاء الفاتورة ${inv.number}`,
+      message:'سيتم عكس حركة المخزون والأرصدة. الفاتورة تفضل محفوظة وتقدر ترجّعها في أي وقت.',
       onConfirm: () => cancelInvoice(inv.id, user.name),
     });
   };
 
   const doRestore = () => {
     setGate({
-      title: `استرجاع الفاتورة ${inv.number}`,
-      message: 'هيتم إرجاع الفاتورة وتطبيق حركة المخزون والأرصدة من جديد.',
+      title:`استرجاع الفاتورة ${inv.number}`,
+      message:'هيتم إرجاع الفاتورة وتطبيق حركة المخزون والأرصدة من جديد.',
       onConfirm: () => restoreInvoice(inv.id, user.name),
     });
   };
@@ -95,20 +96,20 @@ export default function InvoiceView() {
   const doConvertPO = async () => {
     const res = await convertPurchaseOrder(inv.id, {
       extraCosts: Number(poConv.extraCosts) || 0, allocation: poConv.allocation,
-      paid: poConv.paid === '' ? null : Number(poConv.paid), userName: user.name,
+      paid: poConv.paid ==='' ? null : Number(poConv.paid), userName: user.name,
     });
     setPoConv(null);
     if (res) nav(`/invoices/${res.id}?new=1`);
   };
 
   const exportPDF = () => {
-    const win = window.open('', '_blank');
+    const win = window.open('','_blank');
     if (!win) return alert('اسمح النافذة المنبثقة لتصدير PDF');
     win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
       <title>فاتورة ${inv.number}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Cairo', Tahoma, sans-serif; padding: 24px; color: #222; }
+        body { font-family:'Cairo', Tahoma, sans-serif; padding: 24px; color: #222; }
         .header { text-align: center; border-bottom: 3px solid #0F4C5C; padding-bottom: 12px; margin-bottom: 16px; }
         .header h1 { font-size: 22px; color: #0F4C5C; }
         .header p { font-size: 13px; color: #666; margin-top: 4px; }
@@ -124,15 +125,15 @@ export default function InvoiceView() {
       </style>
     </head><body>
       <div class="header">
-        ${logo ? `<img src="${logo}" style="max-height:70px;margin-bottom:6px"/><br/>` : ''}
+        ${logo ?`<img src="${logo}" style="max-height:70px;margin-bottom:6px"/><br/>` :''}
         <h1>${bizName}</h1>
-        ${address ? `<p>${address}</p>` : ''}
-        ${shopPhone ? `<p>📞 ${shopPhone}</p>` : ''}
-        <p>فاتورة ${isSale ? 'بيع' : 'شراء'} رقم: ${inv.number}</p>
+        ${address ?`<p>${address}</p>` :''}
+        ${shopPhone ?`<p> ${shopPhone}</p>` :''}
+        <p>فاتورة ${isSale ?'بيع' :'شراء'} رقم: ${inv.number}</p>
       </div>
       <div class="info">
         <div>
-          <b>${isSale ? 'العميل' : 'المورد'}:</b> ${inv.partyName || 'نقدي'}<br/>
+          <b>${isSale ?'العميل' :'المورد'}:</b> ${inv.partyName ||'نقدي'}<br/>
           <b>التاريخ:</b> ${fmtDate(inv.createdAt)}
         </div>
         <div style="text-align:left">
@@ -143,22 +144,22 @@ export default function InvoiceView() {
       <table>
         <thead><tr><th>الصنف</th><th>الكود</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>
         <tbody>
-          ${inv.lines.map((l) => `<tr><td>${l.name}</td><td>${l.code}</td><td>${fmt(l.qty)}</td><td>${fmt(l.price)}</td><td>${fmt(l.qty * l.price)}</td></tr>`).join('')}
+          ${inv.lines.map((l) =>`<tr><td>${l.name}</td><td>${l.code}</td><td>${fmt(l.qty)}</td><td>${fmt(l.price)}</td><td>${fmt(l.qty * l.price)}</td></tr>`).join('')}
         </tbody>
       </table>
       <div class="totals">
         <div class="row"><span>الإجمالي</span><span>${money(inv.subtotal)}</span></div>
-        ${inv.discount > 0 ? `<div class="row"><span>الخصم</span><span>-${money(inv.discount)}</span></div>` : ''}
-        ${inv.tax > 0 ? `<div class="row"><span>${inv.taxName || 'ضريبة'} (${fmt(inv.taxRate)}%)</span><span>${money(inv.tax)}</span></div>` : ''}
+        ${inv.discount > 0 ?`<div class="row"><span>الخصم</span><span>-${money(inv.discount)}</span></div>` :''}
+        ${inv.tax > 0 ?`<div class="row"><span>${inv.taxName ||'ضريبة'} (${fmt(inv.taxRate)}%)</span><span>${money(inv.tax)}</span></div>` :''}
         <div class="row"><span>المدفوع</span><span>${money(inv.paid)}</span></div>
-        ${inv.remaining > 0 ? `<div class="row" style="color:#e67e22"><span>المتبقي</span><span>${money(inv.remaining)}</span></div>` : ''}
-        ${inv.remaining > 0 && inv.dueDate ? `<div class="row" style="color:#e67e22"><span>تاريخ الاستحقاق</span><span>${inv.dueDate}</span></div>` : ''}
-        ${isSale && canUser(user, 'viewProfit') ? `<div class="row" style="color:#27ae60"><span>الربح</span><span>${money(inv.profit)}</span></div>` : ''}
+        ${inv.remaining > 0 ?`<div class="row" style="color:#e67e22"><span>المتبقي</span><span>${money(inv.remaining)}</span></div>` :''}
+        ${inv.remaining > 0 && inv.dueDate ?`<div class="row" style="color:#e67e22"><span>تاريخ الاستحقاق</span><span>${inv.dueDate}</span></div>` :''}
+        ${isSale && canUser(user,'viewProfit') ?`<div class="row" style="color:#27ae60"><span>الربح</span><span>${money(inv.profit)}</span></div>` :''}
         <div class="row grand"><span>الصافي</span><span>${money(inv.total)}</span></div>
       </div>
       <div class="footer">
-        ${returnPolicy ? `<div style="margin-bottom:3px">↩️ ${returnPolicy}</div>` : ''}
-        ${warranty ? `<div style="margin-bottom:3px">🛡️ ${warranty}</div>` : ''}
+        ${returnPolicy ?`<div style="margin-bottom:3px">↩ ${returnPolicy}</div>` :''}
+        ${warranty ?`<div style="margin-bottom:3px"> ${warranty}</div>` :''}
         <div style="margin-top:6px">شكراً لتعاملكم معنا — ${bizName}</div>
       </div>
       <script>window.onload = () => { window.print(); }</script>
@@ -168,10 +169,10 @@ export default function InvoiceView() {
 
   // Thermal receipt for 58mm / 80mm roll printers (compact, monospace numbers).
   const printReceipt = (mm) => {
-    const win = window.open('', '_blank');
+    const win = window.open('','_blank');
     if (!win) return alert('اسمح النافذة المنبثقة للطباعة');
     const w = mm === 58 ? 58 : 80;
-    const line = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
+    const line = (a, b) =>`<div class="l"><span>${a}</span><span>${b}</span></div>`;
     win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
       <title>إيصال ${inv.number}</title>
       <style>
@@ -189,30 +190,30 @@ export default function InvoiceView() {
         .grand { font-weight:800; font-size:${w === 58 ? 13 : 15}px; border-top:1px solid #000; padding-top:3px; margin-top:3px; }
       </style></head><body>
       <div class="c">
-        ${logo ? `<img src="${logo}" style="max-height:46px"/><br/>` : ''}
+        ${logo ?`<img src="${logo}" style="max-height:46px"/><br/>` :''}
         <h1>${bizName}</h1>
-        ${address ? `<div class="muted">${address}</div>` : ''}
-        ${shopPhone ? `<div class="muted">📞 ${shopPhone}</div>` : ''}
+        ${address ?`<div class="muted">${address}</div>` :''}
+        ${shopPhone ?`<div class="muted"> ${shopPhone}</div>` :''}
       </div>
       <hr/>
-      <div class="muted">فاتورة ${isSale ? 'بيع' : 'شراء'} رقم: <b>${inv.number}</b></div>
-      <div class="muted">${fmtDate(inv.createdAt)} — ${inv.partyName || 'نقدي'}</div>
+      <div class="muted">فاتورة ${isSale ?'بيع' :'شراء'} رقم: <b>${inv.number}</b></div>
+      <div class="muted">${fmtDate(inv.createdAt)} — ${inv.partyName ||'نقدي'}</div>
       <hr/>
       <table><tbody>
-        ${inv.lines.map((l) => `<tr><td>${l.name}</td><td class="qty">${fmt(l.qty)}×</td><td class="amt">${fmt(l.qty * l.price)}</td></tr>`).join('')}
+        ${inv.lines.map((l) =>`<tr><td>${l.name}</td><td class="qty">${fmt(l.qty)}×</td><td class="amt">${fmt(l.qty * l.price)}</td></tr>`).join('')}
       </tbody></table>
       <hr/>
       ${line('الإجمالي', money(inv.subtotal))}
-      ${inv.discount > 0 ? line('الخصم', '-' + money(inv.discount)) : ''}
-      ${inv.tax > 0 ? line((inv.taxName || 'ضريبة') + ` ${fmt(inv.taxRate)}%`, money(inv.tax)) : ''}
+      ${inv.discount > 0 ? line('الخصم','-' + money(inv.discount)) :''}
+      ${inv.tax > 0 ? line((inv.taxName ||'ضريبة') +` ${fmt(inv.taxRate)}%`, money(inv.tax)) :''}
       <div class="l grand"><span>الصافي</span><span>${money(inv.total)}</span></div>
       ${line('المدفوع', money(inv.paid))}
-      ${inv.remaining > 0 ? line('المتبقي', money(inv.remaining)) : ''}
-      ${inv.remaining > 0 && inv.dueDate ? line('الاستحقاق', inv.dueDate) : ''}
+      ${inv.remaining > 0 ? line('المتبقي', money(inv.remaining)) :''}
+      ${inv.remaining > 0 && inv.dueDate ? line('الاستحقاق', inv.dueDate) :''}
       <hr/>
       <div class="c muted">
-        ${warranty ? `<div>🛡️ ${warranty}</div>` : ''}
-        <div>شكراً لتعاملكم معنا 🌹</div>
+        ${warranty ?`<div> ${warranty}</div>` :''}
+        <div>شكراً لتعاملكم معنا </div>
       </div>
       <script>window.onload = () => { window.print(); setTimeout(() => window.close(), 300); }</script>
     </body></html>`);
@@ -223,70 +224,82 @@ export default function InvoiceView() {
     <>
       <div className="page-head">
         <h1>فاتورة {inv.number}</h1>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn ghost" onClick={exportPDF}>📄 تصدير PDF</button>
-          <button className="btn ghost" onClick={() => window.print()}>🖨️ طباعة</button>
-          <button className="btn ghost" onClick={() => printReceipt(80)} title="طابعة رول حرارية 80مم">🧾 إيصال 80مم</button>
-          <button className="btn ghost" onClick={() => printReceipt(58)} title="طابعة رول حرارية 58مم">🧾 إيصال 58مم</button>
+        <div style={{ display:'flex', gap: 8, flexWrap:'wrap' }}>
+          <button className="btn ghost" onClick={exportPDF}> <FileText size={15} /> تصدير PDF </button>
+          <button className="btn ghost" onClick={() => window.print()}> <Printer size={15} /> طباعة </button>
+          <button className="btn ghost" onClick={() => printReceipt(80)} title="طابعة رول حرارية 80مم"> <Receipt size={15} /> إيصال 80مم </button>
+          <button className="btn ghost" onClick={() => printReceipt(58)} title="طابعة رول حرارية 58مم"> <Receipt size={15} /> إيصال 58مم </button>
           <a className="btn ghost" href={waLink(party?.phone, waText())} target="_blank" rel="noreferrer">
-            📲 واتساب{party?.phone ? ' العميل' : ''}
+            <MessageSquare size={15} />
+            واتساب{party?.phone ?' العميل' :''}
           </a>
-          {inv.type === 'quote' && inv.status === 'quote' && (
-            <button className="btn accent" onClick={doConvert}>✅ تحويل لفاتورة بيع</button>
+          {inv.type ==='quote' && inv.status ==='quote' && (
+            <button className="btn accent" onClick={doConvert}> <Check size={15} /> تحويل لفاتورة بيع </button>
           )}
-          {inv.type === 'po' && inv.status === 'po' && (
-            <button className="btn accent" onClick={() => setPoConv({ extraCosts: '', allocation: 'value', paid: '' })}>✅ تحويل لفاتورة شراء</button>
+          {inv.type ==='po' && inv.status ==='po' && (
+            <button className="btn accent" onClick={() => setPoConv({ extraCosts:'', allocation:'value', paid:'' })}> <Check size={15} /> تحويل لفاتورة شراء </button>
           )}
-          {inv.status === 'active' && (inv.type === 'sale' || inv.type === 'purchase') && can(user.role, 'cancelInvoice') && (
+          {inv.status ==='active' && (inv.type ==='sale' || inv.type ==='purchase') && can(user.role,'cancelInvoice') && (
             <button className="btn danger" onClick={doCancel}>إلغاء الفاتورة</button>
           )}
-          {inv.status === 'cancelled' && can(user.role, 'cancelInvoice') && (
-            <button className="btn" style={{ background: 'var(--green, #27ae60)' }} onClick={doRestore}>♻️ استرجاع الفاتورة</button>
+          {inv.status ==='cancelled' && can(user.role,'cancelInvoice') && (
+            <button className="btn" style={{ background:'var(--green, #27ae60)' }} onClick={doRestore}> <RotateCcw size={15} /> استرجاع الفاتورة </button>
           )}
         </div>
       </div>
 
-      {sp.get('new') && inv.status === 'active' && (
-        <div className="card" style={{ borderColor: 'var(--green)', marginBottom: 14, color: 'var(--green)', fontWeight: 800 }}>
-          ✅ تم حفظ الفاتورة بنجاح
+      {sp.get('new') && inv.status ==='active' && (
+        <div className="card" style={{ borderColor:'var(--green)', marginBottom: 14, color:'var(--green)', fontWeight: 800, display:'flex', alignItems:'center', gap: 6 }}>
+          <CheckCircle2 size={16} />
+          <span>تم حفظ الفاتورة بنجاح</span>
         </div>
       )}
       {waPending && (
-        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span>📵 لا يوجد إنترنت — الفاتورة جاهزة للإرسال على واتساب. اضغط الزر أول ما النت يرجع.</span>
+        <div className="card" style={{ borderColor:'var(--amber)', marginBottom: 14, color:'var(--amber)', fontWeight: 700, display:'flex', justifyContent:'space-between', alignItems:'center', gap: 10, flexWrap:'wrap' }}>
+          <span style={{ display:'flex', alignItems:'center', gap: 6 }}>
+            <WifiOff size={16} />
+            لا يوجد إنترنت — الفاتورة جاهزة للإرسال على واتساب. اضغط الزر أول ما النت يرجع.
+          </span>
           <a className="btn accent sm" href={waLink(party?.phone, waText())} target="_blank" rel="noreferrer"
-            onClick={() => setWaPending(false)}>📲 إرسال الآن</a>
+            onClick={() => setWaPending(false)}>
+            <MessageSquare size={14} />
+            إرسال الآن
+          </a>
         </div>
       )}
-      {inv.status === 'cancelled' && (
-        <div className="card" style={{ borderColor: 'var(--red)', marginBottom: 14, color: 'var(--red)', fontWeight: 800 }}>
-          ⛔ فاتورة ملغاة — بواسطة {inv.cancelledBy} في {fmtDate(inv.cancelledAt)}
+      {inv.status ==='cancelled' && (
+        <div className="card" style={{ borderColor:'var(--red)', marginBottom: 14, color:'var(--red)', fontWeight: 800, display:'flex', alignItems:'center', gap: 6 }}>
+          <Ban size={16} />
+          <span>فاتورة ملغاة — بواسطة {inv.cancelledBy} في {fmtDate(inv.cancelledAt)}</span>
         </div>
       )}
-      {inv.type === 'quote' && inv.status === 'quote' && (
-        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700 }}>
-          📄 عرض سعر — لا يؤثر على المخزون. اضغط "تحويل لفاتورة بيع" عند موافقة العميل.
+      {inv.type ==='quote' && inv.status ==='quote' && (
+        <div className="card" style={{ borderColor:'var(--amber)', marginBottom: 14, color:'var(--amber)', fontWeight: 700, display:'flex', alignItems:'center', gap: 6 }}>
+          <FileText size={16} />
+          <span>عرض سعر — لا يؤثر على المخزون. اضغط"تحويل لفاتورة بيع" عند موافقة العميل.</span>
         </div>
       )}
-      {inv.type === 'po' && inv.status === 'po' && (
-        <div className="card" style={{ borderColor: 'var(--amber)', marginBottom: 14, color: 'var(--amber)', fontWeight: 700 }}>
-          📝 طلب شراء — لا يؤثر على المخزون. عند الاستلام اضغط "تحويل لفاتورة شراء" (تقدر تضيف مصاريف شحن/جمارك توزّع على التكلفة).
+      {inv.type ==='po' && inv.status ==='po' && (
+        <div className="card" style={{ borderColor:'var(--amber)', marginBottom: 14, color:'var(--amber)', fontWeight: 700, display:'flex', alignItems:'center', gap: 6 }}>
+          <ClipboardList size={16} />
+          <span>طلب شراء — لا يؤثر على المخزون. عند الاستلام اضغط"تحويل لفاتورة شراء" (تقدر تضيف مصاريف شحن/جمارك توزّع على التكلفة).</span>
         </div>
       )}
-      {inv.status === 'converted' && (
-        <div className="card" style={{ borderColor: 'var(--green)', marginBottom: 14, color: 'var(--green)', fontWeight: 700 }}>
-          ✅ تم تحويل عرض السعر إلى فاتورة بيع.
+      {inv.status ==='converted' && (
+        <div className="card" style={{ borderColor:'var(--green)', marginBottom: 14, color:'var(--green)', fontWeight: 700, display:'flex', alignItems:'center', gap: 6 }}>
+          <CheckCircle2 size={16} />
+          <span>تم تحويل عرض السعر إلى فاتورة بيع.</span>
         </div>
       )}
-      {(inv.type === 'sale_return' || inv.type === 'purchase_return') && (
+      {(inv.type ==='sale_return' || inv.type ==='purchase_return') && (
         <div className="card" style={{ marginBottom: 14, fontWeight: 700 }}>
-          {inv.type === 'sale_return' ? '↩️ مرتجع بيع' : '↪️ مرتجع شراء'} — تم تعديل المخزون والأرصدة.
+          {inv.type ==='sale_return' ?'↩ مرتجع بيع' :'↪ مرتجع شراء'} — تم تعديل المخزون والأرصدة.
         </div>
       )}
 
       <div className="grid-2">
         <div className="card">
-          <p><b>{isSale ? 'العميل' : 'المورد'}:</b> {inv.partyName || 'نقدي'}</p>
+          <p><b>{isSale ?'العميل' :'المورد'}:</b> {inv.partyName ||'نقدي'}</p>
           <p><b>التاريخ:</b> {fmtDate(inv.createdAt)}</p>
           <p><b>الموظف:</b> {inv.userName}</p>
         </div>
@@ -294,11 +307,11 @@ export default function InvoiceView() {
           <div className="totals">
             <div className="trow"><span>قبل الخصم</span><span className="num">{money(inv.subtotal)}</span></div>
             <div className="trow"><span>الخصم</span><span className="num">- {money(inv.discount)}</span></div>
-            {inv.tax > 0 && <div className="trow"><span>{inv.taxName || 'ضريبة'} ({fmt(inv.taxRate)}%)</span><span className="num">+ {money(inv.tax)}</span></div>}
+            {inv.tax > 0 && <div className="trow"><span>{inv.taxName ||'ضريبة'} ({fmt(inv.taxRate)}%)</span><span className="num">+ {money(inv.tax)}</span></div>}
             <div className="trow"><span>المدفوع</span><span className="num">{money(inv.paid)}</span></div>
-            {inv.remaining > 0 && <div className="trow" style={{ color: 'var(--amber)' }}><span>المتبقي</span><span className="num">{money(inv.remaining)}</span></div>}
-            {inv.remaining > 0 && inv.dueDate && <div className="trow" style={{ color: 'var(--amber)' }}><span>تاريخ الاستحقاق</span><span className="num">{fmtDay(inv.dueDate)}</span></div>}
-            {isSale && canUser(user, 'viewProfit') && <div className="trow" style={{ color: 'var(--green)' }}><span>الربح</span><span className="num">{money(inv.profit)}</span></div>}
+            {inv.remaining > 0 && <div className="trow" style={{ color:'var(--amber)' }}><span>المتبقي</span><span className="num">{money(inv.remaining)}</span></div>}
+            {inv.remaining > 0 && inv.dueDate && <div className="trow" style={{ color:'var(--amber)' }}><span>تاريخ الاستحقاق</span><span className="num">{fmtDay(inv.dueDate)}</span></div>}
+            {isSale && canUser(user,'viewProfit') && <div className="trow" style={{ color:'var(--green)' }}><span>الربح</span><span className="num">{money(inv.profit)}</span></div>}
             <div className="trow grand"><span>الصافي</span><span className="num">{money(inv.total)}</span></div>
           </div>
         </div>
@@ -326,17 +339,17 @@ export default function InvoiceView() {
       {/* print layout (80mm receipt friendly) */}
       <div className="print-area">
         <div className="invoice-print" dir="rtl">
-          {logo && <img src={logo} alt="" style={{ maxHeight: 56, display: 'block', margin: '0 auto 6px' }} />}
+          {logo && <img src={logo} alt="" style={{ maxHeight: 56, display:'block', margin:'0 auto 6px' }} />}
           <h2>{bizName}</h2>
           {(address || shopPhone) && (
             <div className="ph" style={{ marginTop: 0 }}>
-              {address}{address && shopPhone ? ' · ' : ''}{shopPhone ? `📞 ${shopPhone}` : ''}
+              {address}{address && shopPhone ?' ·' :''}{shopPhone ?` ${shopPhone}` :''}
             </div>
           )}
           <div className="ph">
-            فاتورة {isSale ? 'بيع' : 'شراء'} رقم {inv.number}<br />
+            فاتورة {isSale ?'بيع' :'شراء'} رقم {inv.number}<br />
             {fmtDate(inv.createdAt)}<br />
-            {inv.partyName ? `${isSale ? 'العميل' : 'المورد'}: ${inv.partyName}` : 'عميل نقدي'}
+            {inv.partyName ?`${isSale ?'العميل' :'المورد'}: ${inv.partyName}` :'عميل نقدي'}
           </div>
           <table>
             <thead><tr><th>الصنف</th><th>كمية</th><th>سعر</th><th>إجمالي</th></tr></thead>
@@ -348,15 +361,15 @@ export default function InvoiceView() {
           </table>
           <div className="tot">
             {inv.discount > 0 && <>الخصم: {money(inv.discount)}<br /></>}
-            {inv.tax > 0 && <>{inv.taxName || 'ضريبة'}: {money(inv.tax)}<br /></>}
+            {inv.tax > 0 && <>{inv.taxName ||'ضريبة'}: {money(inv.tax)}<br /></>}
             الإجمالي: {money(inv.total)}<br />
             المدفوع: {money(inv.paid)}
             {inv.remaining > 0 && <><br />المتبقي: {money(inv.remaining)}</>}
           </div>
           {(returnPolicy || warranty) && (
             <div className="ph" style={{ marginTop: 8, fontSize: 11 }}>
-              {returnPolicy && <div>↩️ {returnPolicy}</div>}
-              {warranty && <div>🛡️ {warranty}</div>}
+              {returnPolicy && <div>↩ {returnPolicy}</div>}
+              {warranty && <div> {warranty}</div>}
             </div>
           )}
           <div className="ph" style={{ marginTop: 8 }}>شكراً لتعاملكم معنا</div>
@@ -384,7 +397,7 @@ export default function InvoiceView() {
             <input className="input" type="number" min="0" value={poConv.paid}
               onChange={(e) => setPoConv({ ...poConv, paid: e.target.value })} placeholder={String(inv.total)} /></div>
           <p className="muted" style={{ fontSize: 12 }}>المصاريف الإضافية تُضاف لتكلفة الأصناف (تكلفة فعلية) وتُسجّل قيد محاسبي.</p>
-          <button className="btn accent block" onClick={doConvertPO}>✅ تأكيد التحويل</button>
+          <button className="btn accent block" onClick={doConvertPO}> تأكيد التحويل</button>
         </Modal>
       )}
     </>

@@ -1,10 +1,11 @@
-import { useMemo, useState, Fragment } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, getSetting, createInstallmentPlan, payInstallment } from '../db';
-import { money, fmt, fmtDay } from '../utils';
-import { exportOverdueCustomers, printOverdueCustomers } from '../overdueExport';
-import { Modal, Toast } from '../components/UI';
-import { useAuth } from '../auth';
+import { Icon } from'../components/Icon';
+import { useMemo, useState, Fragment } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, today, getSetting, createInstallmentPlan, payInstallment } from'../db';
+import { money, fmt, fmtDay } from'../utils';
+import { exportOverdueCustomers, printOverdueCustomers } from'../overdueExport';
+import { Modal, Toast } from'../components/UI';
+import { useAuth } from'../auth';
 
 export default function Installments() {
   const { user, activeBranch } = useAuth();
@@ -13,7 +14,7 @@ export default function Installments() {
   const invoices = useLiveQuery(() => db.invoices.where('type').equals('sale').toArray(), [], []);
   const payments = useLiveQuery(() => db.payments.toArray(), [], []);
   const creditDays = useLiveQuery(() => getSetting('creditDays', 30), [], 30);
-  const bizName = useLiveQuery(() => getSetting('bizName', 'النشاط'), [], 'النشاط');
+  const bizName = useLiveQuery(() => getSetting('bizName','النشاط'), [],'النشاط');
 
   const [tab, setTab] = useState('plans');
   const [minDays, setMinDays] = useState('');
@@ -26,7 +27,7 @@ export default function Installments() {
   const t = today();
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2800); };
 
-  const openNew = () => setForm({ customerId: '', total: '', downPayment: '', count: '6', startDate: t });
+  const openNew = () => setForm({ customerId:'', total:'', downPayment:'', count:'6', startDate: t });
 
   const savePlan = async () => {
     const cust = customers.find((c) => c.id === Number(form.customerId));
@@ -36,28 +37,28 @@ export default function Installments() {
       total: Number(form.total) || 0, downPayment: Number(form.downPayment) || 0,
       count: Number(form.count) || 1, startDate: form.startDate, branchId: activeBranch, userName: user.name,
     });
-    notify('✅ تم إنشاء خطة التقسيط');
+    notify(' تم إنشاء خطة التقسيط');
     setForm(null);
   };
 
   const doPay = async (amount) => {
     await payInstallment({ planId: payFor.plan.id, no: payFor.inst.no, amount: Number(amount), userName: user.name });
-    notify('✅ تم تحصيل القسط');
+    notify(' تم تحصيل القسط');
     setPayFor(null);
   };
 
   const instStatus = (inst) => {
-    if (inst.status === 'paid') return { label: 'مدفوع', cls: 'green' };
+    if (inst.status ==='paid') return { label:'مدفوع', cls:'green' };
     const overdue = inst.dueDate < t;
-    if (inst.status === 'partial') return { label: overdue ? 'متأخر (جزئي)' : 'جزئي', cls: overdue ? 'red' : 'amber' };
-    return overdue ? { label: 'متأخر', cls: 'red' } : { label: 'مستحق', cls: 'gray' };
+    if (inst.status ==='partial') return { label: overdue ?'متأخر (جزئي)' :'جزئي', cls: overdue ?'red' :'amber' };
+    return overdue ? { label:'متأخر', cls:'red' } : { label:'مستحق', cls:'gray' };
   };
 
   const planSummary = (p) => {
     const paid = p.installments.reduce((s, i) => s + (i.paidAmount || 0), 0);
-    const paidCount = p.installments.filter((i) => i.status === 'paid').length;
-    const overdue = p.installments.filter((i) => i.status !== 'paid' && i.dueDate < t).length;
-    const next = p.installments.find((i) => i.status !== 'paid');
+    const paidCount = p.installments.filter((i) => i.status ==='paid').length;
+    const overdue = p.installments.filter((i) => i.status !=='paid' && i.dueDate < t).length;
+    const next = p.installments.find((i) => i.status !=='paid');
     return { paid, remaining: Math.round((p.financed - paid) * 100) / 100, paidCount, overdue, next };
   };
 
@@ -72,11 +73,11 @@ export default function Installments() {
   const aging = useMemo(() => {
     const salesByCust = {};
     for (const inv of invoices) {
-      if (inv.status !== 'active' || !(inv.remaining > 0) || !inv.partyId) continue;
+      if (inv.status !=='active' || !(inv.remaining > 0) || !inv.partyId) continue;
       (salesByCust[inv.partyId] ||= []).push(inv);
     }
     const payByCust = {};
-    for (const p of payments) if (p.partyType === 'customer') payByCust[p.partyId] = (payByCust[p.partyId] || 0) + (p.amount || 0);
+    for (const p of payments) if (p.partyType ==='customer') payByCust[p.partyId] = (payByCust[p.partyId] || 0) + (p.amount || 0);
     const rows = [];
     for (const c of customers) {
       const bal = c.balance || 0;
@@ -118,30 +119,30 @@ export default function Installments() {
   }, [aging, minDays, minAmount]);
 
   const overdueRows = overdue.map((r) => ({
-    name: r.c.name, phone: r.c.phone || '', oldestDue: r.oldestDue || '',
+    name: r.c.name, phone: r.c.phone ||'', oldestDue: r.oldestDue ||'',
     overdueDays: r.maxOverdueDays, overdueInvoices: r.overdueInvoices,
     overdueAmount: r.overdueAmount, balance: r.total,
   }));
 
-  const activePlans = plans.filter((p) => p.status === 'active');
+  const activePlans = plans.filter((p) => p.status ==='active');
 
   return (
     <>
       <div className="page-head">
-        <h1>💳 الأقساط والديون</h1>
-        {tab === 'plans' && <button className="btn accent" onClick={openNew}>＋ خطة تقسيط</button>}
+        <h1>الأقساط والديون</h1>
+        {tab ==='plans' && <button className="btn accent" onClick={openNew}>＋ خطة تقسيط</button>}
       </div>
 
       <div className="list-tools">
-        <button className={`btn ${tab === 'plans' ? '' : 'ghost'}`} onClick={() => setTab('plans')}>📅 خطط الأقساط</button>
-        <button className={`btn ${tab === 'aging' ? '' : 'ghost'}`} onClick={() => setTab('aging')}>⏳ أعمار الديون</button>
-        <button className={`btn ${tab === 'overdue' ? '' : 'ghost'}`} onClick={() => setTab('overdue')}>🔴 المتأخرون</button>
+        <button className={`btn ${tab ==='plans' ?'' :'ghost'}`} onClick={() => setTab('plans')}> خطط الأقساط</button>
+        <button className={`btn ${tab ==='aging' ?'' :'ghost'}`} onClick={() => setTab('aging')}>⏳ أعمار الديون</button>
+        <button className={`btn ${tab ==='overdue' ?'' :'ghost'}`} onClick={() => setTab('overdue')}> المتأخرون</button>
       </div>
 
       {/* ── Plans ── */}
-      {tab === 'plans' && (
+      {tab ==='plans' && (
         plans.length === 0 ? (
-          <div className="card empty"><div className="big-ico">💳</div><p>لا توجد خطط تقسيط — أنشئ خطة لعميل عليه رصيد</p></div>
+          <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="CreditCard" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا توجد خطط تقسيط — أنشئ خطة لعميل عليه رصيد</p></div>
         ) : (
           <div className="table-wrap">
             <table>
@@ -152,18 +153,18 @@ export default function Installments() {
                   return (
                     <Fragment key={p.id}>
                       <tr className="clickable" onClick={() => setExpanded(expanded === p.id ? null : p.id)}>
-                        <td><b>{p.customerName}</b>{p.status === 'completed' && <span className="badge green" style={{ marginRight: 6 }}>مكتملة</span>}{s.overdue > 0 && <span className="badge red" style={{ marginRight: 6 }}>{s.overdue} متأخر</span>}</td>
+                        <td><b>{p.customerName}</b>{p.status ==='completed' && <span className="badge green" style={{ marginRight: 6 }}>مكتملة</span>}{s.overdue > 0 && <span className="badge red" style={{ marginRight: 6 }}>{s.overdue} متأخر</span>}</td>
                         <td className="num">{money(p.total)}</td>
                         <td className="num muted">{money(p.financed)}</td>
-                        <td className="num" style={{ color: 'var(--green)' }}>{money(s.paid)}</td>
-                        <td className="num" style={{ color: 'var(--red)' }}>{money(s.remaining)}</td>
+                        <td className="num" style={{ color:'var(--green)' }}>{money(s.paid)}</td>
+                        <td className="num" style={{ color:'var(--red)' }}>{money(s.remaining)}</td>
                         <td>{s.paidCount}/{p.count}</td>
-                        <td className="muted">{s.next ? `${money(s.next.amount)} — ${s.next.dueDate}` : '—'}</td>
-                        <td>{expanded === p.id ? '▲' : '▼'}</td>
+                        <td className="muted">{s.next ?`${money(s.next.amount)} — ${s.next.dueDate}` :'—'}</td>
+                        <td>{expanded === p.id ?'▲' :'▼'}</td>
                       </tr>
                       {expanded === p.id && (
-                        <tr><td colSpan={8} style={{ background: 'var(--bg)' }}>
-                          <table style={{ width: '100%' }}>
+                        <tr><td colSpan={8} style={{ background:'var(--bg)' }}>
+                          <table style={{ width:'100%' }}>
                             <thead><tr><th>#</th><th>الاستحقاق</th><th>المبلغ</th><th>مدفوع</th><th>الحالة</th><th></th></tr></thead>
                             <tbody>
                               {p.installments.map((inst) => {
@@ -173,9 +174,9 @@ export default function Installments() {
                                     <td>{inst.no}</td>
                                     <td className="muted">{inst.dueDate}</td>
                                     <td className="num">{money(inst.amount)}</td>
-                                    <td className="num">{inst.paidAmount ? money(inst.paidAmount) : '—'}</td>
+                                    <td className="num">{inst.paidAmount ? money(inst.paidAmount) :'—'}</td>
                                     <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
-                                    <td>{inst.status !== 'paid' && <button className="btn sm" onClick={() => setPayFor({ plan: p, inst })}>تحصيل</button>}</td>
+                                    <td>{inst.status !=='paid' && <button className="btn sm" onClick={() => setPayFor({ plan: p, inst })}>تحصيل</button>}</td>
                                   </tr>
                                 );
                               })}
@@ -193,9 +194,9 @@ export default function Installments() {
       )}
 
       {/* ── Aging ── */}
-      {tab === 'aging' && (
+      {tab ==='aging' && (
         aging.length === 0 ? (
-          <div className="card empty"><div className="big-ico">⏳</div><p>لا توجد ديون على العملاء</p></div>
+          <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="Clock" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا توجد ديون على العملاء</p></div>
         ) : (
           <div className="table-wrap">
             <table>
@@ -205,13 +206,13 @@ export default function Installments() {
                   <tr key={r.c.id}>
                     <td><b>{r.c.name}</b>{(r.c.creditLimit || 0) > 0 && r.total > r.c.creditLimit && <span className="badge amber" style={{ marginRight: 6 }}>تجاوز الحد</span>}</td>
                     <td className="num" style={{ fontWeight: 700 }}>{money(r.total)}</td>
-                    <td className="num">{r.b0 ? money(r.b0) : '—'}</td>
-                    <td className="num" style={{ color: r.b30 ? 'var(--amber)' : '' }}>{r.b30 ? money(r.b30) : '—'}</td>
-                    <td className="num" style={{ color: r.b60 ? 'var(--amber)' : '' }}>{r.b60 ? money(r.b60) : '—'}</td>
-                    <td className="num" style={{ color: r.b90 ? 'var(--red)' : '' }}>{r.b90 ? money(r.b90) : '—'}</td>
+                    <td className="num">{r.b0 ? money(r.b0) :'—'}</td>
+                    <td className="num" style={{ color: r.b30 ?'var(--amber)' :'' }}>{r.b30 ? money(r.b30) :'—'}</td>
+                    <td className="num" style={{ color: r.b60 ?'var(--amber)' :'' }}>{r.b60 ? money(r.b60) :'—'}</td>
+                    <td className="num" style={{ color: r.b90 ?'var(--red)' :'' }}>{r.b90 ? money(r.b90) :'—'}</td>
                   </tr>
                 ))}
-                <tr style={{ borderTop: '2px solid var(--line)', fontWeight: 800 }}>
+                <tr style={{ borderTop:'2px solid var(--line)', fontWeight: 800 }}>
                   <td>الإجمالي</td>
                   <td className="num">{money(agingTotals.total)}</td>
                   <td className="num">{money(agingTotals.b0)}</td>
@@ -221,7 +222,7 @@ export default function Installments() {
                 </tr>
               </tbody>
             </table>
-            <p className="muted" style={{ padding: '8px 14px', fontSize: 12 }}>
+            <p className="muted" style={{ padding:'8px 14px', fontSize: 12 }}>
               الأعمار محسوبة حسب أيام التأخير عن <b>تاريخ الاستحقاق</b> (الفواتير بلا تاريخ استحقاق تُحسب بعد {fmt(creditDays)} يوم من تاريخها)، بتوزيع الدفعات على أقدم الفواتير (FIFO). الأرصدة الافتتاحية غير المرتبطة بفواتير تظهر ضمن 0–30 يوم.
             </p>
           </div>
@@ -229,7 +230,7 @@ export default function Installments() {
       )}
 
       {/* ── Overdue customers (filter + export) ── */}
-      {tab === 'overdue' && (
+      {tab ==='overdue' && (
         <>
           <div className="card" style={{ padding: 12, marginBottom: 12 }}>
             <div className="row">
@@ -238,16 +239,16 @@ export default function Installments() {
               <div className="field"><label>حد أدنى للمبلغ المتأخر</label>
                 <input className="input" type="number" min="0" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} placeholder="0" /></div>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display:'flex', gap: 8, flexWrap:'wrap' }}>
               <button className="btn ghost sm" disabled={overdueRows.length === 0}
-                onClick={() => exportOverdueCustomers(overdueRows, { bizName, minDays: Number(minDays) || 0, minAmount: Number(minAmount) || 0 })}>⬇️ تصدير CSV</button>
+                onClick={() => exportOverdueCustomers(overdueRows, { bizName, minDays: Number(minDays) || 0, minAmount: Number(minAmount) || 0 })}>⬇ تصدير CSV</button>
               <button className="btn ghost sm" disabled={overdueRows.length === 0}
-                onClick={() => printOverdueCustomers(overdueRows, { bizName, minDays: Number(minDays) || 0, minAmount: Number(minAmount) || 0 })}>🖨️ طباعة / PDF</button>
-              <span className="meta muted" style={{ alignSelf: 'center' }}>عدد المتأخرين: {fmt(overdueRows.length)}</span>
+                onClick={() => printOverdueCustomers(overdueRows, { bizName, minDays: Number(minDays) || 0, minAmount: Number(minAmount) || 0 })}> طباعة / PDF</button>
+              <span className="meta muted" style={{ alignSelf:'center' }}>عدد المتأخرين: {fmt(overdueRows.length)}</span>
             </div>
           </div>
           {overdue.length === 0 ? (
-            <div className="card empty"><div className="big-ico">✅</div><p>لا يوجد عملاء متأخرون مطابقون للفلترة</p></div>
+            <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="CheckCircle" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا يوجد عملاء متأخرون مطابقون للفلترة</p></div>
           ) : (
             <div className="table-wrap">
               <table>
@@ -256,9 +257,9 @@ export default function Installments() {
                   {overdue.map((r) => (
                     <tr key={r.c.id}>
                       <td><b>{r.c.name}</b></td>
-                      <td className="muted">{r.c.phone || '—'}</td>
-                      <td className="muted">{r.oldestDue ? fmtDay(r.oldestDue) : '—'}</td>
-                      <td className="num" style={{ color: r.maxOverdueDays > 90 ? 'var(--red)' : 'var(--amber)', fontWeight: 700 }}>{fmt(r.maxOverdueDays)}</td>
+                      <td className="muted">{r.c.phone ||'—'}</td>
+                      <td className="muted">{r.oldestDue ? fmtDay(r.oldestDue) :'—'}</td>
+                      <td className="num" style={{ color: r.maxOverdueDays > 90 ?'var(--red)' :'var(--amber)', fontWeight: 700 }}>{fmt(r.maxOverdueDays)}</td>
                       <td className="num">{fmt(r.overdueInvoices)}</td>
                       <td className="num" style={{ fontWeight: 700 }}>{money(r.overdueAmount)}</td>
                       <td className="num">{money(r.total)}</td>
@@ -280,7 +281,7 @@ export default function Installments() {
               setForm({ ...form, customerId: e.target.value, total: c && (c.balance || 0) > 0 ? String(c.balance) : form.total });
             }}>
               <option value="">اختر العميل...</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{(c.balance || 0) > 0 ? ` — عليه ${fmt(c.balance)}` : ''}</option>)}
+              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{(c.balance || 0) > 0 ?` — عليه ${fmt(c.balance)}` :''}</option>)}
             </select>
           </div>
           <div className="row">
@@ -298,7 +299,7 @@ export default function Installments() {
           {Number(form.total) > 0 && Number(form.count) > 0 && (
             <p className="muted">الممول: <b>{money(Math.max(0, (Number(form.total) || 0) - (Number(form.downPayment) || 0)))}</b> على <b>{form.count}</b> قسط ≈ <b>{money(Math.max(0, ((Number(form.total) || 0) - (Number(form.downPayment) || 0)) / (Number(form.count) || 1)))}</b>/شهر</p>
           )}
-          <button className="btn accent big block" onClick={savePlan} disabled={!form.customerId || !(Number(form.total) > 0) || !(Number(form.count) > 0)}>💾 إنشاء الخطة</button>
+          <button className="btn accent big block" onClick={savePlan} disabled={!form.customerId || !(Number(form.total) > 0) || !(Number(form.count) > 0)}> إنشاء الخطة</button>
         </Modal>
       )}
 
@@ -318,7 +319,7 @@ function PayModal({ payFor, onPay, onClose }) {
       <p className="muted">المستحق على هذا القسط: <b>{money(due)}</b> · تاريخ الاستحقاق: {fmtDay(payFor.inst.dueDate)}</p>
       <div className="field"><label>المبلغ المحصّل *</label>
         <input className="input lg" type="number" min="0" max={due} value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus /></div>
-      <button className="btn accent block" onClick={() => onPay(amount)} disabled={!(Number(amount) > 0)}>💾 تسجيل التحصيل</button>
+      <button className="btn accent block" onClick={() => onPay(amount)} disabled={!(Number(amount) > 0)}> تسجيل التحصيل</button>
     </Modal>
   );
 }

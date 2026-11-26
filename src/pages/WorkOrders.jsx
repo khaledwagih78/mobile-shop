@@ -1,20 +1,21 @@
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { useNavigate } from 'react-router-dom';
-import { db, today, queueSync, createWorkOrder, invoiceWorkOrder, stockOf } from '../db';
-import { money, fmt, normAr } from '../utils';
-import { Modal, Toast } from '../components/UI';
-import BarcodeScanner from '../components/BarcodeScanner';
-import { useAuth } from '../auth';
+import { Icon } from'../components/Icon';
+import { useMemo, useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { useNavigate } from'react-router-dom';
+import { db, today, queueSync, createWorkOrder, invoiceWorkOrder, stockOf } from'../db';
+import { money, fmt, normAr } from'../utils';
+import { Modal, Toast } from'../components/UI';
+import BarcodeScanner from'../components/BarcodeScanner';
+import { useAuth } from'../auth';
 
 const STATUS = {
-  received: { label: 'تم الاستلام', cls: 'gray' },
-  in_progress: { label: 'تحت الصيانة', cls: 'amber' },
-  done: { label: 'تم الإصلاح', cls: 'accent' },
-  delivered: { label: 'تم التسليم', cls: 'green' },
-  cancelled: { label: 'ملغي', cls: 'red' },
+  received: { label:'تم الاستلام', cls:'gray' },
+  in_progress: { label:'تحت الصيانة', cls:'amber' },
+  done: { label:'تم الإصلاح', cls:'accent' },
+  delivered: { label:'تم التسليم', cls:'green' },
+  cancelled: { label:'ملغي', cls:'red' },
 };
-const FLOW = ['received', 'in_progress', 'done'];
+const FLOW = ['received','in_progress','done'];
 
 export default function WorkOrders() {
   const { user, activeBranch } = useAuth();
@@ -31,38 +32,38 @@ export default function WorkOrders() {
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return orders;
-    if (filter === 'open') return orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
+    if (filter ==='all') return orders;
+    if (filter ==='open') return orders.filter((o) => o.status !=='delivered' && o.status !=='cancelled');
     return orders.filter((o) => o.status === filter);
   }, [orders, filter]);
 
-  const openNew = () => setForm({ customerId: '', customerName: '', deviceType: '', deviceInfo: '', reportedIssue: '', technicianName: '', parts: [], laborCost: '', warranty: '', notes: '', status: 'received' });
+  const openNew = () => setForm({ customerId:'', customerName:'', deviceType:'', deviceInfo:'', reportedIssue:'', technicianName:'', parts: [], laborCost:'', warranty:'', notes:'', status:'received' });
 
   const save = async () => {
     const cust = customers.find((c) => c.id === Number(form.customerId));
     const payload = {
-      customerId: cust ? cust.id : null, customerName: cust ? cust.name : (form.customerName || ''),
+      customerId: cust ? cust.id : null, customerName: cust ? cust.name : (form.customerName ||''),
       deviceType: form.deviceType, deviceInfo: form.deviceInfo, reportedIssue: form.reportedIssue,
       technicianName: form.technicianName, parts: form.parts, laborCost: Number(form.laborCost) || 0,
       warranty: form.warranty, notes: form.notes, status: form.status, branchId: activeBranch,
     };
     if (form.id) {
       await db.workOrders.update(form.id, payload);
-      await queueSync('workOrders', 'update', { ...payload, id: form.id });
+      await queueSync('workOrders','update', { ...payload, id: form.id });
     } else {
       await createWorkOrder(payload);
     }
-    notify('✅ تم حفظ أمر الصيانة');
+    notify(' تم حفظ أمر الصيانة');
     setForm(null);
   };
 
   const setStatus = async (o, status) => {
     await db.workOrders.update(o.id, { status });
-    await queueSync('workOrders', 'update', { id: o.id, status });
+    await queueSync('workOrders','update', { id: o.id, status });
   };
 
   const doInvoice = async (paid) => {
-    const res = await invoiceWorkOrder(payFor.id, { paid: paid === '' ? null : Number(paid), userName: user.name });
+    const res = await invoiceWorkOrder(payFor.id, { paid: paid ==='' ? null : Number(paid), userName: user.name });
     setPayFor(null);
     if (res) nav(`/invoices/${res.id}?new=1`);
   };
@@ -73,20 +74,18 @@ export default function WorkOrders() {
   return (
     <>
       <div className="page-head">
-        <h1>🔧 الصيانة وأوامر العمل</h1>
+        <h1>الصيانة وأوامر العمل</h1>
         <button className="btn accent" onClick={openNew}>＋ أمر صيانة</button>
       </div>
 
       <div className="list-tools">
-        {['open', 'received', 'in_progress', 'done', 'delivered', 'all'].map((f) => (
-          <button key={f} className={`btn ${filter === f ? '' : 'ghost'} sm`} onClick={() => setFilter(f)}>
-            {f === 'open' ? 'المفتوحة' : f === 'all' ? 'الكل' : STATUS[f].label}
-          </button>
+        {['open','received','in_progress','done','delivered','all'].map((f) => (
+          <button key={f} className={`btn ${filter === f ?'' :'ghost'} sm`} onClick={() => setFilter(f)}> {f ==='open' ?'المفتوحة' : f ==='all' ?'الكل' : STATUS[f].label} </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="card empty"><div className="big-ico">🔧</div><p>لا توجد أوامر صيانة</p></div>
+        <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="Wrench" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا توجد أوامر صيانة</p></div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -95,20 +94,20 @@ export default function WorkOrders() {
               {filtered.map((o) => (
                 <tr key={o.id}>
                   <td className="num">{o.number}</td>
-                  <td>{o.customerName || 'نقدي'}</td>
+                  <td>{o.customerName ||'نقدي'}</td>
                   <td>{o.deviceType}{o.deviceInfo ? <div className="meta muted">{o.deviceInfo}</div> : null}</td>
-                  <td className="muted" style={{ maxWidth: 160 }}>{o.reportedIssue || '—'}</td>
-                  <td className="muted">{o.technicianName || '—'}</td>
+                  <td className="muted" style={{ maxWidth: 160 }}>{o.reportedIssue ||'—'}</td>
+                  <td className="muted">{o.technicianName ||'—'}</td>
                   <td className="num">{money(woTotal(o))}</td>
-                  <td><span className={`badge ${STATUS[o.status]?.cls || 'gray'}`}>{STATUS[o.status]?.label || o.status}</span></td>
-                  <td style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <td><span className={`badge ${STATUS[o.status]?.cls ||'gray'}`}>{STATUS[o.status]?.label || o.status}</span></td>
+                  <td style={{ display:'flex', gap: 4, flexWrap:'wrap' }}>
                     {FLOW.includes(o.status) && (
-                      <select className="input" style={{ fontSize: 11, padding: '2px 4px', maxWidth: 110 }} value={o.status} onChange={(e) => setStatus(o, e.target.value)}>
+                      <select className="input" style={{ fontSize: 11, padding:'2px 4px', maxWidth: 110 }} value={o.status} onChange={(e) => setStatus(o, e.target.value)}>
                         {FLOW.map((s) => <option key={s} value={s}>{STATUS[s].label}</option>)}
                       </select>
                     )}
-                    {o.status !== 'delivered' && o.status !== 'cancelled' && <button className="btn ghost sm" onClick={() => setForm({ ...o, laborCost: String(o.laborCost || ''), customerId: o.customerId || '' })}>تعديل</button>}
-                    {o.status === 'done' && !o.invoiceId && <button className="btn accent sm" onClick={() => setPayFor(o)}>فاتورة وتسليم</button>}
+                    {o.status !=='delivered' && o.status !=='cancelled' && <button className="btn ghost sm" onClick={() => setForm({ ...o, laborCost: String(o.laborCost ||''), customerId: o.customerId ||'' })}>تعديل</button>}
+                    {o.status ==='done' && !o.invoiceId && <button className="btn accent sm" onClick={() => setPayFor(o)}>فاتورة وتسليم</button>}
                     {o.invoiceId && <button className="btn ghost sm" onClick={() => nav(`/invoices/${o.invoiceId}`)}>الفاتورة</button>}
                   </td>
                 </tr>
@@ -119,7 +118,7 @@ export default function WorkOrders() {
       )}
 
       {form && (
-        <Modal title={form.id ? `تعديل أمر ${form.number}` : 'أمر صيانة جديد'} onClose={() => setForm(null)}>
+        <Modal title={form.id ?`تعديل أمر ${form.number}` :'أمر صيانة جديد'} onClose={() => setForm(null)}>
           <div className="row">
             <div className="field"><label>العميل</label>
               <select className="input" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
@@ -136,9 +135,9 @@ export default function WorkOrders() {
             <div className="field"><label>نوع الجهاز/الأصل *</label>
               <input className="input" value={form.deviceType} autoFocus onChange={(e) => setForm({ ...form, deviceType: e.target.value })} placeholder="موبايل / سيارة / مكيف / لابتوب..." /></div>
             <div className="field"><label>الموديل / السيريال</label>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display:'flex', gap: 6 }}>
                 <input className="input" style={{ flex: 1 }} value={form.deviceInfo} onChange={(e) => setForm({ ...form, deviceInfo: e.target.value })} placeholder="امسح السيريال أو اكتبه" />
-                <button type="button" className="btn ghost" title="مسح السيريال بالكاميرا أو جهاز الاسكان" onClick={() => setScanning(true)}>📷 مسح</button>
+                <button type="button" className="btn ghost" title="مسح السيريال بالكاميرا أو جهاز الاسكان" onClick={() => setScanning(true)}> مسح</button>
               </div></div>
           </div>
           <div className="field"><label>العطل / المطلوب</label>
@@ -156,7 +155,7 @@ export default function WorkOrders() {
                         <td>{p.name}</td>
                         <td style={{ maxWidth: 70 }}><input className="input" type="number" min="0" value={p.qty} onChange={(e) => { const parts = [...form.parts]; parts[i] = { ...p, qty: Number(e.target.value) }; setForm({ ...form, parts }); }} /></td>
                         <td style={{ maxWidth: 90 }}><input className="input" type="number" min="0" value={p.price} onChange={(e) => { const parts = [...form.parts]; parts[i] = { ...p, price: Number(e.target.value) }; setForm({ ...form, parts }); }} /></td>
-                        <td><button className="x" onClick={() => setForm({ ...form, parts: form.parts.filter((_, x) => x !== i) })}>✕</button></td>
+                        <td><button className="x" onClick={() => setForm({ ...form, parts: form.parts.filter((_, x) => x !== i) })}></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -171,7 +170,7 @@ export default function WorkOrders() {
               <input className="input" value={form.warranty} onChange={(e) => setForm({ ...form, warranty: e.target.value })} placeholder="مثال: 3 شهور على الإصلاح" /></div>
           </div>
           <p className="muted">الإجمالي المتوقع: <b>{money((form.parts.reduce((s, p) => s + (Number(p.qty) || 0) * (Number(p.price) || 0), 0)) + (Number(form.laborCost) || 0))}</b></p>
-          <button className="btn accent block" onClick={save} disabled={!form.deviceType.trim()}>💾 حفظ</button>
+          <button className="btn accent block" onClick={save} disabled={!form.deviceType.trim()}> حفظ</button>
         </Modal>
       )}
 
@@ -185,8 +184,8 @@ export default function WorkOrders() {
 
       {scanning && (
         <BarcodeScanner
-          title="📷 مسح سيريال الجهاز"
-          onDetected={(code) => { setForm((f) => (f ? { ...f, deviceInfo: code } : f)); setScanning(false); notify('✅ تم قراءة السيريال'); }}
+          title=" مسح سيريال الجهاز"
+          onDetected={(code) => { setForm((f) => (f ? { ...f, deviceInfo: code } : f)); setScanning(false); notify(' تم قراءة السيريال'); }}
           onClose={() => setScanning(false)}
         />
       )}
@@ -202,7 +201,7 @@ function PayBox({ total, onConfirm }) {
     <>
       <div className="field"><label>المدفوع من العميل</label>
         <input className="input lg" type="number" min="0" value={paid} onChange={(e) => setPaid(e.target.value)} /></div>
-      <button className="btn accent block" onClick={() => onConfirm(paid)}>✅ إصدار الفاتورة والتسليم</button>
+      <button className="btn accent block" onClick={() => onConfirm(paid)}> إصدار الفاتورة والتسليم</button>
     </>
   );
 }
@@ -216,14 +215,14 @@ function PartPicker({ items, branch, onPick }) {
     return items.filter((it) => normAr(it.name).includes(t) || normAr(it.code).includes(t)).slice(0, 8);
   }, [q, items]);
   return (
-    <div style={{ position: 'relative' }}>
-      <input className="input" value={q} placeholder="🔍 أضف قطعة غيار..." onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
+    <div style={{ position:'relative' }}>
+      <input className="input" value={q} placeholder="أضف قطعة غيار..." onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
       {open && results.length > 0 && (
         <div className="search-drop">
           {results.map((it) => (
             <div key={it.id} className="search-item" onClick={() => { onPick(it); setQ(''); setOpen(false); }}>
               <div><b>{it.name}</b><div className="meta">{it.code}</div></div>
-              <div style={{ textAlign: 'left' }}><b className="num">{money(it.salePrice || 0)}</b><div className="meta">رصيد: {fmt(stockOf(it, branch))}</div></div>
+              <div style={{ textAlign:'left' }}><b className="num">{money(it.salePrice || 0)}</b><div className="meta">رصيد: {fmt(stockOf(it, branch))}</div></div>
             </div>
           ))}
         </div>

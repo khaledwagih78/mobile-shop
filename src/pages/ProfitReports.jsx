@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db';
-import { money, fmt, marginPct } from '../utils';
-import { useAuth } from '../auth';
+import { useMemo, useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db } from'../db';
+import { money, fmt, marginPct } from'../utils';
+import { useAuth } from'../auth';
 
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -15,9 +15,9 @@ export default function ProfitReports() {
   const invoices = useLiveQuery(() => db.invoices.where('type').equals('sale').toArray(), [], []);
 
   const data = useMemo(() => {
-    const inRange = (inv) => inv.status === 'active'
+    const inRange = (inv) => inv.status ==='active'
       && (inv.branchId || 1) === activeBranch
-      && (!from || (inv.day || '') >= from) && (!to || (inv.day || '') <= to);
+      && (!from || (inv.day ||'') >= from) && (!to || (inv.day ||'') <= to);
     const sales = invoices.filter(inRange);
 
     const byItem = new Map();
@@ -36,8 +36,8 @@ export default function ProfitReports() {
         row.qty += q; row.rev += rev; row.cost += cst;
         byItem.set(l.itemId, row);
       }
-      const key = inv.partyId || 'cash';
-      const crow = byCust.get(key) || { name: inv.partyName || 'نقدي', count: 0, rev: 0, profit: 0 };
+      const key = inv.partyId ||'cash';
+      const crow = byCust.get(key) || { name: inv.partyName ||'نقدي', count: 0, rev: 0, profit: 0 };
       crow.count += 1; crow.rev += invRev; crow.profit += invProfit;
       byCust.set(key, crow);
     }
@@ -49,30 +49,30 @@ export default function ProfitReports() {
   }, [invoices, from, to, activeBranch]);
 
   const exportCsv = () => {
-    const rows = tab === 'item'
-      ? [['الصنف', 'الكمية', 'المبيعات', 'التكلفة', 'الربح', 'الهامش %'],
+    const rows = tab ==='item'
+      ? [['الصنف','الكمية','المبيعات','التكلفة','الربح','الهامش %'],
          ...data.items.map((r) => [r.name, r.qty, Math.round(r.rev), Math.round(r.cost), Math.round(r.profit), r.margin])]
-      : [['العميل', 'عدد الفواتير', 'المبيعات', 'الربح'],
+      : [['العميل','عدد الفواتير','المبيعات','الربح'],
          ...data.custs.map((r) => [r.name, r.count, Math.round(r.rev), Math.round(r.profit)])];
-    const csv = rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const csv = rows.map((row) => row.map((c) =>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    const blob = new Blob(['' + csv], { type:'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `ارباح-${tab}-${from}_${to}.csv`;
+    a.download =`ارباح-${tab}-${from}_${to}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
 
   return (
     <>
-      <div className="page-head"><h1>📈 تقارير الأرباح</h1></div>
+      <div className="page-head"><h1>تقارير الأرباح</h1></div>
 
-      <div className="list-tools" style={{ marginBottom: 10, alignItems: 'flex-end' }}>
+      <div className="list-tools" style={{ marginBottom: 10, alignItems:'flex-end' }}>
         <div className="field" style={{ margin: 0 }}><label>من</label>
           <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
         <div className="field" style={{ margin: 0 }}><label>إلى</label>
           <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-        <button className="btn ghost" onClick={exportCsv}>📊 تصدير CSV</button>
+        <button className="btn ghost" onClick={exportCsv}> تصدير CSV</button>
       </div>
 
       <div className="kpis">
@@ -81,12 +81,12 @@ export default function ProfitReports() {
         <div className="kpi tone-green"><div className="label">صافي الربح</div><div className="value">{money(data.profit)}</div><div className="sub">هامش {fmt(marginPct(data.cost, data.revenue))}%</div></div>
       </div>
 
-      <div className="tabs" style={{ display: 'flex', gap: 6, margin: '12px 0' }}>
-        <button className={`btn ${tab === 'item' ? '' : 'ghost'}`} onClick={() => setTab('item')}>حسب الصنف</button>
-        <button className={`btn ${tab === 'customer' ? '' : 'ghost'}`} onClick={() => setTab('customer')}>حسب العميل</button>
+      <div className="tabs" style={{ display:'flex', gap: 6, margin:'12px 0' }}>
+        <button className={`btn ${tab ==='item' ?'' :'ghost'}`} onClick={() => setTab('item')}>حسب الصنف</button>
+        <button className={`btn ${tab ==='customer' ?'' :'ghost'}`} onClick={() => setTab('customer')}>حسب العميل</button>
       </div>
 
-      {tab === 'item' ? (
+      {tab ==='item' ? (
         data.items.length === 0 ? <div className="card empty"><p>لا توجد مبيعات في هذه الفترة</p></div> : (
           <div className="table-wrap">
             <table>
@@ -98,8 +98,8 @@ export default function ProfitReports() {
                     <td className="num">{fmt(r.qty)}</td>
                     <td className="num">{money(r.rev)}</td>
                     <td className="num muted">{money(r.cost)}</td>
-                    <td className="num" style={{ color: r.profit >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>{money(r.profit)}</td>
-                    <td className="num" style={{ color: r.margin < 15 ? 'var(--red)' : 'var(--green)' }}>{r.rev > 0 ? r.margin + '%' : '—'}</td>
+                    <td className="num" style={{ color: r.profit >= 0 ?'var(--green)' :'var(--red)', fontWeight: 700 }}>{money(r.profit)}</td>
+                    <td className="num" style={{ color: r.margin < 15 ?'var(--red)' :'var(--green)' }}>{r.rev > 0 ? r.margin +'%' :'—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -117,7 +117,7 @@ export default function ProfitReports() {
                     <td><b>{r.name}</b></td>
                     <td className="num">{fmt(r.count)}</td>
                     <td className="num">{money(r.rev)}</td>
-                    <td className="num" style={{ color: r.profit >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>{money(r.profit)}</td>
+                    <td className="num" style={{ color: r.profit >= 0 ?'var(--green)' :'var(--red)', fontWeight: 700 }}>{money(r.profit)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,11 +1,12 @@
-import { useMemo, useState, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, getSetting, setSetting, addRepVisit } from '../db';
-import { money, fmt, fmtDate } from '../utils';
-import { Modal, Toast } from '../components/UI';
-import { useAuth } from '../auth';
+import { Icon } from'../components/Icon';
+import { useMemo, useState, useEffect } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, today, getSetting, setSetting, addRepVisit } from'../db';
+import { money, fmt, fmtDate } from'../utils';
+import { Modal, Toast } from'../components/UI';
+import { useAuth } from'../auth';
 
-const PURPOSES = { visit: 'زيارة', sale: 'بيع', collection: 'تحصيل', followup: 'متابعة' };
+const PURPOSES = { visit:'زيارة', sale:'بيع', collection:'تحصيل', followup:'متابعة' };
 
 export default function Reps() {
   const { user, activeBranch } = useAuth();
@@ -26,12 +27,12 @@ export default function Reps() {
     return [...set];
   }, [employees, visits]);
 
-  const monthVisits = useMemo(() => visits.filter((v) => (v.day || '').slice(0, 7) === month && (repFilter === 'all' || v.repName === repFilter)), [visits, month, repFilter]);
+  const monthVisits = useMemo(() => visits.filter((v) => (v.day ||'').slice(0, 7) === month && (repFilter ==='all' || v.repName === repFilter)), [visits, month, repFilter]);
 
   const perRep = useMemo(() => {
     const m = {};
     for (const v of visits) {
-      if ((v.day || '').slice(0, 7) !== month) continue;
+      if ((v.day ||'').slice(0, 7) !== month) continue;
       const r = (m[v.repName] ||= { visits: 0, orders: 0, collected: 0 });
       r.visits++; r.orders += Number(v.orderAmount) || 0; r.collected += Number(v.collectedAmount) || 0;
     }
@@ -48,20 +49,20 @@ export default function Reps() {
   const save = async () => {
     await addRepVisit({
       repName: form.repName, customerId: form.customerId ? Number(form.customerId) : null,
-      customerName: customers.find((c) => c.id === Number(form.customerId))?.name || '',
+      customerName: customers.find((c) => c.id === Number(form.customerId))?.name ||'',
       date: form.date, purpose: form.purpose, result: form.result,
       orderAmount: Number(form.orderAmount) || 0, collectedAmount: Number(form.collectedAmount) || 0,
       notes: form.notes, recordCollection: form.recordCollection, branchId: activeBranch,
     });
-    notify('✅ تم تسجيل الزيارة');
+    notify(' تم تسجيل الزيارة');
     setForm(null);
   };
 
   return (
     <>
       <div className="page-head">
-        <h1>🚶 المندوبون</h1>
-        <button className="btn accent" onClick={() => setForm({ repName: reps[0] || '', customerId: '', date: today(), purpose: 'visit', result: '', orderAmount: '', collectedAmount: '', notes: '', recordCollection: true })}>＋ تسجيل زيارة</button>
+        <h1>المندوبون</h1>
+        <button className="btn accent" onClick={() => setForm({ repName: reps[0] ||'', customerId:'', date: today(), purpose:'visit', result:'', orderAmount:'', collectedAmount:'', notes:'', recordCollection: true })}>＋ تسجيل زيارة</button>
       </div>
 
       <div className="list-tools">
@@ -83,15 +84,15 @@ export default function Reps() {
                   <tr key={r.name}>
                     <td><b>{r.name}</b></td>
                     <td className="num">{fmt(r.visits)}</td>
-                    <td className="num" style={{ color: 'var(--green)' }}>{money(r.orders)}</td>
+                    <td className="num" style={{ color:'var(--green)' }}>{money(r.orders)}</td>
                     <td className="num">{money(r.collected)}</td>
                     <td style={{ maxWidth: 120 }}>
-                      <input className="input" type="number" min="0" value={targets[r.name] ?? ''} placeholder="0"
+                      <input className="input" type="number" min="0" value={targets[r.name] ??''} placeholder="0"
                         onChange={(e) => saveTarget(r.name, e.target.value)} />
                     </td>
                     <td>{r.target > 0 ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ height: 8, borderRadius: 4, background: pct >= 100 ? 'var(--green)' : 'var(--accent, #0F4C5C)', width: Math.min(100, pct) + '%', minWidth: 4, maxWidth: 120 }} />
+                      <div style={{ display:'flex', alignItems:'center', gap: 6 }}>
+                        <div style={{ height: 8, borderRadius: 4, background: pct >= 100 ?'var(--green)' :'var(--accent, #0F4C5C)', width: Math.min(100, pct) +'%', minWidth: 4, maxWidth: 120 }} />
                         <span className="muted" style={{ fontSize: 12 }}>{pct}%</span>
                       </div>
                     ) : <span className="muted">—</span>}</td>
@@ -104,7 +105,7 @@ export default function Reps() {
       )}
 
       {monthVisits.length === 0 ? (
-        <div className="card empty"><div className="big-ico">🚶</div><p>لا توجد زيارات في هذا الشهر</p></div>
+        <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="Footprints" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا توجد زيارات في هذا الشهر</p></div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -114,11 +115,11 @@ export default function Reps() {
                 <tr key={v.id}>
                   <td className="muted">{v.day}</td>
                   <td>{v.repName}</td>
-                  <td>{v.customerName || '—'}</td>
+                  <td>{v.customerName ||'—'}</td>
                   <td><span className="badge gray">{PURPOSES[v.purpose] || v.purpose}</span></td>
-                  <td className="num">{v.orderAmount ? money(v.orderAmount) : '—'}</td>
-                  <td className="num">{v.collectedAmount ? money(v.collectedAmount) : '—'}</td>
-                  <td className="muted">{v.result || '—'}</td>
+                  <td className="num">{v.orderAmount ? money(v.orderAmount) :'—'}</td>
+                  <td className="num">{v.collectedAmount ? money(v.collectedAmount) :'—'}</td>
+                  <td className="muted">{v.result ||'—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -141,7 +142,7 @@ export default function Reps() {
             <div className="field"><label>العميل</label>
               <select className="input" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
                 <option value="">—</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{(c.balance || 0) > 0 ? ` — عليه ${fmt(c.balance)}` : ''}</option>)}
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}{(c.balance || 0) > 0 ?` — عليه ${fmt(c.balance)}` :''}</option>)}
               </select></div>
             <div className="field"><label>الغرض</label>
               <select className="input" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })}>
@@ -155,14 +156,14 @@ export default function Reps() {
               <input className="input" type="number" min="0" value={form.collectedAmount} onChange={(e) => setForm({ ...form, collectedAmount: e.target.value })} placeholder="0" /></div>
           </div>
           {Number(form.collectedAmount) > 0 && form.customerId && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: '4px 0' }}>
+            <label style={{ display:'flex', alignItems:'center', gap: 8, cursor:'pointer', margin:'4px 0' }}>
               <input type="checkbox" checked={form.recordCollection} onChange={(e) => setForm({ ...form, recordCollection: e.target.checked })} />
               تسجيل التحصيل كدفعة على حساب العميل (تخصم من رصيده وتدخل المحاسبة)
             </label>
           )}
           <div className="field"><label>النتيجة / ملاحظات</label>
             <input className="input" value={form.result} onChange={(e) => setForm({ ...form, result: e.target.value })} placeholder="مثال: اتفقنا على أوردر الأسبوع الجاي" /></div>
-          <button className="btn accent block" onClick={save} disabled={!form.repName}>💾 حفظ الزيارة</button>
+          <button className="btn accent block" onClick={save} disabled={!form.repName}> حفظ الزيارة</button>
         </Modal>
       )}
 

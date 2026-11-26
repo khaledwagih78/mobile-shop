@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, today, createAsset, runDepreciation, disposeAsset, assetMonthlyDep, assetBookValue } from '../db';
-import { money, fmt, fmtDay } from '../utils';
-import { Modal, Toast } from '../components/UI';
-import { useAuth } from '../auth';
+import { Icon } from'../components/Icon';
+import { useMemo, useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, today, createAsset, runDepreciation, disposeAsset, assetMonthlyDep, assetBookValue } from'../db';
+import { money, fmt, fmtDay } from'../utils';
+import { Modal, Toast } from'../components/UI';
+import { useAuth } from'../auth';
 
-const EMPTY = { name: '', category: '', cost: '', salvage: '', usefulYears: '5', purchaseDate: today(), recordPurchase: true, cashRole: 'cash' };
+const EMPTY = { name:'', category:'', cost:'', salvage:'', usefulYears:'5', purchaseDate: today(), recordPurchase: true, cashRole:'cash' };
 
 export default function Assets() {
   const { user, activeBranch } = useAuth();
@@ -15,7 +16,7 @@ export default function Assets() {
   const [toast, setToast] = useState('');
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2800); };
 
-  const active = assets.filter((a) => a.status === 'active');
+  const active = assets.filter((a) => a.status ==='active');
   const totals = useMemo(() => ({
     cost: active.reduce((s, a) => s + (Number(a.cost) || 0), 0),
     accum: active.reduce((s, a) => s + (Number(a.accumulatedDep) || 0), 0),
@@ -29,27 +30,27 @@ export default function Assets() {
       usefulYears: Number(form.usefulYears) || 1, purchaseDate: form.purchaseDate, branchId: activeBranch,
       recordPurchase: form.recordPurchase, cashRole: form.cashRole, userName: user.name,
     });
-    notify('✅ تم إضافة الأصل');
+    notify(' تم إضافة الأصل');
     setForm(null);
   };
 
   const depreciate = async () => {
     const res = await runDepreciation(today().slice(0, 7), user.name);
-    notify(res.count ? `✅ تم إهلاك ${res.count} أصل بإجمالي ${money(res.total)} لشهر ${res.month}` : 'لا يوجد إهلاك مستحق هذا الشهر (تم بالفعل أو لا توجد أصول)');
+    notify(res.count ?` تم إهلاك ${res.count} أصل بإجمالي ${money(res.total)} لشهر ${res.month}` :'لا يوجد إهلاك مستحق هذا الشهر (تم بالفعل أو لا توجد أصول)');
   };
 
   const doDispose = async (dv) => {
     await disposeAsset(disposeFor.id, Number(dv) || 0, user.name);
-    notify('✅ تم استبعاد الأصل');
+    notify(' تم استبعاد الأصل');
     setDisposeFor(null);
   };
 
   return (
     <>
       <div className="page-head">
-        <h1>🏛️ الأصول الثابتة</h1>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn" onClick={depreciate}>🗓️ تسجيل إهلاك الشهر</button>
+        <h1> الأصول الثابتة</h1>
+        <div style={{ display:'flex', gap: 8, flexWrap:'wrap' }}>
+          <button className="btn" onClick={depreciate}> تسجيل إهلاك الشهر</button>
           <button className="btn accent" onClick={() => setForm({ ...EMPTY, purchaseDate: today() })}>＋ أصل جديد</button>
         </div>
       </div>
@@ -62,7 +63,7 @@ export default function Assets() {
       </div>
 
       {assets.length === 0 ? (
-        <div className="card empty"><div className="big-ico">🏛️</div><p>لا توجد أصول — أضف سيارة / جهاز / معدة وسجّل إهلاكها تلقائياً</p></div>
+        <div className="card empty"><div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="Building2" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div><p>لا توجد أصول — أضف سيارة / جهاز / معدة وسجّل إهلاكها تلقائياً</p></div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -74,10 +75,10 @@ export default function Assets() {
                   <td className="num">{money(a.cost)}</td>
                   <td className="num muted">{a.usefulYears} سنة</td>
                   <td className="num">{money(assetMonthlyDep(a))}</td>
-                  <td className="num" style={{ color: 'var(--red)' }}>{money(a.accumulatedDep || 0)}</td>
+                  <td className="num" style={{ color:'var(--red)' }}>{money(a.accumulatedDep || 0)}</td>
                   <td className="num" style={{ fontWeight: 700 }}>{money(assetBookValue(a))}</td>
-                  <td>{a.status === 'disposed' ? <span className="badge gray">مُستبعد</span> : <span className="badge green">نشط</span>}</td>
-                  <td>{a.status === 'active' && <button className="btn ghost sm" onClick={() => setDisposeFor(a)}>استبعاد</button>}</td>
+                  <td>{a.status ==='disposed' ? <span className="badge gray">مُستبعد</span> : <span className="badge green">نشط</span>}</td>
+                  <td>{a.status ==='active' && <button className="btn ghost sm" onClick={() => setDisposeFor(a)}>استبعاد</button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -108,7 +109,7 @@ export default function Assets() {
           {Number(form.cost) > 0 && Number(form.usefulYears) > 0 && (
             <p className="muted">الإهلاك الشهري (قسط ثابت) ≈ <b>{money(Math.max(0, (Number(form.cost) - (Number(form.salvage) || 0))) / (Number(form.usefulYears) * 12))}</b></p>
           )}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0', cursor: 'pointer' }}>
+          <label style={{ display:'flex', alignItems:'center', gap: 8, margin:'6px 0', cursor:'pointer' }}>
             <input type="checkbox" checked={form.recordPurchase} onChange={(e) => setForm({ ...form, recordPurchase: e.target.checked })} />
             تسجيل قيد الشراء (خصم من الخزينة/البنك)
           </label>
@@ -119,7 +120,7 @@ export default function Assets() {
                 <option value="bank">البنك</option>
               </select></div>
           )}
-          <button className="btn accent block" onClick={save} disabled={!form.name.trim() || !(Number(form.cost) > 0)}>💾 حفظ</button>
+          <button className="btn accent block" onClick={save} disabled={!form.name.trim() || !(Number(form.cost) > 0)}> حفظ</button>
         </Modal>
       )}
 
@@ -139,9 +140,9 @@ function DisposeModal({ asset, onDispose, onClose }) {
       <p className="muted">القيمة الدفترية الحالية: <b>{money(book)}</b></p>
       <div className="field"><label>قيمة البيع / الاستبعاد (نقدي)</label>
         <input className="input lg" type="number" min="0" value={dv} onChange={(e) => setDv(e.target.value)} autoFocus placeholder="0" /></div>
-      {dv !== '' && (
-        <p style={{ color: diff > 0 ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>
-          {diff > 0 ? `خسارة استبعاد: ${money(diff)}` : diff < 0 ? `ربح استبعاد: ${money(-diff)}` : 'بدون ربح أو خسارة'}
+      {dv !=='' && (
+        <p style={{ color: diff > 0 ?'var(--red)' :'var(--green)', fontWeight: 700 }}>
+          {diff > 0 ?`خسارة استبعاد: ${money(diff)}` : diff < 0 ?`ربح استبعاد: ${money(-diff)}` :'بدون ربح أو خسارة'}
         </p>
       )}
       <button className="btn danger block" onClick={() => onDispose(dv)}>تأكيد الاستبعاد</button>

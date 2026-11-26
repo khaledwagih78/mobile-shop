@@ -1,30 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, today, queueSync, recordExpense } from '../db';
-import { money, fmt } from '../utils';
-import { Modal } from '../components/UI';
-import { useAuth } from '../auth';
+import { Icon } from'../components/Icon';
+import { useEffect, useMemo, useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, nowISO, today, queueSync, recordExpense } from'../db';
+import { money, fmt } from'../utils';
+import { Modal } from'../components/UI';
+import { useAuth } from'../auth';
+import { Plus, ClipboardList, PieChart, RotateCcw, Wallet, Repeat } from'lucide-react';
 
-export const EXPENSE_CATS = [
-  'إيجار',
-  'رواتب',
-  'سيارات وتوزيع',
-  'صيانة',
-  'مشتريات',
-  'مصاريف تشغيل',
+export const EXPENSE_CATS = ['إيجار','رواتب','سيارات وتوزيع','صيانة','مشتريات','مصاريف تشغيل',
 ];
 
-const EMPTY_FORM = { day: today(), category: EXPENSE_CATS[0], description: '', amount: '' };
+const EMPTY_FORM = { day: today(), category: EXPENSE_CATS[0], description:'', amount:'' };
 
 const REC_EMPTY = {
-  name: '',
+  name:'',
   category: EXPENSE_CATS[0],
-  amount: '',
-  dayOfMonth: '1',
-  startDate: today().slice(0, 7) + '-01',
-  endType: 'forever',
-  maxOccurrences: '',
-  endDate: '',
+  amount:'',
+  dayOfMonth:'1',
+  startDate: today().slice(0, 7) +'-01',
+  endType:'forever',
+  maxOccurrences:'',
+  endDate:'',
 };
 
 function monthsBetween(startYM, endYM) {
@@ -37,18 +33,18 @@ function recProgressLabel(rec, postedCount) {
   if (rec.maxOccurrences) {
     const rem = rec.maxOccurrences - postedCount;
     return rem > 0
-      ? `دُفع ${postedCount} من ${rec.maxOccurrences} — فاضل ${rem}`
-      : `✓ اكتمل (${rec.maxOccurrences} مرة)`;
+      ?`دُفع ${postedCount} من ${rec.maxOccurrences} — فاضل ${rem}`
+      :` اكتمل (${rec.maxOccurrences} مرة)`;
   }
   if (rec.endDate) {
     const total = monthsBetween(rec.startDate.slice(0, 7), rec.endDate.slice(0, 7));
-    return `دُفع ${postedCount} من ${total}`;
+    return`دُفع ${postedCount} من ${total}`;
   }
-  return `دُفع ${postedCount} مرة`;
+  return`دُفع ${postedCount} مرة`;
 }
 
 async function applyRecurring() {
-  const recurrings = await db.recurringExpenses.filter((r) => r.status === 'active').toArray();
+  const recurrings = await db.recurringExpenses.filter((r) => r.status ==='active').toArray();
   if (!recurrings.length) return;
 
   const todayStr = today();
@@ -64,7 +60,7 @@ async function applyRecurring() {
     let [sy, sm] = rec.startDate.split('-').map(Number);
 
     while (sy < ty || (sy === ty && sm <= tm)) {
-      const ym = `${sy}-${String(sm).padStart(2, '0')}`;
+      const ym =`${sy}-${String(sm).padStart(2,'0')}`;
 
       if (ym === todayYM && todayDay < rec.dayOfMonth) break;
       if (rec.endDate && ym > rec.endDate.slice(0, 7)) break;
@@ -72,11 +68,11 @@ async function applyRecurring() {
 
       if (!postedMonths.has(ym)) {
         await recordExpense({
-          day: `${ym}-${String(rec.dayOfMonth).padStart(2, '0')}`,
+          day:`${ym}-${String(rec.dayOfMonth).padStart(2,'0')}`,
           category: rec.category,
           description: rec.name,
           amount: rec.amount,
-          userName: 'تلقائي',
+          userName:'تلقائي',
           recurringId: rec.id,
         });
         postedCount++;
@@ -89,18 +85,18 @@ async function applyRecurring() {
     const done =
       (rec.maxOccurrences && postedCount >= rec.maxOccurrences) ||
       (rec.endDate && todayYM > rec.endDate.slice(0, 7));
-    if (done) await db.recurringExpenses.update(rec.id, { status: 'completed' });
+    if (done) await db.recurringExpenses.update(rec.id, { status:'completed' });
   }
 }
 
-const STATUS_LABEL = { active: 'نشط', paused: 'موقوف', completed: 'مكتمل' };
-const STATUS_COLOR = { active: 'green', paused: 'amber', completed: 'gray' };
+const STATUS_LABEL = { active:'نشط', paused:'موقوف', completed:'مكتمل' };
+const STATUS_COLOR = { active:'green', paused:'amber', completed:'gray' };
 
 export default function Expenses() {
   const { user } = useAuth();
   const [tab, setTab]             = useState('list');
   const [catFilter, setCatFilter] = useState('all');
-  const [from, setFrom]           = useState(today().slice(0, 7) + '-01');
+  const [from, setFrom]           = useState(today().slice(0, 7) +'-01');
   const [to, setTo]               = useState(today());
   const [form, setForm]           = useState(null);
   const [recForm, setRecForm]     = useState(null);
@@ -111,8 +107,8 @@ export default function Expenses() {
   useEffect(() => { applyRecurring(); }, []);
 
   const t          = today();
-  const monthStart = t.slice(0, 7) + '-01';
-  const yearStart  = t.slice(0, 4) + '-01-01';
+  const monthStart = t.slice(0, 7) +'-01';
+  const yearStart  = t.slice(0, 4) +'-01-01';
 
   const totDay   = useMemo(() => expenses.filter((e) => e.day === t).reduce((s, e) => s + e.amount, 0), [expenses, t]);
   const totMonth = useMemo(() => expenses.filter((e) => e.day >= monthStart).reduce((s, e) => s + e.amount, 0), [expenses, monthStart]);
@@ -120,7 +116,7 @@ export default function Expenses() {
 
   const filtered = useMemo(() => {
     let list = expenses.filter((e) => e.day >= from && e.day <= to);
-    if (catFilter !== 'all') list = list.filter((e) => e.category === catFilter);
+    if (catFilter !=='all') list = list.filter((e) => e.category === catFilter);
     return list;
   }, [expenses, from, to, catFilter]);
 
@@ -128,7 +124,7 @@ export default function Expenses() {
     const map = {};
     for (const cat of EXPENSE_CATS) map[cat] = 0;
     for (const e of filtered) {
-      const key = EXPENSE_CATS.includes(e.category) ? e.category : 'مصاريف تشغيل';
+      const key = EXPENSE_CATS.includes(e.category) ? e.category :'مصاريف تشغيل';
       map[key] = (map[key] || 0) + e.amount;
     }
     return Object.entries(map).map(([cat, total]) => ({ cat, total })).sort((a, b) => b.total - a.total);
@@ -144,7 +140,7 @@ export default function Expenses() {
     return map;
   }, [expenses]);
 
-  const activeRecurrings    = recurrings.filter((r) => r.status === 'active');
+  const activeRecurrings    = recurrings.filter((r) => r.status ==='active');
   const activeRecMonthly    = activeRecurrings.reduce((s, r) => s + r.amount, 0);
 
   // ---- CRUD: regular expenses ----
@@ -162,7 +158,7 @@ export default function Expenses() {
     };
     if (form.id) {
       await db.expenses.update(form.id, doc);
-      await queueSync('expenses', 'update', { ...doc, id: form.id });
+      await queueSync('expenses','update', { ...doc, id: form.id });
     } else {
       await recordExpense(doc); // adds the expense + posts its accounting entry
     }
@@ -170,21 +166,21 @@ export default function Expenses() {
   };
 
   const remove = async (e) => {
-    if (!confirm(`حذف المصروف "${e.description || e.category}" بمبلغ ${money(e.amount)}؟`)) return;
+    if (!confirm(`حذف المصروف"${e.description || e.category}" بمبلغ ${money(e.amount)}؟`)) return;
     await db.expenses.delete(e.id);
-    await queueSync('expenses', 'delete', { id: e.id });
+    await queueSync('expenses','delete', { id: e.id });
   };
 
   // ---- CRUD: recurring templates ----
-  const openAddRec = () => setRecForm({ ...REC_EMPTY, startDate: today().slice(0, 7) + '-01' });
+  const openAddRec = () => setRecForm({ ...REC_EMPTY, startDate: today().slice(0, 7) +'-01' });
 
   const openEditRec = (rec) => setRecForm({
     ...rec,
     amount:         String(rec.amount),
     dayOfMonth:     String(rec.dayOfMonth),
-    endType:        rec.maxOccurrences ? 'count' : rec.endDate ? 'date' : 'forever',
-    maxOccurrences: rec.maxOccurrences ? String(rec.maxOccurrences) : '',
-    endDate:        rec.endDate || '',
+    endType:        rec.maxOccurrences ?'count' : rec.endDate ?'date' :'forever',
+    maxOccurrences: rec.maxOccurrences ? String(rec.maxOccurrences) :'',
+    endDate:        rec.endDate ||'',
   });
 
   const saveRec = async () => {
@@ -194,32 +190,32 @@ export default function Expenses() {
       amount:         Number(recForm.amount),
       dayOfMonth:     Math.min(28, Math.max(1, Number(recForm.dayOfMonth))),
       startDate:      recForm.startDate,
-      endDate:        recForm.endType === 'date'  ? recForm.endDate        : null,
-      maxOccurrences: recForm.endType === 'count' ? Number(recForm.maxOccurrences) : null,
-      status:         'active',
+      endDate:        recForm.endType ==='date'  ? recForm.endDate        : null,
+      maxOccurrences: recForm.endType ==='count' ? Number(recForm.maxOccurrences) : null,
+      status:'active',
     };
     if (recForm.id) {
       await db.recurringExpenses.update(recForm.id, doc);
-      await queueSync('recurringExpenses', 'update', { ...doc, id: recForm.id });
+      await queueSync('recurringExpenses','update', { ...doc, id: recForm.id });
     } else {
       const id = await db.recurringExpenses.add({ ...doc, createdAt: nowISO() });
-      await queueSync('recurringExpenses', 'add', { ...doc, id });
+      await queueSync('recurringExpenses','add', { ...doc, id });
       setTimeout(applyRecurring, 200);
     }
     setRecForm(null);
   };
 
   const toggleRec = async (rec) => {
-    const next = rec.status === 'active' ? 'paused' : 'active';
+    const next = rec.status ==='active' ?'paused' :'active';
     await db.recurringExpenses.update(rec.id, { status: next });
-    await queueSync('recurringExpenses', 'update', { ...rec, status: next });
-    if (next === 'active') setTimeout(applyRecurring, 200);
+    await queueSync('recurringExpenses','update', { ...rec, status: next });
+    if (next ==='active') setTimeout(applyRecurring, 200);
   };
 
   const removeRec = async (rec) => {
-    if (!confirm(`حذف "${rec.name}"؟ السجلات المدفوعة مسبقاً ستبقى كما هي.`)) return;
+    if (!confirm(`حذف"${rec.name}"؟ السجلات المدفوعة مسبقاً ستبقى كما هي.`)) return;
     await db.recurringExpenses.delete(rec.id);
-    await queueSync('recurringExpenses', 'delete', { id: rec.id });
+    await queueSync('recurringExpenses','delete', { id: rec.id });
   };
 
   const canSave = form && form.day && Number(form.amount) > 0;
@@ -229,34 +225,34 @@ export default function Expenses() {
     Number(recForm.amount) > 0 &&
     recForm.startDate &&
     Number(recForm.dayOfMonth) >= 1 && Number(recForm.dayOfMonth) <= 28 &&
-    (recForm.endType !== 'count' || Number(recForm.maxOccurrences) > 0) &&
-    (recForm.endType !== 'date'  || recForm.endDate);
+    (recForm.endType !=='count' || Number(recForm.maxOccurrences) > 0) &&
+    (recForm.endType !=='date'  || recForm.endDate);
 
   return (
     <>
       <div className="page-head">
-        <h1>💸 المصروفات</h1>
-        <button className="btn accent" onClick={openAdd}>＋ مصروف جديد</button>
+        <h1>المصروفات</h1>
+        <button className="btn accent" onClick={openAdd}> <Plus size={16} /> مصروف جديد </button>
       </div>
 
       {/* KPIs */}
       <div className="kpis">
         <div className="kpi tone-red">
           <div className="label">مصاريف اليوم</div>
-          <div className="value">{money(totDay)}</div>
+          <div className="value num">{money(totDay)}</div>
         </div>
         <div className="kpi tone-red">
           <div className="label">مصاريف الشهر</div>
-          <div className="value">{money(totMonth)}</div>
+          <div className="value num">{money(totMonth)}</div>
         </div>
         <div className="kpi tone-red">
           <div className="label">مصاريف السنة</div>
-          <div className="value">{money(totYear)}</div>
+          <div className="value num">{money(totYear)}</div>
         </div>
         {activeRecMonthly > 0 && (
           <div className="kpi">
-            <div className="label">🔁 متكررة شهرياً</div>
-            <div className="value">{money(activeRecMonthly)}</div>
+            <div className="label">متكررة شهرياً</div>
+            <div className="value num">{money(activeRecMonthly)}</div>
             <div className="sub">{activeRecurrings.length} بند نشط</div>
           </div>
         )}
@@ -264,13 +260,13 @@ export default function Expenses() {
 
       {/* Tabs */}
       <div className="list-tools" style={{ marginBottom: 0 }}>
-        <button className={`btn ${tab === 'list'      ? '' : 'ghost'}`} onClick={() => setTab('list')}>📋 السجل</button>
-        <button className={`btn ${tab === 'cats'      ? '' : 'ghost'}`} onClick={() => setTab('cats')}>📊 حسب الفئة</button>
-        <button className={`btn ${tab === 'recurring' ? '' : 'ghost'}`} onClick={() => setTab('recurring')}>🔁 المتكررة</button>
+        <button className={`btn ${tab ==='list'      ?'' :'ghost'}`} onClick={() => setTab('list')}> <ClipboardList size={15} /> السجل </button>
+        <button className={`btn ${tab ==='cats'      ?'' :'ghost'}`} onClick={() => setTab('cats')}> <PieChart size={15} /> حسب الفئة </button>
+        <button className={`btn ${tab ==='recurring' ?'' :'ghost'}`} onClick={() => setTab('recurring')}> <RotateCcw size={15} /> المتكررة </button>
       </div>
 
       {/* Filters — list + cats only */}
-      {tab !== 'recurring' && (
+      {tab !=='recurring' && (
         <div className="list-tools">
           <select className="input" style={{ maxWidth: 190 }} value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
             <option value="all">كل الفئات</option>
@@ -278,17 +274,19 @@ export default function Expenses() {
           </select>
           <input className="input" style={{ maxWidth: 160 }} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           <input className="input" style={{ maxWidth: 160 }} type="date" value={to}   onChange={(e) => setTo(e.target.value)} />
-          <span className="muted" style={{ alignSelf: 'center', fontSize: 13 }}>
-            الإجمالي: <b style={{ color: 'var(--red)' }}>{money(filteredTotal)}</b>
+          <span className="muted" style={{ alignSelf:'center', fontSize: 13 }}>
+            الإجمالي: <b style={{ color:'var(--red)' }} className="num">{money(filteredTotal)}</b>
           </span>
         </div>
       )}
 
       {/* ── List tab ── */}
-      {tab === 'list' && (
+      {tab ==='list' && (
         filtered.length === 0 ? (
           <div className="card empty">
-            <div className="big-ico">💸</div>
+            <div className="big-ico" style={{ display:'flex', justifyContent:'center' }}>
+              <Wallet size={40} color="var(--ink-soft)" strokeWidth={1.5} />
+            </div>
             <p>لا توجد مصروفات في هذه الفترة</p>
           </div>
         ) : (
@@ -302,13 +300,13 @@ export default function Expenses() {
                   <tr key={e.id}>
                     <td className="muted">{e.day}</td>
                     <td>
-                      <span className="badge gray">{e.category || 'غير محدد'}</span>
-                      {e.recurringId && <span title="مصروف تلقائي متكرر" style={{ marginRight: 4 }}>🔁</span>}
+                      <span className="badge gray">{e.category ||'غير محدد'}</span>
+                      {e.recurringId && <Repeat size={12} title="مصروف تلقائي متكرر" style={{ marginRight: 4, verticalAlign:'middle', color:'var(--ink-soft)' }} />}
                     </td>
-                    <td>{e.description || '—'}</td>
-                    <td className="num" style={{ color: 'var(--red)', fontWeight: 700 }}>{money(e.amount)}</td>
+                    <td>{e.description ||'—'}</td>
+                    <td className="num" style={{ color:'var(--red)', fontWeight: 700 }}>{money(e.amount)}</td>
                     <td className="muted">{e.userName}</td>
-                    <td style={{ display: 'flex', gap: 6 }}>
+                    <td style={{ display:'flex', gap: 6 }}>
                       {!e.recurringId && (
                         <button className="btn ghost sm" onClick={() => openEdit(e)}>تعديل</button>
                       )}
@@ -318,7 +316,7 @@ export default function Expenses() {
                 ))}
               </tbody>
             </table>
-            <p className="muted" style={{ padding: '8px 14px' }}>
+            <p className="muted" style={{ padding:'8px 14px' }}>
               {fmt(filtered.length)} مصروف — الإجمالي {money(filteredTotal)}
             </p>
           </div>
@@ -326,7 +324,7 @@ export default function Expenses() {
       )}
 
       {/* ── Category tab ── */}
-      {tab === 'cats' && (
+      {tab ==='cats' && (
         <div className="table-wrap">
           <table>
             <thead><tr><th>الفئة</th><th>الإجمالي</th><th>النسبة</th></tr></thead>
@@ -334,15 +332,15 @@ export default function Expenses() {
               {byCat.map(({ cat, total }) => (
                 <tr key={cat}>
                   <td><b>{cat}</b></td>
-                  <td className="num" style={{ color: total > 0 ? 'var(--red)' : 'var(--muted)', fontWeight: 700 }}>
+                  <td className="num" style={{ color: total > 0 ?'var(--red)' :'var(--muted)', fontWeight: 700 }}>
                     {money(total)}
                   </td>
                   <td>
                     {filteredTotal > 0 && total > 0 ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
                         <div style={{
-                          height: 8, borderRadius: 4, background: 'var(--red)',
-                          width: `${Math.round((total / filteredTotal) * 100)}%`,
+                          height: 8, borderRadius: 4, background:'var(--red)',
+                          width:`${Math.round((total / filteredTotal) * 100)}%`,
                           minWidth: 4, maxWidth: 160,
                         }} />
                         <span className="muted" style={{ fontSize: 12 }}>
@@ -353,9 +351,9 @@ export default function Expenses() {
                   </td>
                 </tr>
               ))}
-              <tr style={{ borderTop: '2px solid var(--line)', fontWeight: 800 }}>
+              <tr style={{ borderTop:'2px solid var(--line)', fontWeight: 800 }}>
                 <td>الإجمالي</td>
-                <td className="num" style={{ color: 'var(--red)' }}>{money(filteredTotal)}</td>
+                <td className="num" style={{ color:'var(--red)' }}>{money(filteredTotal)}</td>
                 <td></td>
               </tr>
             </tbody>
@@ -364,15 +362,15 @@ export default function Expenses() {
       )}
 
       {/* ── Recurring tab ── */}
-      {tab === 'recurring' && (
+      {tab ==='recurring' && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '12px 0' }}>
+          <div style={{ display:'flex', justifyContent:'flex-end', margin:'12px 0' }}>
             <button className="btn accent" onClick={openAddRec}>＋ مصروف متكرر جديد</button>
           </div>
 
           {recurrings.length === 0 ? (
             <div className="card empty">
-              <div className="big-ico">🔁</div>
+              <div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="RotateCcw" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div>
               <p>لا توجد مصاريف متكررة — أضف إيجار أو قسط أو جمعية</p>
             </div>
           ) : (
@@ -396,19 +394,17 @@ export default function Expenses() {
                       <tr key={rec.id}>
                         <td><b>{rec.name}</b></td>
                         <td><span className="badge gray">{rec.category}</span></td>
-                        <td className="num" style={{ fontWeight: 700, color: 'var(--red)' }}>{money(rec.amount)}</td>
+                        <td className="num" style={{ fontWeight: 700, color:'var(--red)' }}>{money(rec.amount)}</td>
                         <td className="muted">كل يوم {rec.dayOfMonth}</td>
                         <td className="muted" style={{ fontSize: 12 }}>{recProgressLabel(rec, cnt)}</td>
                         <td>
-                          <span className={`badge ${STATUS_COLOR[rec.status] || 'gray'}`}>
+                          <span className={`badge ${STATUS_COLOR[rec.status] ||'gray'}`}>
                             {STATUS_LABEL[rec.status] || rec.status}
                           </span>
                         </td>
-                        <td style={{ display: 'flex', gap: 6 }}>
-                          {rec.status !== 'completed' && (
-                            <button className="btn ghost sm" onClick={() => toggleRec(rec)}>
-                              {rec.status === 'active' ? 'إيقاف' : 'تفعيل'}
-                            </button>
+                        <td style={{ display:'flex', gap: 6 }}>
+                          {rec.status !=='completed' && (
+                            <button className="btn ghost sm" onClick={() => toggleRec(rec)}> {rec.status ==='active' ?'إيقاف' :'تفعيل'} </button>
                           )}
                           <button className="btn ghost sm" onClick={() => openEditRec(rec)}>تعديل</button>
                           <button className="btn danger sm" onClick={() => removeRec(rec)}>حذف</button>
@@ -419,8 +415,8 @@ export default function Expenses() {
                 </tbody>
               </table>
               {activeRecMonthly > 0 && (
-                <p className="muted" style={{ padding: '8px 14px' }}>
-                  إجمالي الالتزامات الشهرية النشطة: <b style={{ color: 'var(--red)' }}>{money(activeRecMonthly)}</b>
+                <p className="muted" style={{ padding:'8px 14px' }}>
+                  إجمالي الالتزامات الشهرية النشطة: <b style={{ color:'var(--red)' }}>{money(activeRecMonthly)}</b>
                 </p>
               )}
             </div>
@@ -430,7 +426,7 @@ export default function Expenses() {
 
       {/* ── Add/Edit regular expense modal ── */}
       {form && (
-        <Modal title={form.id ? 'تعديل مصروف' : 'مصروف جديد'} onClose={() => setForm(null)}>
+        <Modal title={form.id ?'تعديل مصروف' :'مصروف جديد'} onClose={() => setForm(null)}>
           <div className="row">
             <div className="field">
               <label>التاريخ *</label>
@@ -456,15 +452,13 @@ export default function Expenses() {
             <input className="input lg" type="number" min="0" step="0.01" value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" />
           </div>
-          <button className="btn big block" onClick={save} disabled={!canSave}>
-            💾 {form.id ? 'حفظ التعديل' : 'إضافة المصروف'}
-          </button>
+          <button className="btn big block" onClick={save} disabled={!canSave}> {form.id ?'حفظ التعديل' :'إضافة المصروف'} </button>
         </Modal>
       )}
 
       {/* ── Add/Edit recurring expense modal ── */}
       {recForm && (
-        <Modal title={recForm.id ? 'تعديل المصروف المتكرر' : 'مصروف متكرر جديد'} onClose={() => setRecForm(null)}>
+        <Modal title={recForm.id ?'تعديل المصروف المتكرر' :'مصروف متكرر جديد'} onClose={() => setRecForm(null)}>
           <div className="field">
             <label>الاسم / البند *</label>
             <input className="input" value={recForm.name} autoFocus
@@ -506,7 +500,7 @@ export default function Expenses() {
               <option value="date">حتى تاريخ معين</option>
             </select>
           </div>
-          {recForm.endType === 'count' && (
+          {recForm.endType ==='count' && (
             <div className="field">
               <label>عدد مرات التكرار *</label>
               <input className="input" type="number" min="1" value={recForm.maxOccurrences}
@@ -514,16 +508,14 @@ export default function Expenses() {
                 placeholder="مثال: 12 للسنة، 10 لجمعية..." />
             </div>
           )}
-          {recForm.endType === 'date' && (
+          {recForm.endType ==='date' && (
             <div className="field">
               <label>تاريخ الانتهاء *</label>
               <input className="input" type="date" value={recForm.endDate}
                 onChange={(e) => setRecForm({ ...recForm, endDate: e.target.value })} />
             </div>
           )}
-          <button className="btn big block" onClick={saveRec} disabled={!canSaveRec}>
-            💾 {recForm.id ? 'حفظ التعديل' : 'إضافة المصروف المتكرر'}
-          </button>
+          <button className="btn big block" onClick={saveRec} disabled={!canSaveRec}> {recForm.id ?'حفظ التعديل' :'إضافة المصروف المتكرر'} </button>
         </Modal>
       )}
     </>

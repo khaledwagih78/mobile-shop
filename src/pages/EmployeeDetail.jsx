@@ -1,37 +1,37 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, today, queueSync } from '../db';
-import { money, fmt, monthOf } from '../utils';
-import { Modal } from '../components/UI';
+import { useMemo, useState } from'react';
+import { useNavigate, useParams } from'react-router-dom';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, nowISO, today, queueSync } from'../db';
+import { money, fmt, monthOf } from'../utils';
+import { Modal } from'../components/UI';
 
 const FIN_TYPES = {
-  bonus:     { label: 'حافز',   color: 'green' },
-  deduction: { label: 'خصم',    color: 'red'   },
-  advance:   { label: 'سلفة',   color: 'amber' },
+  bonus:     { label:'حافز',   color:'green' },
+  deduction: { label:'خصم',    color:'red'   },
+  advance:   { label:'سلفة',   color:'amber' },
 };
 
 const LEAVE_TYPES = {
-  annual:  'سنوية',
-  sick:    'مرضية',
-  unpaid:  'بدون راتب',
-  other:   'أخرى',
+  annual:'سنوية',
+  sick:'مرضية',
+  unpaid:'بدون راتب',
+  other:'أخرى',
 };
 
 const ATT_STATUS = {
-  present: { label: 'حاضر',   color: 'green' },
-  absent:  { label: 'غائب',   color: 'red'   },
-  late:    { label: 'متأخر',  color: 'amber' },
+  present: { label:'حاضر',   color:'green' },
+  absent:  { label:'غائب',   color:'red'   },
+  late:    { label:'متأخر',  color:'amber' },
 };
 
 function serviceDuration(hireDate) {
-  if (!hireDate) return '—';
+  if (!hireDate) return'—';
   const ms = Date.now() - new Date(hireDate).getTime();
   const totalMonths = Math.floor(ms / (30.44 * 24 * 3600 * 1000));
   const years  = Math.floor(totalMonths / 12);
   const months = totalMonths % 12;
-  if (years > 0) return `${years} سنة${months > 0 ? ` و${months} شهر` : ''}`;
-  return `${months} شهر`;
+  if (years > 0) return`${years} سنة${months > 0 ?` و${months} شهر` :''}`;
+  return`${months} شهر`;
 }
 
 export default function EmployeeDetail() {
@@ -53,34 +53,34 @@ export default function EmployeeDetail() {
 
   const monthRecords    = useMemo(() => allRecords.filter((r) => monthOf(r.day) === month), [allRecords, month]);
   const financialRecs   = useMemo(() => monthRecords.filter((r) => r.type in FIN_TYPES), [monthRecords]);
-  const leaveRecs       = useMemo(() => monthRecords.filter((r) => r.type === 'leave'), [monthRecords]);
-  const attendanceRecs  = useMemo(() => monthRecords.filter((r) => r.type === 'attendance'), [monthRecords]);
+  const leaveRecs       = useMemo(() => monthRecords.filter((r) => r.type ==='leave'), [monthRecords]);
+  const attendanceRecs  = useMemo(() => monthRecords.filter((r) => r.type ==='attendance'), [monthRecords]);
 
-  const totBonus     = useMemo(() => financialRecs.filter((r) => r.type === 'bonus').reduce((s, r) => s + r.amount, 0), [financialRecs]);
-  const totDeduction = useMemo(() => financialRecs.filter((r) => r.type === 'deduction').reduce((s, r) => s + r.amount, 0), [financialRecs]);
-  const totAdvance   = useMemo(() => financialRecs.filter((r) => r.type === 'advance').reduce((s, r) => s + r.amount, 0), [financialRecs]);
+  const totBonus     = useMemo(() => financialRecs.filter((r) => r.type ==='bonus').reduce((s, r) => s + r.amount, 0), [financialRecs]);
+  const totDeduction = useMemo(() => financialRecs.filter((r) => r.type ==='deduction').reduce((s, r) => s + r.amount, 0), [financialRecs]);
+  const totAdvance   = useMemo(() => financialRecs.filter((r) => r.type ==='advance').reduce((s, r) => s + r.amount, 0), [financialRecs]);
   const netSalary    = (emp?.baseSalary || 0) + totBonus - totDeduction - totAdvance;
 
   // ---- save a new record ----
   const saveRecord = async () => {
-    const base = { employeeId: empId, type: form.type, day: form.day, note: form.note || '', createdAt: nowISO() };
+    const base = { employeeId: empId, type: form.type, day: form.day, note: form.note ||'', createdAt: nowISO() };
     let rec;
     if (form.type in FIN_TYPES) {
       rec = { ...base, amount: Number(form.amount) || 0 };
-    } else if (form.type === 'leave') {
+    } else if (form.type ==='leave') {
       rec = { ...base, leaveType: form.leaveType, days: Number(form.days) || 1, amount: 0 };
     } else {
       rec = { ...base, attendanceStatus: form.attendanceStatus, amount: 0 };
     }
     const id = await db.empRecords.add(rec);
-    await queueSync('empRecords', 'add', { ...rec, id });
+    await queueSync('empRecords','add', { ...rec, id });
     setForm(null);
   };
 
   const removeRecord = async (rec) => {
     if (!confirm('حذف هذا السجل؟')) return;
     await db.empRecords.delete(rec.id);
-    await queueSync('empRecords', 'delete', { id: rec.id });
+    await queueSync('empRecords','delete', { id: rec.id });
   };
 
   // ---- save employee edits ----
@@ -94,20 +94,20 @@ export default function EmployeeDetail() {
       status:     editEmp.status,
     };
     await db.employees.update(empId, doc);
-    await queueSync('employees', 'update', { ...doc, id: empId });
+    await queueSync('employees','update', { ...doc, id: empId });
     setEditEmp(null);
   };
 
   // ---- helpers ----
-  const openFinancial  = () => setForm({ type: 'bonus',      day: today(), amount: '', note: '' });
-  const openLeave      = () => setForm({ type: 'leave',      day: today(), leaveType: 'annual', days: '1', note: '' });
-  const openAttendance = () => setForm({ type: 'attendance', day: today(), attendanceStatus: 'present', note: '' });
+  const openFinancial  = () => setForm({ type:'bonus',      day: today(), amount:'', note:'' });
+  const openLeave      = () => setForm({ type:'leave',      day: today(), leaveType:'annual', days:'1', note:'' });
+  const openAttendance = () => setForm({ type:'attendance', day: today(), attendanceStatus:'present', note:'' });
 
   const canSaveRecord =
     form && form.day && (
       (form.type in FIN_TYPES     && Number(form.amount) > 0) ||
-      (form.type === 'leave'      && Number(form.days) > 0)   ||
-      (form.type === 'attendance')
+      (form.type ==='leave'      && Number(form.days) > 0)   ||
+      (form.type ==='attendance')
     );
 
   if (emp === undefined) return <div className="card empty">جاري التحميل...</div>;
@@ -118,34 +118,30 @@ export default function EmployeeDetail() {
       {/* ---- Header ---- */}
       <div className="page-head">
         <div>
-          <button className="btn ghost sm" style={{ marginBottom: 8 }} onClick={() => nav('/employees')}>
-            ← قائمة الموظفين
-          </button>
-          <h1>👷 {emp.name}</h1>
+          <button className="btn ghost sm" style={{ marginBottom: 8 }} onClick={() => nav('/employees')}> ← قائمة الموظفين </button>
+          <h1>{emp.name}</h1>
         </div>
-        <button className="btn ghost" onClick={() => setEditEmp({ ...emp, baseSalary: String(emp.baseSalary) })}>
-          ✏️ تعديل البيانات
-        </button>
+        <button className="btn ghost" onClick={() => setEditEmp({ ...emp, baseSalary: String(emp.baseSalary) })}>  تعديل البيانات </button>
       </div>
 
       {/* ---- Info card ---- */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
-          <div><span className="muted" style={{ fontSize: 12 }}>الوظيفة</span><br /><b>{emp.jobTitle || '—'}</b></div>
-          <div><span className="muted" style={{ fontSize: 12 }}>الهاتف</span><br /><b>{emp.phone || '—'}</b></div>
-          <div><span className="muted" style={{ fontSize: 12 }}>تاريخ التعيين</span><br /><b>{emp.hireDate || '—'}</b></div>
+        <div style={{ display:'flex', gap: 32, flexWrap:'wrap' }}>
+          <div><span className="muted" style={{ fontSize: 12 }}>الوظيفة</span><br /><b>{emp.jobTitle ||'—'}</b></div>
+          <div><span className="muted" style={{ fontSize: 12 }}>الهاتف</span><br /><b>{emp.phone ||'—'}</b></div>
+          <div><span className="muted" style={{ fontSize: 12 }}>تاريخ التعيين</span><br /><b>{emp.hireDate ||'—'}</b></div>
           <div><span className="muted" style={{ fontSize: 12 }}>مدة الخدمة</span><br /><b>{serviceDuration(emp.hireDate)}</b></div>
           <div>
             <span className="muted" style={{ fontSize: 12 }}>الحالة</span><br />
-            <span className={`badge ${emp.status === 'active' ? 'green' : 'red'}`}>
-              {emp.status === 'active' ? 'نشط' : 'موقوف'}
+            <span className={`badge ${emp.status ==='active' ?'green' :'red'}`}>
+              {emp.status ==='active' ?'نشط' :'موقوف'}
             </span>
           </div>
         </div>
       </div>
 
       {/* ---- Month filter + Net salary card ---- */}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 16 }}>
+      <div style={{ display:'flex', gap: 16, alignItems:'flex-start', flexWrap:'wrap', marginBottom: 16 }}>
         <div className="field" style={{ margin: 0, minWidth: 160 }}>
           <label>الشهر</label>
           <input
@@ -181,21 +177,15 @@ export default function EmployeeDetail() {
 
       {/* ---- Tabs ---- */}
       <div className="list-tools" style={{ marginBottom: 0 }}>
-        <button className={`btn ${tab === 'financial'  ? '' : 'ghost'}`} onClick={() => setTab('financial')}>
-          💰 الحركات المالية
-        </button>
-        <button className={`btn ${tab === 'leaves'     ? '' : 'ghost'}`} onClick={() => setTab('leaves')}>
-          🏖️ الإجازات
-        </button>
-        <button className={`btn ${tab === 'attendance' ? '' : 'ghost'}`} onClick={() => setTab('attendance')}>
-          📅 الحضور
-        </button>
+        <button className={`btn ${tab ==='financial'  ?'' :'ghost'}`} onClick={() => setTab('financial')}> الحركات المالية </button>
+        <button className={`btn ${tab ==='leaves'     ?'' :'ghost'}`} onClick={() => setTab('leaves')}>  الإجازات </button>
+        <button className={`btn ${tab ==='attendance' ?'' :'ghost'}`} onClick={() => setTab('attendance')}> الحضور </button>
       </div>
 
       {/* ---- Financial tab ---- */}
-      {tab === 'financial' && (
+      {tab ==='financial' && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '12px 0' }}>
+          <div style={{ display:'flex', justifyContent:'flex-end', margin:'12px 0' }}>
             <button className="btn" onClick={openFinancial}>＋ إضافة حركة</button>
           </div>
           {financialRecs.length === 0 ? (
@@ -211,7 +201,7 @@ export default function EmployeeDetail() {
                     <tr key={r.id}>
                       <td><span className={`badge ${FIN_TYPES[r.type].color}`}>{FIN_TYPES[r.type].label}</span></td>
                       <td className="num" style={{ fontWeight: 700 }}>{money(r.amount)}</td>
-                      <td className="muted">{r.note || '—'}</td>
+                      <td className="muted">{r.note ||'—'}</td>
                       <td className="muted">{r.day}</td>
                       <td><button className="btn danger sm" onClick={() => removeRecord(r)}>حذف</button></td>
                     </tr>
@@ -224,9 +214,9 @@ export default function EmployeeDetail() {
       )}
 
       {/* ---- Leaves tab ---- */}
-      {tab === 'leaves' && (
+      {tab ==='leaves' && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '12px 0' }}>
+          <div style={{ display:'flex', justifyContent:'flex-end', margin:'12px 0' }}>
             <button className="btn" onClick={openLeave}>＋ إضافة إجازة</button>
           </div>
           {leaveRecs.length === 0 ? (
@@ -243,7 +233,7 @@ export default function EmployeeDetail() {
                       <td><span className="badge gray">{LEAVE_TYPES[r.leaveType] || r.leaveType}</span></td>
                       <td className="num">{fmt(r.days)} يوم</td>
                       <td className="muted">{r.day}</td>
-                      <td className="muted">{r.note || '—'}</td>
+                      <td className="muted">{r.note ||'—'}</td>
                       <td><button className="btn danger sm" onClick={() => removeRecord(r)}>حذف</button></td>
                     </tr>
                   ))}
@@ -255,9 +245,9 @@ export default function EmployeeDetail() {
       )}
 
       {/* ---- Attendance tab ---- */}
-      {tab === 'attendance' && (
+      {tab ==='attendance' && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '12px 0' }}>
+          <div style={{ display:'flex', justifyContent:'flex-end', margin:'12px 0' }}>
             <button className="btn" onClick={openAttendance}>＋ تسجيل حضور</button>
           </div>
           {attendanceRecs.length === 0 ? (
@@ -272,21 +262,21 @@ export default function EmployeeDetail() {
                   {[...attendanceRecs].reverse().map((r) => (
                     <tr key={r.id}>
                       <td>
-                        <span className={`badge ${ATT_STATUS[r.attendanceStatus]?.color || 'gray'}`}>
+                        <span className={`badge ${ATT_STATUS[r.attendanceStatus]?.color ||'gray'}`}>
                           {ATT_STATUS[r.attendanceStatus]?.label || r.attendanceStatus}
                         </span>
                       </td>
                       <td className="muted">{r.day}</td>
-                      <td className="muted">{r.note || '—'}</td>
+                      <td className="muted">{r.note ||'—'}</td>
                       <td><button className="btn danger sm" onClick={() => removeRecord(r)}>حذف</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="muted" style={{ padding: '8px 14px' }}>
-                حاضر: {attendanceRecs.filter((r) => r.attendanceStatus === 'present').length} ·
-                غائب: {attendanceRecs.filter((r) => r.attendanceStatus === 'absent').length} ·
-                متأخر: {attendanceRecs.filter((r) => r.attendanceStatus === 'late').length}
+              <p className="muted" style={{ padding:'8px 14px' }}>
+                حاضر: {attendanceRecs.filter((r) => r.attendanceStatus ==='present').length} ·
+                غائب: {attendanceRecs.filter((r) => r.attendanceStatus ==='absent').length} ·
+                متأخر: {attendanceRecs.filter((r) => r.attendanceStatus ==='late').length}
               </p>
             </div>
           )}
@@ -297,9 +287,8 @@ export default function EmployeeDetail() {
       {form && (
         <Modal
           title={
-            form.type === 'leave'      ? 'إضافة إجازة'      :
-            form.type === 'attendance' ? 'تسجيل حضور'       :
-            'إضافة حركة مالية'
+            form.type ==='leave'      ?'إضافة إجازة'      :
+            form.type ==='attendance' ?'تسجيل حضور'       :'إضافة حركة مالية'
           }
           onClose={() => setForm(null)}
         >
@@ -331,7 +320,7 @@ export default function EmployeeDetail() {
             )}
 
             {/* leave: type selector */}
-            {form.type === 'leave' && (
+            {form.type ==='leave' && (
               <div className="field">
                 <label>نوع الإجازة</label>
                 <select
@@ -348,7 +337,7 @@ export default function EmployeeDetail() {
             )}
 
             {/* attendance: status selector */}
-            {form.type === 'attendance' && (
+            {form.type ==='attendance' && (
               <div className="field">
                 <label>الحالة</label>
                 <select
@@ -382,7 +371,7 @@ export default function EmployeeDetail() {
           )}
 
           {/* days field for leave */}
-          {form.type === 'leave' && (
+          {form.type ==='leave' && (
             <div className="field">
               <label>عدد الأيام *</label>
               <input
@@ -401,14 +390,12 @@ export default function EmployeeDetail() {
             <input
               className="input"
               value={form.note}
-              placeholder={form.type === 'attendance' ? 'سبب الغياب أو التأخير...' : 'ملاحظة اختيارية...'}
+              placeholder={form.type ==='attendance' ?'سبب الغياب أو التأخير...' :'ملاحظة اختيارية...'}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
             />
           </div>
 
-          <button className="btn big block" onClick={saveRecord} disabled={!canSaveRecord}>
-            💾 حفظ
-          </button>
+          <button className="btn big block" onClick={saveRecord} disabled={!canSaveRecord}> حفظ </button>
         </Modal>
       )}
 
@@ -430,7 +417,7 @@ export default function EmployeeDetail() {
               <input
                 className="input"
                 inputMode="tel"
-                value={editEmp.phone || ''}
+                value={editEmp.phone ||''}
                 onChange={(e) => setEditEmp({ ...editEmp, phone: e.target.value })}
               />
             </div>
@@ -440,7 +427,7 @@ export default function EmployeeDetail() {
               <label>الوظيفة</label>
               <input
                 className="input"
-                value={editEmp.jobTitle || ''}
+                value={editEmp.jobTitle ||''}
                 onChange={(e) => setEditEmp({ ...editEmp, jobTitle: e.target.value })}
               />
             </div>
@@ -449,7 +436,7 @@ export default function EmployeeDetail() {
               <input
                 className="input"
                 type="date"
-                value={editEmp.hireDate || ''}
+                value={editEmp.hireDate ||''}
                 onChange={(e) => setEditEmp({ ...editEmp, hireDate: e.target.value })}
               />
             </div>
@@ -481,7 +468,7 @@ export default function EmployeeDetail() {
             className="btn big block"
             onClick={saveEmp}
             disabled={!editEmp.name.trim()}
-          >💾 حفظ التعديل</button>
+          > حفظ التعديل</button>
         </Modal>
       )}
     </>

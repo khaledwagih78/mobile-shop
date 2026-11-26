@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, ensureSeed, DEFAULT_BRANCH_ID } from './db';
+import { createContext, useContext, useEffect, useState } from'react';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, ensureSeed, DEFAULT_BRANCH_ID } from'./db';
 
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
@@ -11,7 +11,7 @@ export function AuthProvider({ children }) {
   const [activeBranch, setActive] = useState(DEFAULT_BRANCH_ID);
 
   const branches = useLiveQuery(
-    async () => (await db.branches.toArray()).filter((b) => b.status !== 'deleted'),
+    async () => (await db.branches.toArray()).filter((b) => b.status !=='deleted'),
     [], []
   );
 
@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
   // localStorage); other users are pinned to their assigned branch.
   useEffect(() => {
     if (!user) return;
-    if (user.role === 'admin') {
+    if (user.role ==='admin') {
       let saved = Number(localStorage.getItem('kerp_active_branch'));
       if (!Number.isInteger(saved) || saved <= 0) saved = DEFAULT_BRANCH_ID;
       setActive(saved);

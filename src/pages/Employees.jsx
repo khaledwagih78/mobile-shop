@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, nowISO, queueSync } from '../db';
-import { money, fmt } from '../utils';
-import { Modal } from '../components/UI';
+import { Icon } from'../components/Icon';
+import { useMemo, useState } from'react';
+import { useNavigate } from'react-router-dom';
+import { useLiveQuery } from'dexie-react-hooks';
+import { db, nowISO, queueSync } from'../db';
+import { money, fmt } from'../utils';
+import { Modal } from'../components/UI';
 
-const EMPTY = { name: '', phone: '', jobTitle: '', hireDate: '', baseSalary: '', status: 'active' };
+const EMPTY = { name:'', phone:'', jobTitle:'', hireDate:'', baseSalary:'', status:'active' };
 
 export default function Employees() {
   const nav = useNavigate();
@@ -15,17 +16,17 @@ export default function Employees() {
   const [form, setForm] = useState(null);
 
   const filtered = useMemo(() => {
-    let list = statusFilter !== 'all' ? employees.filter((e) => e.status === statusFilter) : employees;
+    let list = statusFilter !=='all' ? employees.filter((e) => e.status === statusFilter) : employees;
     const t = q.trim().toLowerCase();
     if (t) list = list.filter((e) =>
-      (e.name || '').toLowerCase().includes(t) ||
-      (e.phone || '').includes(t) ||
-      (e.jobTitle || '').toLowerCase().includes(t)
+      (e.name ||'').toLowerCase().includes(t) ||
+      (e.phone ||'').includes(t) ||
+      (e.jobTitle ||'').toLowerCase().includes(t)
     );
     return list;
   }, [employees, q, statusFilter]);
 
-  const active = employees.filter((e) => e.status === 'active');
+  const active = employees.filter((e) => e.status ==='active');
   const totalSalary = active.reduce((s, e) => s + (e.baseSalary || 0), 0);
 
   const save = async () => {
@@ -39,28 +40,28 @@ export default function Employees() {
     };
     if (form.id) {
       await db.employees.update(form.id, doc);
-      await queueSync('employees', 'update', { ...doc, id: form.id });
+      await queueSync('employees','update', { ...doc, id: form.id });
     } else {
       const id = await db.employees.add({ ...doc, createdAt: nowISO() });
-      await queueSync('employees', 'add', { ...doc, id });
+      await queueSync('employees','add', { ...doc, id });
     }
     setForm(null);
   };
 
   const remove = async (emp) => {
-    if (!confirm(`حذف الموظف "${emp.name}"؟ سيتم حذف كل سجلاته أيضاً.`)) return;
+    if (!confirm(`حذف الموظف"${emp.name}"؟ سيتم حذف كل سجلاته أيضاً.`)) return;
     // Queue individual empRecord deletes so server removes them too
     const recs = await db.empRecords.where('employeeId').equals(emp.id).toArray();
-    for (const r of recs) await queueSync('empRecords', 'delete', { id: r.id });
+    for (const r of recs) await queueSync('empRecords','delete', { id: r.id });
     await db.empRecords.where('employeeId').equals(emp.id).delete();
     await db.employees.delete(emp.id);
-    await queueSync('employees', 'delete', { id: emp.id });
+    await queueSync('employees','delete', { id: emp.id });
   };
 
   return (
     <>
       <div className="page-head">
-        <h1>👷 الموظفين</h1>
+        <h1>الموظفين</h1>
         <button className="btn accent" onClick={() => setForm({ ...EMPTY })}>＋ موظف جديد</button>
       </div>
 
@@ -98,8 +99,8 @@ export default function Employees() {
 
       {filtered.length === 0 ? (
         <div className="card empty">
-          <div className="big-ico">👷</div>
-          <p>لا يوجد موظفون{statusFilter !== 'all' ? ' بهذه الحالة' : ''}</p>
+          <div className="big-ico" style={{ display:'flex', justifyContent:'center' }}><Icon name="Users" size={40} color="var(--ink-soft)" strokeWidth={1.5} /></div>
+          <p>لا يوجد موظفون{statusFilter !=='all' ?' بهذه الحالة' :''}</p>
         </div>
       ) : (
         <div className="table-wrap">
@@ -119,33 +120,32 @@ export default function Employees() {
               {filtered.map((emp) => (
                 <tr key={emp.id} className="clickable" onClick={() => nav(`/employees/${emp.id}`)}>
                   <td><b>{emp.name}</b></td>
-                  <td>{emp.jobTitle || '—'}</td>
-                  <td className="num">{emp.phone || '—'}</td>
-                  <td className="muted">{emp.hireDate || '—'}</td>
+                  <td>{emp.jobTitle ||'—'}</td>
+                  <td className="num">{emp.phone ||'—'}</td>
+                  <td className="muted">{emp.hireDate ||'—'}</td>
                   <td className="num">{money(emp.baseSalary)}</td>
                   <td>
-                    {emp.status === 'active'
+                    {emp.status ==='active'
                       ? <span className="badge green">نشط</span>
                       : <span className="badge red">موقوف</span>}
                   </td>
-                  <td style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                  <td style={{ display:'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
                     <button
                       className="btn ghost sm"
-                      onClick={() => setForm({ ...emp, baseSalary: String(emp.baseSalary) })}
-                    >تعديل</button>
+                      onClick={() => setForm({ ...emp, baseSalary: String(emp.baseSalary) })} >تعديل</button>
                     <button className="btn danger sm" onClick={() => remove(emp)}>حذف</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="muted" style={{ padding: '8px 14px' }}>{fmt(filtered.length)} موظف</p>
+          <p className="muted" style={{ padding:'8px 14px' }}>{fmt(filtered.length)} موظف</p>
         </div>
       )}
 
       {form && (
         <Modal
-          title={form.id ? `تعديل: ${form.name}` : 'موظف جديد'}
+          title={form.id ?`تعديل: ${form.name}` :'موظف جديد'}
           onClose={() => setForm(null)}
         >
           <div className="row">
@@ -215,10 +215,8 @@ export default function Employees() {
           <button
             className="btn big block"
             onClick={save}
-            disabled={!form.name.trim() || form.baseSalary === ''}
-          >
-            💾 {form.id ? 'حفظ التعديل' : 'إضافة الموظف'}
-          </button>
+            disabled={!form.name.trim() || form.baseSalary ===''}
+          > {form.id ?'حفظ التعديل' :'إضافة الموظف'} </button>
         </Modal>
       )}
     </>
