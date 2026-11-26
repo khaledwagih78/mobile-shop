@@ -79,6 +79,14 @@
     .brand{color:var(--muted);font-size:12.5px}
     .price{margin-top:auto;font-size:19px;font-weight:800;color:var(--price);padding-top:6px}
     .price small{font-size:12px;font-weight:600;color:var(--muted)}
+    .order-btn{
+      margin-top:4px;border:0;border-radius:10px;padding:9px 10px;cursor:pointer;
+      background:#25D366;color:#fff;font-family:inherit;font-weight:700;font-size:13.5px;
+      display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;
+    }
+    .order-btn:hover{background:#1EBE59}
+    .order-btn:active{transform:scale(.98)}
+    .order-btn svg{width:17px;height:17px;flex:0 0 auto}
 
     /* states */
     .state{text-align:center;padding:60px 20px;color:var(--muted)}
@@ -114,6 +122,11 @@
       SHOP_NAME: 'قائمة أسعار المحل',
       TAGLINE:   'الأسعار المتوفرة حالياً',
       CURRENCY:  'ج.م',
+
+      // رقم واتساب المحل لاستقبال الطلبات — بصيغة دولية بدون + أو مسافات
+      // مثال مصر: 2010xxxxxxxx
+      // (لو سبته فاضي، الزرار يفتح واتساب ويخلي العميل يختار جهة الاتصال)
+      WHATSAPP:  '',
 
       // بيانات مشروع Supabase بتاعك:
       // Supabase Dashboard -> Project Settings -> API
@@ -228,12 +241,14 @@
       countEl.textContent = list.length ? (list.length + ' منتج') : '';
       if (!list.length){ showState('🔍','لا توجد نتائج','جرّب كلمة بحث أو تصنيف تاني'); return; }
       gridEl.hidden = false; stateEl.hidden = true; gridEl.classList.remove('skeleton');
+      const waIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.82 9.82 0 001.59 5.325l-.999 3.648 3.908-1.022z"/></svg>';
       gridEl.innerHTML = list.map(x=>(
         '<div class="card">'+
           (x.category?'<span class="cat">'+esc(x.category)+'</span>':'')+
           '<div class="name">'+esc(x.name)+'</div>'+
           (x.brand?'<div class="brand">'+esc(x.brand)+'</div>':'')+
           '<div class="price">'+money(x.price)+'</div>'+
+          '<button class="order-btn" data-id="'+esc(x.id)+'">'+waIcon+'اطلب على واتساب</button>'+
         '</div>'
       )).join('');
     }
@@ -270,6 +285,28 @@
         $('#foot').textContent = 'خطأ: ' + (e.message||e);
       }
     }
+
+    // ---------- طلب عبر واتساب ----------
+    function orderOnWhatsApp(item){
+      if (!item) return;
+      const lines = [
+        'السلام عليكم 👋',
+        'حابب أطلب المنتج ده من «' + (CFG.SHOP_NAME || 'المحل') + '»:',
+        '',
+        '🛍️ ' + item.name,
+        '💰 السعر: ' + (Number(item.price)||0).toLocaleString('ar-EG') + ' ' + CFG.CURRENCY,
+      ];
+      const num = String(CFG.WHATSAPP || '').replace(/[^0-9]/g,'');
+      const url = 'https://wa.me/' + num + '?text=' + encodeURIComponent(lines.join('\n'));
+      window.open(url, '_blank');
+    }
+
+    gridEl.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.order-btn');
+      if (!btn) return;
+      const item = ALL.find(x => String(x.id) === btn.dataset.id);
+      orderOnWhatsApp(item);
+    });
 
     qEl.addEventListener('input', ()=>{ term = qEl.value; render(); });
     init();
