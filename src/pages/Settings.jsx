@@ -271,9 +271,12 @@ export default function Settings() {
                     </div>
                     {tier.recommended && <span className="badge green" style={{ fontSize: 11 }}>موصى بها</span>}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
-                    <b style={{ fontSize: 18, color: 'var(--primary)' }}>{tier.price}</b>
-                    <span className="muted" style={{ fontSize: 12 }}>{tier.period}</span>
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                      <b style={{ fontSize: 18, color: 'var(--primary)' }}>{tier.priceMonthly}</b>
+                      {tier.priceYearly && <span className="muted" style={{ fontSize: 12 }}>/ شهرياً</span>}
+                    </div>
+                    {tier.priceYearly && <div className="muted" style={{ fontSize: 12 }}>أو {tier.priceYearly} سنوياً</div>}
                   </div>
                   <p className="muted" style={{ fontSize: 13, margin: '0 0 12px 0', lineHeight: 1.6 }}>{tier.desc}</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, marginBottom: 14 }}>
