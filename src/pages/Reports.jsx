@@ -27,6 +27,7 @@ export default function Reports() {
 
   const invoices = useLiveQuery(() => db.invoices.toArray(), [], []);
   const expenses = useLiveQuery(() => db.expenses.toArray(), [], []);
+  const payslips = useLiveQuery(() => db.payslips.toArray(), [], []);
   const moves = useLiveQuery(() => db.stockMoves.orderBy('createdAt').reverse().limit(500).toArray(), [], []);
   const customers = useLiveQuery(() => db.customers.toArray(), [], []);
 
@@ -46,7 +47,12 @@ export default function Reports() {
   const totSales = sales.reduce((s, i) => s + i.total, 0);
   const totCost = sales.reduce((s, i) => s + i.lines.reduce((x, l) => x + l.qty * l.cost, 0), 0);
   const totProfit = sales.reduce((s, i) => s + (i.profit || 0), 0);
-  const totExp = exp.reduce((s, e) => s + e.amount, 0);
+  // المرتبات تُحتسب ضمن المصروفات (من كشوف الرواتب في نفس الفترة والفرع)
+  const totSalaries = useMemo(
+    () => payslips.filter((p) => matchBranch(p) && (p.day ||'') >= range.from && (p.day ||'') <= range.to).reduce((s, p) => s + (Number(p.net) || 0), 0),
+    [payslips, range.from, range.to, branchFilter]
+  );
+  const totExp = exp.reduce((s, e) => s + e.amount, 0) + totSalaries;
 
   // aggregate by item
   const byItem = useMemo(() => {
@@ -77,7 +83,7 @@ export default function Reports() {
       <div className="kpi"><div className="label">إجمالي المبيعات</div><div className="value">{money(totSales)}</div><div className="sub">{sales.length} فاتورة</div></div>
       <div className="kpi"><div className="label">إجمالي التكلفة</div><div className="value">{money(totCost)}</div></div>
       <div className="kpi tone-green"><div className="label">صافي الربح</div><div className="value">{money(totProfit)}</div><div className="sub">نسبة الربح {totCost > 0 ? Math.round((totProfit / totCost) * 100) : 0}% على التكلفة</div></div>
-      <div className="kpi tone-red"><div className="label">المصروفات</div><div className="value">{money(totExp)}</div></div>
+      <div className="kpi tone-red"><div className="label">المصروفات</div><div className="value">{money(totExp)}</div>{totSalaries > 0 && <div className="sub">منها رواتب {money(totSalaries)}</div>}</div>
       <div className="kpi tone-accent"><div className="label">الربح النهائي</div><div className="value">{money(totProfit - totExp)}</div></div>
     </div>
   );

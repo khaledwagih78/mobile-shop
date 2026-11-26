@@ -10,9 +10,10 @@ export async function buildPeriodReport(period) {
   const from = period ==='daily' ? to : period ==='weekly' ? daysAgoStr(6) : to.slice(0, 7) +'-01';
   const label = period ==='daily' ?'اليومي' : period ==='weekly' ?'الأسبوعي' :'الشهري';
 
-  const [invoices, expenses, bizName] = await Promise.all([
+  const [invoices, expenses, payslips, bizName] = await Promise.all([
     db.invoices.toArray(),
     db.expenses.toArray(),
+    db.payslips.toArray(),
     getSetting('bizName','النشاط'),
   ]);
   const inRange = (d) => d >= from && d <= to;
@@ -21,13 +22,14 @@ export async function buildPeriodReport(period) {
   const salesTotal = sales.reduce((s, i) => s + (i.total || 0), 0);
   const purchasesTotal = purchases.reduce((s, i) => s + (i.total || 0), 0);
   const profit = sales.reduce((s, i) => s + (i.profit || 0), 0);
-  const expTotal = expenses.filter((e) => inRange(e.day ||'')).reduce((s, e) => s + (e.amount || 0), 0);
+  const salariesTotal = payslips.filter((p) => inRange(p.day ||'')).reduce((s, p) => s + (Number(p.net) || 0), 0);
+  const expTotal = expenses.filter((e) => inRange(e.day ||'')).reduce((s, e) => s + (e.amount || 0), 0) + salariesTotal;
   const net = profit - expTotal;
   const collected = sales.reduce((s, i) => s + (i.paid || 0), 0);
   const credit = sales.reduce((s, i) => s + (i.remaining || 0), 0);
 
   const title =`التقرير ${label} — ${bizName}`;
-  const body =`التقرير ${label} (${from} إلى ${to})\n` +`------------------------------\n` +`عدد فواتير البيع: ${fmt(sales.length)}\n` +`إجمالي المبيعات: ${money(salesTotal)}\n` +`المحصّل نقداً: ${money(collected)}\n` +`مبيعات آجلة: ${money(credit)}\n` +`إجمالي المشتريات: ${money(purchasesTotal)}\n` +`المصروفات: ${money(expTotal)}\n` +`مجمل الربح: ${money(profit)}\n` +`------------------------------\n` +`صافي الربح بعد المصروفات: ${money(net)}\n`;
+  const body =`التقرير ${label} (${from} إلى ${to})\n` +`------------------------------\n` +`عدد فواتير البيع: ${fmt(sales.length)}\n` +`إجمالي المبيعات: ${money(salesTotal)}\n` +`المحصّل نقداً: ${money(collected)}\n` +`مبيعات آجلة: ${money(credit)}\n` +`إجمالي المشتريات: ${money(purchasesTotal)}\n` +`المصروفات: ${money(expTotal)}${salariesTotal > 0 ?` (منها رواتب ${money(salariesTotal)})` :''}\n` +`مجمل الربح: ${money(profit)}\n` +`------------------------------\n` +`صافي الربح بعد المصروفات: ${money(net)}\n`;
   return { title, body, from, to };
 }
 

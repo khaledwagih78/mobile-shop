@@ -45,6 +45,7 @@ export default function Dashboard() {
     [activeBranch], []
   );
   const todayExpenses = useLiveQuery(() => db.expenses.where('day').equals(day).and((e) => (e.branchId || 1) === activeBranch).toArray(), [day, activeBranch], []);
+  const payslipsAll = useLiveQuery(() => db.payslips.toArray(), [], []);
   const debts = useLiveQuery(() => db.customers.filter((c) => (c.balance || 0) > 0).toArray(), [], []);
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
 
@@ -81,7 +82,9 @@ export default function Dashboard() {
 
   const salesTotal = todaySales.reduce((s, i) => s + i.total, 0);
   const profitTotal = todaySales.reduce((s, i) => s + (i.profit || 0), 0);
-  const expTotal = todayExpenses.reduce((s, e) => s + e.amount, 0);
+  // المرتبات المصروفة اليوم تُحتسب ضمن مصروفات اليوم
+  const todaySalaries = payslipsAll.filter((p) => (p.day || p.createdAt?.slice(0, 10)) === day && (p.branchId || 1) === activeBranch).reduce((s, p) => s + (Number(p.net) || 0), 0);
+  const expTotal = todayExpenses.reduce((s, e) => s + e.amount, 0) + todaySalaries;
   const stockValue = items.reduce((s, it) => s + stockOf(it, activeBranch) * (it.costPrice || 0), 0);
   const lowStock = items.filter((it) => stockOf(it, activeBranch) <= (it.minStock || 0));
   const debtsTotal = debts.reduce((s, c) => s + c.balance, 0);
