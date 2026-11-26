@@ -1,5 +1,37 @@
-const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, dialog } = require('electron');
 const path = require('path');
+const { autoUpdater } = require('electron-updater');
+
+// --- Auto-update (installed app only): checks GitHub Releases, downloads in the
+// background, and offers a restart to install. The repo is public, so no token
+// is needed on the client. The portable build can't self-update — only the
+// installer (nsis) target does. ---
+function setupAutoUpdates() {
+  if (!app.isPackaged) return; // skip during `electron:start` / dev
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-downloaded', async (info) => {
+    if (!mainWindow) return;
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      buttons: ['إعادة التشغيل الآن', 'لاحقاً'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'تحديث جديد جاهز',
+      message: `تم تنزيل تحديث جديد${info && info.version ? ` (الإصدار ${info.version})` : ''}.`,
+      detail: 'سيتم تثبيت التحديث عند إعادة تشغيل البرنامج.',
+      noLink: true,
+    });
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+
+  autoUpdater.on('error', (err) => console.warn('[updater]', (err && err.message) || err));
+
+  autoUpdater.checkForUpdatesAndNotify().catch((e) => console.warn('[updater] check failed:', e && e.message));
+  // re-check every 4 hours while the app stays open
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000);
+}
 
 // Ensure single instance
 const gotTheLock = app.requestSingleInstanceLock();
@@ -68,7 +100,10 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   // IPC Handlers
   ipcMain.handle('app:get-version', () => app.getVersion());
-  
+
+  // Manual "check for updates" trigger (optional UI button can call this)
+  ipcMain.handle('app:check-updates', () => (app.isPackaged ? autoUpdater.checkForUpdates().catch(() => null) : null));
+
   ipcMain.handle('app:open-external', async (_, url) => {
     await shell.openExternal(url);
     return true;
@@ -92,6 +127,7 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+  setupAutoUpdates();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

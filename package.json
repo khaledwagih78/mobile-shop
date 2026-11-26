@@ -13,13 +13,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "electron:start": "electron .",
-    "electron:build": "vite build && electron-builder"
+    "electron:build": "vite build && electron-builder",
+    "electron:publish": "vite build && electron-builder --publish always"
   },
   "dependencies": {
     "@fontsource/cairo": "^5.0.0",
     "@supabase/supabase-js": "^2.50.0",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
+    "electron-updater": "^6.3.9",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^1.70.0",
     "react": "^18.3.1",
@@ -44,6 +46,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "khaledwagih78",
+        "repo": "mobile-shop"
+      }
+    ],
     "files": [
       "dist/**/*",
       "electron/**/*",
