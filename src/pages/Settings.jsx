@@ -247,99 +247,76 @@ export default function Settings() {
         </div>
 
         {/* Tier Cards Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
-          {/* Free Tier */}
-          <div
-            style={{
-              border: plan === 'free' ? '2px solid var(--primary)' : '1px solid var(--line)',
-              borderRadius: 10,
-              padding: 16,
-              background: plan === 'free' ? 'rgba(15, 76, 92, 0.03)' : '#ffffff',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <b style={{ fontSize: 16 }}>مجانية (Free)</b>
-                <span className="badge gray">0 ج.م</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14, marginBottom: 16 }}>
+          {PLANS.map((tier) => {
+            const active = getPlan(plan).id === tier.id;
+            return (
+              <div
+                key={tier.id}
+                style={{
+                  border: active ? '2px solid var(--primary)' : '1px solid var(--line)',
+                  borderRadius: 10,
+                  padding: 16,
+                  background: active ? 'rgba(15, 76, 92, 0.03)' : '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <b style={{ fontSize: 16 }}>{tier.name}</b>
+                      {tier.hasAi && <Sparkles size={15} style={{ color: 'var(--primary)' }} />}
+                    </div>
+                    {tier.recommended && <span className="badge green" style={{ fontSize: 11 }}>موصى بها</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
+                    <b style={{ fontSize: 18, color: 'var(--primary)' }}>{tier.price}</b>
+                    <span className="muted" style={{ fontSize: 12 }}>{tier.period}</span>
+                  </div>
+                  <p className="muted" style={{ fontSize: 13, margin: '0 0 12px 0', lineHeight: 1.6 }}>{tier.desc}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#334155' }}>
+                      <Check size={14} style={{ color: 'var(--green)' }} />
+                      <span>الأساسيات: بيع وشراء ومخزون وعملاء وتقارير</span>
+                    </div>
+                    {tier.hasAi ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0f4c5c', fontWeight: 600 }}>
+                        <Sparkles size={14} style={{ color: 'var(--primary)' }} />
+                        <span>الذكاء الاصطناعي مفعّل</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b' }}>
+                        <Lock size={14} style={{ color: '#94a3b8' }} />
+                        <span>الذكاء الاصطناعي (غير متضمن)</span>
+                      </div>
+                    )}
+                    {(tier.feats || []).slice(0, 5).map((f) => (
+                      <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#334155' }}>
+                        <Check size={14} style={{ color: 'var(--green)' }} />
+                        <span>{FEAT_LABELS[f] || f}</span>
+                      </div>
+                    ))}
+                    {(tier.extras || []).map((x) => (
+                      <div key={x} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b' }}>
+                        <Lock size={14} style={{ color: '#94a3b8' }} />
+                        <span>{x} <small>(قريباً)</small></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  className={`btn ${active ? 'ghost' : ''}`}
+                  disabled={active}
+                  onClick={() => selectPlan(tier.id)}
+                  style={{ width: '100%', borderRadius: 8, fontSize: 13 }}
+                >
+                  {active ? 'الباقة المفعلة حالياً' : `التحويل لـ ${tier.name}`}
+                </button>
               </div>
-              <p className="muted" style={{ fontSize: 13, margin: '0 0 12px 0', lineHeight: 1.6 }}>
-                المبيعات والمخزون والعملاء والموردين والمصروفات والتقارير الأساسية.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#334155' }}>
-                  <Check size={14} style={{ color: 'var(--green)' }} />
-                  <span>نقاط البيع والفواتير والمخزون</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#334155' }}>
-                  <Check size={14} style={{ color: 'var(--green)' }} />
-                  <span>العملاء والموردين والمصروفات</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b' }}>
-                  <Lock size={14} style={{ color: '#94a3b8' }} />
-                  <span>الذكاء الاصطناعي (غير متضمن)</span>
-                </div>
-              </div>
-            </div>
-            <button
-              className={`btn ${plan === 'free' ? 'ghost' : ''}`}
-              disabled={plan === 'free'}
-              onClick={() => selectPlan('free')}
-              style={{ width: '100%', borderRadius: 8, fontSize: 13 }}
-            >
-              {plan === 'free' ? 'الباقة المفعلة حالياً' : 'التحويل للباقة المجانية'}
-            </button>
-          </div>
-
-          {/* Pro Tier */}
-          <div
-            style={{
-              border: plan !== 'free' ? '2px solid var(--primary)' : '1px solid var(--line)',
-              borderRadius: 10,
-              padding: 16,
-              background: plan !== 'free' ? 'rgba(15, 76, 92, 0.03)' : '#ffffff',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <b style={{ fontSize: 16 }}>احترافية (Pro)</b>
-                  <Sparkles size={16} style={{ color: 'var(--primary)' }} />
-                </div>
-                <span className="badge green">موصى بها</span>
-              </div>
-              <p className="muted" style={{ fontSize: 13, margin: '0 0 12px 0', lineHeight: 1.6 }}>
-                كل مميزات النظام + التحليلات الشاملة بالذكاء الاصطناعي ومستشار الدردشة الذكي.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0f4c5c', fontWeight: 600 }}>
-                  <Sparkles size={14} style={{ color: 'var(--primary)' }} />
-                  <span>الذكاء الاصطناعي (Gemini 3.5 Flash-Lite) مفعّل</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#334155' }}>
-                  <Check size={14} style={{ color: 'var(--green)' }} />
-                  <span>المستشار الذكي ودردشة الأعمال الذكية</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#334155' }}>
-                  <Check size={14} style={{ color: 'var(--green)' }} />
-                  <span>المحاسبة والخزائن والأقساط والتنبيهات المتقدمة</span>
-                </div>
-              </div>
-            </div>
-            <button
-              className={`btn ${plan !== 'free' ? 'ghost' : 'accent'}`}
-              disabled={plan !== 'free'}
-              onClick={() => selectPlan('pro')}
-              style={{ width: '100%', borderRadius: 8, fontSize: 13 }}
-            >
-              {plan !== 'free' ? 'الباقة المفعلة حالياً' : 'تفعيل باقة Pro'}
-            </button>
-          </div>
+            );
+          })}
         </div>
 
         {/* License Activation Section */}

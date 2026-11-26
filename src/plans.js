@@ -1,7 +1,16 @@
 // ---------- plans / editions (الخطط وباقات الاشتراك) ----------
-// Tiered subscription architecture:
-// - Free (المجانية): Basic ERP core operations — WITHOUT AI (بدون ذكاء اصطناعي).
-// - Pro (الاحترافية): Full ERP advanced suite + Gemini AI Analysis & Interactive Chatbot (مع الذكاء الاصطناعي).
+// Four tiers:
+// - free (مجانية): ERP core, no AI.
+// - basic (أساسية): + accounting/treasury/installments/alerts/reportbuilder.
+// - pro (احترافية): all features + AI (Gemini analysis & chatbot).
+// - enterprise (شركات): everything in pro + company-grade extras (some upcoming).
+// `price`/`period` are shown in the plan comparison — set them to your real prices.
+
+const ALL_FEATS = [
+  'accounting', 'treasury', 'installments', 'alerts', 'reportbuilder',
+  'ai', 'crm', 'assets', 'payroll', 'projects', 'maintenance', 'reps',
+  'production', 'pricing', 'delivery',
+];
 
 export const PLANS = [
   {
@@ -11,72 +20,48 @@ export const PLANS = [
     price: '0 ج.م',
     period: 'دائماً',
     hasAi: false,
-    desc: 'المبيعات، المخزون، العملاء، الموردين، المصروفات، والتقارير الأساسية (بدون ذكاء اصطناعي).',
+    desc: 'المبيعات، المخزون، العملاء، الموردين، المصروفات، والتقارير الأساسية.',
     feats: [],
+  },
+  {
+    id: 'basic',
+    name: 'أساسية (Basic)',
+    badge: 'amber',
+    price: 'حدّد السعر',
+    period: 'شهري',
+    hasAi: false,
+    desc: 'كل المجانية + المحاسبة والخزائن والأقساط والديون والتنبيهات ومنشئ التقارير.',
+    feats: ['accounting', 'treasury', 'installments', 'alerts', 'reportbuilder'],
   },
   {
     id: 'pro',
     name: 'احترافية (Pro)',
     badge: 'green',
-    price: 'اشتراك مدفوع',
+    price: 'حدّد السعر',
     period: 'شهري / سنوي',
     hasAi: true,
-    desc: 'كافة مميزات النظام + التحليلات الذكية الشاملة بالذكاء الاصطناعي (Gemini) ومستشار الدردشة التفاعلي.',
+    recommended: true,
+    desc: 'كافة مميزات النظام + التحليلات الذكية بالذكاء الاصطناعي (Gemini) ومستشار الدردشة التفاعلي.',
     allFeats: true,
-    feats: [
-      'accounting',
-      'treasury',
-      'installments',
-      'alerts',
-      'reportbuilder',
-      'ai',
-      'crm',
-      'assets',
-      'payroll',
-      'projects',
-      'maintenance',
-      'reps',
-      'production',
-      'pricing',
-      'delivery',
-    ],
-  },
-  // Backward compatibility aliases
-  {
-    id: 'basic',
-    name: 'أساسية (Basic)',
-    badge: 'amber',
-    price: 'باقة سابقة',
-    period: 'شهري',
-    hasAi: false,
-    desc: 'كل المجانية + المحاسبة والخزائن والأقساط والديون والتنبيهات ومنشئ التقارير (بدون ذكاء اصطناعي).',
-    feats: ['accounting', 'treasury', 'installments', 'alerts', 'reportbuilder'],
+    feats: ALL_FEATS,
   },
   {
-    id: 'full',
-    name: 'شاملة (Pro/Full)',
+    id: 'enterprise',
+    name: 'شركات (Enterprise)',
     badge: 'green',
-    price: 'اشتراك كامل',
+    price: 'حدّد السعر',
     period: 'شهري / سنوي',
     hasAi: true,
-    desc: 'كافة المميزات مع الذكاء الاصطناعي.',
+    desc: 'كل مميزات الاحترافية + إمكانيات المؤسسات والفروع الكبيرة.',
     allFeats: true,
-    feats: [
-      'accounting',
-      'treasury',
-      'installments',
-      'alerts',
-      'reportbuilder',
-      'ai',
-      'crm',
-      'assets',
-      'payroll',
-      'projects',
-      'maintenance',
-      'reps',
-      'production',
-      'pricing',
-      'delivery',
+    feats: ALL_FEATS,
+    // مميزات باقة الشركات (بعضها قيد التطوير)
+    extras: [
+      'فروع غير محدودة',
+      'مزامنة سحابية بين الأجهزة',
+      'واجهة برمجية (API) للتكامل',
+      'الفاتورة الإلكترونية (ETA)',
+      'دعم فنّي بأولوية',
     ],
   },
 ];
@@ -100,8 +85,10 @@ export const FEAT_LABELS = {
   delivery: 'إدارة الشحن والتوصيل',
 };
 
+// Resolve a plan id to a tier, with back-compat for old stored values:
+// 'full' (legacy) → pro. Unknown → free.
 export const getPlan = (id) => {
-  if (id === 'full') return PLANS.find((p) => p.id === 'pro') || PLANS[1];
+  if (id === 'full') return PLANS.find((p) => p.id === 'pro') || PLANS[0];
   return PLANS.find((p) => p.id === id) || PLANS[0];
 };
 
