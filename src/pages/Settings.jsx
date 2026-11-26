@@ -13,6 +13,7 @@ export default function Settings() {
   const [opPassword, setOpPassword] = useState('');
   const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
   const [waAuto, setWaAuto] = useState(false);
+  const [preventOversell, setPreventOversell] = useState(true);
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
   const [alerts, setAlerts] = useState({
     nearExpiryDays: '60',
@@ -71,6 +72,7 @@ export default function Settings() {
         warranty: (await getSetting('warranty', '')) || '',
       });
       setWaAuto((await getSetting('waAutoSend', false)) === true);
+      setPreventOversell((await getSetting('preventOversell', true)) !== false);
       setTax({
         enabled: (await getSetting('taxEnabled', false)) === true,
         name: (await getSetting('taxName', 'ضريبة القيمة المضافة')) || 'ضريبة القيمة المضافة',
@@ -617,6 +619,18 @@ export default function Settings() {
             onChange={(e) => setAlerts({ ...alerts, discountApprovalPct: e.target.value })}
             placeholder="مثال: 10"
           />
+        </div>
+        <div className="field">
+          <label>منع البيع بأكثر من الرصيد المتاح (البيع بالسالب)</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={preventOversell}
+              onChange={async (e) => { setPreventOversell(e.target.checked); await setSetting('preventOversell', e.target.checked); }}
+              style={{ width: 20, height: 20, accentColor: 'var(--primary)' }}
+            />
+            <b>{preventOversell ? 'مفعل — لا يُباع إلا بالرصيد الموجب' : 'معطل — يسمح بالبيع بالسالب'}</b>
+          </label>
         </div>
         <div className="field">
           <label>قيمة نقطة الولاء بالعملة المحلية عند الاستبدال</label>

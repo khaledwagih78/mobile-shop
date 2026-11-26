@@ -119,4 +119,7 @@ export const EXTRA_PERMS = [
   { key:'viewCost', label:'عرض التكلفة' },
   { key:'viewProfit', label:'عرض الربح' },
   { key:'changePrice', label:'تعديل السعر في الفاتورة' },
+  { key:'sellBelowCost', label:'البيع بأقل من التكلفة' },
+  { key:'deleteLine', label:'حذف بند من الفاتورة' },
+  { key:'cancelInvoice', label:'إلغاء / مسح فاتورة' },
 ];

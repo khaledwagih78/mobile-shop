@@ -38,6 +38,9 @@ export default function InvoiceEditor({ type }) {
   const discountApprovalPct = useLiveQuery(() => getSetting('discountApprovalPct', 0), [], 0);
   const creditDays = useLiveQuery(() => getSetting('creditDays', 30), [], 30);
   const pointEGP = useLiveQuery(() => getSetting('pointEGP', 1), [], 1);
+  const preventOversell = useLiveQuery(() => getSetting('preventOversell', true), [], true);
+  const canDeleteLine = canUser(user,'deleteLine');
+  const canSellBelowCost = canUser(user,'sellBelowCost');
 
   const [q, setQ] = useState('');
   const [lines, setLines] = useState([]);
@@ -186,6 +189,24 @@ export default function InvoiceEditor({ type }) {
       setToast(`الخصم يتجاوز ${discountApprovalPct}% — يتطلب موافقة المدير`);
       setTimeout(() => setToast(''), 3000);
       return;
+    }
+    // (A) لا يُباع الصنف إلا بالرصيد المتاح (منع البيع بالسالب)
+    if (type ==='sale' && preventOversell) {
+      const short = lines.filter((l) => l.itemId != null && (Number(l.qty) || 0) * (l.factor || 1) > (Number(l.stock) || 0));
+      if (short.length) {
+        setToast(`الرصيد لا يكفي: ${short.map((l) => l.name).join('، ')} — لا يمكن البيع بأكثر من المتاح`);
+        setTimeout(() => setToast(''), 3500);
+        return;
+      }
+    }
+    // (B) لا يُباع بأقل من التكلفة إلا لمن يملك الصلاحية (المدير افتراضياً)
+    if (type ==='sale' && !canSellBelowCost) {
+      const below = lines.filter((l) => l.itemId != null && Number(l.price) < Number(l.cost || 0));
+      if (below.length) {
+        setToast(`سعر أقل من التكلفة: ${below.map((l) => l.name).join('، ')} — صلاحية المدير فقط`);
+        setTimeout(() => setToast(''), 3500);
+        return;
+      }
     }
     if (!isQuote && !isPO && remaining > 0 && !partyId) {
       setToast(isSale ?'البيع الآجل يحتاج اختيار عميل' :'الشراء الآجل يحتاج اختيار مورد');
@@ -340,6 +361,9 @@ export default function InvoiceEditor({ type }) {
                         {isSale && l.qty * (l.factor || 1) > l.stock && (
                           <span style={{ color:'var(--red)', fontWeight: 700 }}> · الرصيد {fmt(l.stock)} فقط!</span>
                         )}
+                        {type ==='sale' && !canSellBelowCost && Number(l.price) < Number(l.cost || 0) && (
+                          <span style={{ color:'var(--red)', fontWeight: 700 }}> · أقل من التكلفة!</span>
+                        )}
                         {isSale && l.wholesaleMinQty > 0 && l.qty < l.wholesaleMinQty && (
                           <span style={{ color:'var(--amber)', fontSize: 11 }}> · جملة({l.wholesaleMinQty}+) {money(l.wholesalePrice)}</span>
                         )}
@@ -361,7 +385,9 @@ export default function InvoiceEditor({ type }) {
                     <input type="number" min="0" step="any" value={l.price} readOnly={!canUser(user,'changePrice')}
                       onChange={(e) => setLine(l.uid, { price: Number(e.target.value) })} />
                     <div className="num" style={{ textAlign:'center' }}>{fmt(l.qty * l.price)}</div>
-                    <button className="x" onClick={() => removeLine(l.uid)}></button>
+                    {canDeleteLine
+                      ? <button className="x" onClick={() => removeLine(l.uid)}></button>
+                      : <span className="x" title="حذف بند يتطلب صلاحية المدير" style={{ opacity: 0.25, cursor:'not-allowed' }} />}
                   </div>
                 ))}
               </>

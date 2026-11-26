@@ -239,10 +239,10 @@ export default function InvoiceView() {
           {inv.type ==='po' && inv.status ==='po' && (
             <button className="btn accent" onClick={() => setPoConv({ extraCosts:'', allocation:'value', paid:'' })}> <Check size={15} /> تحويل لفاتورة شراء </button>
           )}
-          {inv.status ==='active' && (inv.type ==='sale' || inv.type ==='purchase') && can(user.role,'cancelInvoice') && (
+          {inv.status ==='active' && (inv.type ==='sale' || inv.type ==='purchase') && canUser(user,'cancelInvoice') && (
             <button className="btn danger" onClick={doCancel}>إلغاء الفاتورة</button>
           )}
-          {inv.status ==='cancelled' && can(user.role,'cancelInvoice') && (
+          {inv.status ==='cancelled' && canUser(user,'cancelInvoice') && (
             <button className="btn" style={{ background:'var(--green, #27ae60)' }} onClick={doRestore}> <RotateCcw size={15} /> استرجاع الفاتورة </button>
           )}
         </div>
