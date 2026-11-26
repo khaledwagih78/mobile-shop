@@ -1,0 +1,278 @@
+<!doctype html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>قائمة الأسعار</title>
+  <meta name="description" content="قائمة أسعار المنتجات المتوفرة" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ========================= CONFIG: الألوان ========================= */
+    :root{
+      --bg:#F4F6F8; --card:#ffffff; --ink:#15232B; --muted:#6B7C86;
+      --line:#E4E9EC; --brand:#0F4C5C; --brand-2:#13697E; --price:#0F4C5C;
+      --accent:#E07A3F; --chip:#EAF1F3; --shadow:0 1px 3px rgba(15,76,92,.08);
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0}
+    body{
+      font-family:'Cairo',system-ui,Tahoma,Arial,sans-serif;
+      background:var(--bg); color:var(--ink);
+      -webkit-font-smoothing:antialiased;
+    }
+    a{color:inherit}
+
+    /* header */
+    header.top{
+      position:sticky; top:0; z-index:20;
+      background:linear-gradient(135deg,var(--brand),var(--brand-2));
+      color:#fff; padding:18px 16px 16px;
+      box-shadow:0 2px 10px rgba(15,76,92,.18);
+    }
+    .wrap{max-width:1080px; margin:0 auto}
+    .brandrow{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+    .logo{
+      width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.18);
+      display:grid;place-items:center;font-size:22px;flex:0 0 auto;
+    }
+    .shopname{font-size:20px;font-weight:800;line-height:1.2;margin:0}
+    .tagline{font-size:13px;opacity:.9;margin:2px 0 0}
+    .search{position:relative;margin-top:14px}
+    .search input{
+      width:100%;border:0;border-radius:12px;padding:13px 44px 13px 14px;
+      font-family:inherit;font-size:15px;color:var(--ink);background:#fff;
+      box-shadow:var(--shadow);outline:none;
+    }
+    .search svg{position:absolute;inset-inline-end:14px;top:50%;transform:translateY(-50%);opacity:.5}
+
+    /* filters */
+    .filters{max-width:1080px;margin:14px auto 0;padding:0 16px;
+      display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .filters::-webkit-scrollbar{display:none}
+    .chip{
+      flex:0 0 auto;border:1px solid var(--line);background:var(--card);
+      color:var(--muted);border-radius:999px;padding:8px 15px;font-size:13.5px;
+      font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:.15s;
+    }
+    .chip:hover{border-color:var(--brand-2);color:var(--brand)}
+    .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+
+    /* grid */
+    main{max-width:1080px;margin:0 auto;padding:16px}
+    .count{color:var(--muted);font-size:13px;margin:4px 2px 12px}
+    .grid{
+      display:grid;gap:12px;
+      grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+    }
+    .card{
+      background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+      padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;
+      gap:6px;transition:transform .15s,box-shadow .15s;
+    }
+    .card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(15,76,92,.12)}
+    .cat{align-self:flex-start;background:var(--chip);color:var(--brand);
+      font-size:11px;font-weight:700;border-radius:6px;padding:3px 8px}
+    .name{font-weight:700;font-size:15px;line-height:1.35;margin:2px 0}
+    .brand{color:var(--muted);font-size:12.5px}
+    .price{margin-top:auto;font-size:19px;font-weight:800;color:var(--price);padding-top:6px}
+    .price small{font-size:12px;font-weight:600;color:var(--muted)}
+
+    /* states */
+    .state{text-align:center;padding:60px 20px;color:var(--muted)}
+    .state .big{font-size:40px;margin-bottom:10px}
+    .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--brand);
+      border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .skeleton .card{pointer-events:none}
+    .sk{background:linear-gradient(90deg,#eee,#f6f6f6,#eee);background-size:200% 100%;
+      animation:sh 1.2s infinite;border-radius:6px}
+    @keyframes sh{to{background-position:-200% 0}}
+
+    .demo-banner{
+      max-width:1080px;margin:12px auto 0;padding:10px 14px;border-radius:10px;
+      background:#FFF4E8;border:1px solid #F3D7B8;color:#8A5320;font-size:13px;font-weight:600;
+    }
+    footer{max-width:1080px;margin:10px auto 30px;padding:16px;color:var(--muted);
+      font-size:12.5px;text-align:center;border-top:1px solid var(--line)}
+
+    @media (max-width:520px){
+      .grid{grid-template-columns:repeat(auto-fill,minmax(44%,1fr))}
+      .shopname{font-size:18px}
+    }
+  </style>
+</head>
+<body>
+  <!-- ================================================================
+       إعدادات المحل — عدّلها مرة واحدة
+       ================================================================ -->
+  <script>
+    const CFG = {
+      // اسم المحل اللي هيظهر فوق
+      SHOP_NAME: 'قائمة أسعار المحل',
+      TAGLINE:   'الأسعار المتوفرة حالياً',
+      CURRENCY:  'ج.م',
+
+      // بيانات مشروع Supabase بتاعك:
+      // Supabase Dashboard -> Project Settings -> API
+      SUPABASE_URL:      'https://your-project-id.supabase.co',
+      SUPABASE_ANON_KEY: 'your-anon-publishable-key',
+    };
+  </script>
+
+  <header class="top">
+    <div class="wrap">
+      <div class="brandrow">
+        <div class="logo">🛒</div>
+        <div>
+          <h1 class="shopname" id="shopName">قائمة الأسعار</h1>
+          <p class="tagline" id="tagline">الأسعار المتوفرة حالياً</p>
+        </div>
+      </div>
+      <div class="search">
+        <input id="q" type="search" placeholder="ابحث عن منتج بالاسم أو الماركة…" autocomplete="off" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path>
+        </svg>
+      </div>
+    </div>
+  </header>
+
+  <div id="demoBanner" class="demo-banner" hidden>
+    🔧 وضع تجريبي — دي بيانات نموذجية. حط بيانات Supabase بتاعتك في أعلى الملف عشان تظهر منتجاتك الحقيقية.
+  </div>
+
+  <div class="filters" id="filters"></div>
+
+  <main>
+    <div class="count" id="count"></div>
+    <div class="grid skeleton" id="grid"></div>
+    <div class="state" id="state" hidden></div>
+  </main>
+
+  <footer>
+    <div id="foot">—</div>
+  </footer>
+
+  <script>
+    // ---------- demo data (يظهر فقط لو Supabase مش متظبّط) ----------
+    const DEMO = [
+      { id:1, name:'شاشة سامسونج A10', brand:'Samsung', category:'شاشات', price:420 },
+      { id:2, name:'شاشة ايفون 11 OLED', brand:'Apple', category:'شاشات', price:1250 },
+      { id:3, name:'بطارية اوبو A54', brand:'Oppo', category:'بطاريات', price:170 },
+      { id:4, name:'بطارية ريدمي نوت 10', brand:'Xiaomi', category:'بطاريات', price:150 },
+      { id:5, name:'فلاتة شحن سامسونج A12', brand:'Samsung', category:'فلات', price:50 },
+      { id:6, name:'اسكرينة 9D حماية', brand:'عام', category:'اكسسوارات', price:25 },
+      { id:7, name:'كابل Type-C اصلي', brand:'عام', category:'اكسسوارات', price:40 },
+      { id:8, name:'تاتش اوبو A15', brand:'Oppo', category:'شاشات', price:200 },
+    ];
+
+    const $ = (s) => document.querySelector(s);
+    const gridEl = $('#grid'), stateEl = $('#state'), filtersEl = $('#filters'),
+          countEl = $('#count'), qEl = $('#q');
+    let ALL = [], activeCat = 'الكل', term = '';
+
+    const configured = () =>
+      CFG.SUPABASE_URL && !CFG.SUPABASE_URL.includes('your-project-id') &&
+      CFG.SUPABASE_ANON_KEY && !CFG.SUPABASE_ANON_KEY.includes('your-anon');
+
+    const money = (n) => {
+      const v = Number(n) || 0;
+      return v.toLocaleString('ar-EG') + ' <small>' + CFG.CURRENCY + '</small>';
+    };
+    const esc = (s) => String(s==null?'':s).replace(/[&<>"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+    function setHeader(){
+      $('#shopName').textContent = CFG.SHOP_NAME || 'قائمة الأسعار';
+      $('#tagline').textContent = CFG.TAGLINE || '';
+      document.title = CFG.SHOP_NAME || 'قائمة الأسعار';
+    }
+
+    function showState(icon, title, sub){
+      gridEl.hidden = true; gridEl.classList.remove('skeleton');
+      stateEl.hidden = false;
+      stateEl.innerHTML = '<div class="big">'+icon+'</div><div style="font-weight:700;color:var(--ink)">'+esc(title)+'</div>'+(sub?'<div style="margin-top:6px">'+esc(sub)+'</div>':'');
+    }
+
+    function skeleton(){
+      gridEl.hidden = false; stateEl.hidden = true;
+      gridEl.classList.add('skeleton');
+      gridEl.innerHTML = Array.from({length:8}).map(()=>(
+        '<div class="card">'+
+          '<div class="sk" style="height:16px;width:40%"></div>'+
+          '<div class="sk" style="height:18px;width:85%"></div>'+
+          '<div class="sk" style="height:13px;width:50%"></div>'+
+          '<div class="sk" style="height:22px;width:45%;margin-top:10px"></div>'+
+        '</div>')).join('');
+    }
+
+    function buildFilters(){
+      const cats = ['الكل', ...Array.from(new Set(ALL.map(x=>x.category).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'ar'))];
+      filtersEl.innerHTML = cats.map(c=>(
+        '<button class="chip'+(c===activeCat?' on':'')+'" data-c="'+esc(c)+'">'+esc(c)+'</button>'
+      )).join('');
+      filtersEl.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{
+        activeCat = b.dataset.c; buildFilters(); render();
+      });
+    }
+
+    function render(){
+      let list = ALL.slice();
+      if (activeCat !== 'الكل') list = list.filter(x=>x.category===activeCat);
+      if (term){
+        const t = term.trim().toLowerCase();
+        list = list.filter(x=>((x.name||'')+' '+(x.brand||'')+' '+(x.category||'')).toLowerCase().includes(t));
+      }
+      countEl.textContent = list.length ? (list.length + ' منتج') : '';
+      if (!list.length){ showState('🔍','لا توجد نتائج','جرّب كلمة بحث أو تصنيف تاني'); return; }
+      gridEl.hidden = false; stateEl.hidden = true; gridEl.classList.remove('skeleton');
+      gridEl.innerHTML = list.map(x=>(
+        '<div class="card">'+
+          (x.category?'<span class="cat">'+esc(x.category)+'</span>':'')+
+          '<div class="name">'+esc(x.name)+'</div>'+
+          (x.brand?'<div class="brand">'+esc(x.brand)+'</div>':'')+
+          '<div class="price">'+money(x.price)+'</div>'+
+        '</div>'
+      )).join('');
+    }
+
+    async function loadReal(){
+      const url = CFG.SUPABASE_URL.replace(/\/$/,'') +
+        '/rest/v1/public_catalog?select=id,name,price,brand,category&order=name.asc';
+      const res = await fetch(url, { headers: {
+        apikey: CFG.SUPABASE_ANON_KEY,
+        Authorization: 'Bearer ' + CFG.SUPABASE_ANON_KEY,
+      }});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+
+    async function init(){
+      setHeader();
+      skeleton();
+      if (!configured()){
+        $('#demoBanner').hidden = false;
+        ALL = DEMO;
+        buildFilters(); render();
+        $('#foot').textContent = 'وضع تجريبي — بيانات نموذجية';
+        return;
+      }
+      try{
+        ALL = await loadReal();
+        buildFilters();
+        if (!ALL.length){ showState('📦','لا توجد منتجات معروضة بعد','صاحب المحل لسه ما علّمش على أصناف للعرض'); }
+        else render();
+        $('#foot').textContent = 'آخر تحديث: ' + new Date().toLocaleString('ar-EG');
+      }catch(e){
+        showState('⚠️','تعذّر تحميل المنتجات','تأكد من بيانات Supabase والاتصال بالإنترنت');
+        $('#foot').textContent = 'خطأ: ' + (e.message||e);
+      }
+    }
+
+    qEl.addEventListener('input', ()=>{ term = qEl.value; render(); });
+    init();
+  </script>
+</body>
+</html>
