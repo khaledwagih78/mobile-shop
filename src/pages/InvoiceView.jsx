@@ -2,14 +2,14 @@ import { useState, useEffect, useRef } from'react';
 import { useParams, useNavigate, useSearchParams } from'react-router-dom';
 import { useLiveQuery } from'dexie-react-hooks';
 import { db, cancelInvoice, restoreInvoice, convertQuote, convertPurchaseOrder, getSetting } from'../db';
-import { money, fmt, fmtDate, fmtDay, can, canUser, waLink } from'../utils';
+import { money, fmt, fmtDate, fmtDay, can, canUser, waLink, WA_TPL_DEFAULTS } from'../utils';
 import { useAuth } from'../auth';
 import PasswordGate from'../components/PasswordGate';
 import { Modal } from'../components/UI';
 import { FileText, Printer, Receipt, MessageSquare, Check, RotateCcw, CheckCircle2, WifiOff, Ban, ClipboardList } from'lucide-react';
 
 // Build the WhatsApp message text for an invoice (no hooks — safe to call anywhere).
-function buildWaText(inv, bizName) {
+function buildWaText(inv, bizName, footer ='شكراً لتعاملكم معنا') {
   const isSale = inv.type ==='sale' || inv.type ==='quote';
   const head = inv.type ==='quote' ?'عرض سعر' : isSale ?'بيع' :'شراء';
   let t =`*${bizName}*\nفاتورة ${head} رقم: ${inv.number}\n`;
@@ -23,7 +23,7 @@ function buildWaText(inv, bizName) {
   t +=`*الإجمالي: ${money(inv.total)}*\n`;
   if (inv.remaining > 0) t +=`المتبقي: ${money(inv.remaining)}\n`;
   if (inv.remaining > 0 && inv.dueDate) t +=`تاريخ الاستحقاق: ${inv.dueDate}\n`;
-  t +=`شكراً لتعاملكم معنا`;
+  t += footer ||'شكراً لتعاملكم معنا';
   return t;
 }
 
@@ -45,6 +45,7 @@ export default function InvoiceView() {
   const address = useLiveQuery(() => getSetting('bizAddress',''), [],'');
   const shopPhone = useLiveQuery(() => getSetting('bizPhone',''), [],'');
   const returnPolicy = useLiveQuery(() => getSetting('returnPolicy',''), [],'');
+  const waFooter = useLiveQuery(() => getSetting('waTplInvoiceFooter', WA_TPL_DEFAULTS.invoiceFooter), [], WA_TPL_DEFAULTS.invoiceFooter);
   const warranty = useLiveQuery(() => getSetting('warranty',''), [],'');
   const party = useLiveQuery(
     () => (inv?.partyId ? (inv.type ==='sale' || inv.type ==='quote' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
@@ -60,17 +61,17 @@ export default function InvoiceView() {
     if (!phone) return;
     sentRef.current = true;
     if (navigator.onLine) {
-      window.open(waLink(phone, buildWaText(inv, bizName)),'_blank');
+      window.open(waLink(phone, buildWaText(inv, bizName, waFooter)),'_blank');
     } else {
       setWaPending(true); // no internet — keep it ready to send from the button
     }
-  }, [inv, party, waAutoSend, bizName, sp]);
+  }, [inv, party, waAutoSend, bizName, waFooter, sp]);
 
   if (!inv) return <div className="card empty">جاري التحميل...</div>;
 
   const isSale = inv.type ==='sale';
 
-  const waText = () => buildWaText(inv, bizName);
+  const waText = () => buildWaText(inv, bizName, waFooter);
 
   const doCancel = () => {
     setGate({

@@ -4,6 +4,7 @@ import { db, getSetting, setSetting } from '../db';
 import { Toast } from '../components/UI';
 import { PLANS, FEAT_LABELS, getPlan, isAiAllowed } from '../plans';
 import { applyLicenseCode } from '../license';
+import { WA_TPL_DEFAULTS, WA_TPL_VARS } from '../utils';
 import { ShieldCheck, Sparkles, Check, Lock, CheckCircle2, Building, Users, FileSpreadsheet, Database, Sliders, Scale, FileText, ArrowLeftRight } from 'lucide-react';
 
 export default function Settings() {
@@ -13,6 +14,7 @@ export default function Settings() {
   const [opPassword, setOpPassword] = useState('');
   const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
   const [waAuto, setWaAuto] = useState(false);
+  const [waTpl, setWaTpl] = useState({ debt: WA_TPL_DEFAULTS.debt, promo: WA_TPL_DEFAULTS.promo, invoiceFooter: WA_TPL_DEFAULTS.invoiceFooter });
   const [preventOversell, setPreventOversell] = useState(true);
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
   const [alerts, setAlerts] = useState({
@@ -72,6 +74,11 @@ export default function Settings() {
         warranty: (await getSetting('warranty', '')) || '',
       });
       setWaAuto((await getSetting('waAutoSend', false)) === true);
+      setWaTpl({
+        debt: (await getSetting('waTplDebt', WA_TPL_DEFAULTS.debt)) || WA_TPL_DEFAULTS.debt,
+        promo: (await getSetting('waTplPromo', WA_TPL_DEFAULTS.promo)) || WA_TPL_DEFAULTS.promo,
+        invoiceFooter: (await getSetting('waTplInvoiceFooter', WA_TPL_DEFAULTS.invoiceFooter)) || WA_TPL_DEFAULTS.invoiceFooter,
+      });
       setPreventOversell((await getSetting('preventOversell', true)) !== false);
       setTax({
         enabled: (await getSetting('taxEnabled', false)) === true,
@@ -114,6 +121,13 @@ export default function Settings() {
     setWaAuto(next);
     await setSetting('waAutoSend', next);
     notify(next ? 'تم تفعيل فتح واتساب التلقائي' : 'تم تعطيل فتح واتساب التلقائي');
+  };
+
+  const saveWaTpl = async () => {
+    await setSetting('waTplDebt', waTpl.debt);
+    await setSetting('waTplPromo', waTpl.promo);
+    await setSetting('waTplInvoiceFooter', waTpl.invoiceFooter);
+    notify('تم حفظ قوالب رسائل واتساب');
   };
 
   const saveAlerts = async () => {
@@ -511,6 +525,40 @@ export default function Settings() {
           />
           <b>{waAuto ? 'مفعل' : 'معطل'}</b>
         </label>
+      </div>
+
+      {/* WhatsApp message templates */}
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <h2 style={{ fontSize: 17, marginTop: 0 }}>قوالب رسائل واتساب</h2>
+        <p className="muted" style={{ marginTop: 4 }}>
+          عدّل صيغة الرسائل بكلماتك. المتغيّرات التالية تتعبّأ تلقائياً لكل عميل:{' '}
+          {WA_TPL_VARS.map((v) => (
+            <code key={v.key} style={{ margin: '0 3px', background: 'var(--chip,#eef4f6)', borderRadius: 4, padding: '1px 5px' }} title={v.desc}>{v.key}</code>
+          ))}
+        </p>
+
+        <div className="field">
+          <label>قالب تذكير الدين</label>
+          <textarea className="input" rows={4} value={waTpl.debt}
+            onChange={(e) => setWaTpl({ ...waTpl, debt: e.target.value })} />
+        </div>
+        <div className="field">
+          <label>قالب العرض الترويجي</label>
+          <textarea className="input" rows={4} value={waTpl.promo}
+            onChange={(e) => setWaTpl({ ...waTpl, promo: e.target.value })} />
+        </div>
+        <div className="field">
+          <label>تذييل رسالة الفاتورة</label>
+          <input className="input" value={waTpl.invoiceFooter}
+            onChange={(e) => setWaTpl({ ...waTpl, invoiceFooter: e.target.value })} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={saveWaTpl}>حفظ القوالب</button>
+          <button className="btn ghost" onClick={() => setWaTpl({ debt: WA_TPL_DEFAULTS.debt, promo: WA_TPL_DEFAULTS.promo, invoiceFooter: WA_TPL_DEFAULTS.invoiceFooter })}>
+            استعادة الافتراضي
+          </button>
+        </div>
       </div>
 
       {/* VAT / Tax Settings */}

@@ -11,6 +11,7 @@ import Invoices from'./pages/Invoices';
 import InvoiceView from'./pages/InvoiceView';
 import Items from'./pages/Items';
 import Parties from'./pages/Parties';
+import WaBlast from'./pages/WaBlast';
 import Reports from'./pages/Reports';
 import Expenses from'./pages/Expenses';
 import Backup from'./pages/Backup';
@@ -82,6 +83,7 @@ function Shell() {
         <Route path="items" element={<Guard action="items"><Items /></Guard>} />
         <Route path="customers" element={<Guard action="customers"><Parties kind="customer" key="c" /></Guard>} />
         <Route path="suppliers" element={<Guard action="suppliers"><Parties kind="supplier" key="s" /></Guard>} />
+        <Route path="wa-blast" element={<Guard action="customers"><WaBlast /></Guard>} />
         <Route path="reports" element={<Guard action="reports"><Reports /></Guard>} />
         <Route path="expenses" element={<Guard action="expenses"><Expenses /></Guard>} />
         <Route path="insights" element={<Guard action="insights"><Insights /></Guard>} />

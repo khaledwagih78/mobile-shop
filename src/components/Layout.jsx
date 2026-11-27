@@ -63,6 +63,7 @@ const MENU = [
 
   // 7. العملاء والموردين
   { to: '/customers', icon: 'Users', label: 'العملاء والموردين', action: 'customers' },
+  { to: '/wa-blast', icon: 'MessageCircle', label: 'إرسال واتساب جماعي', action: 'customers' },
 
   // 8. الخزائن والمصروفات
   { to: '/expenses', icon: 'Wallet', label: 'المصروفات', action: 'expenses' },

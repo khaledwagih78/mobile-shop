@@ -32,6 +32,30 @@ export const waLink = (phone, text) => {
 };
 export const marginPct = (cost, sale) => (cost > 0 ? Math.round(((sale - cost) / cost) * 100) : 0);
 
+// ---------- WhatsApp message templates (editable in Settings) ----------
+// Stored as plain-text settings; {الاسم}/{المبلغ}/{المحل}/{الهاتف} are filled per recipient.
+export const WA_TPL_DEFAULTS = {
+  debt:'السلام عليكم أ/ {الاسم}\nتذكير ودّي: إجمالي المستحق {المبلغ}.\nنرجو التكرم بالسداد في أقرب وقت.\nمع تحيات {المحل}',
+  promo:'السلام عليكم أ/ {الاسم} 🌟\nعرض خاص من {المحل}!\n\n(اكتب تفاصيل العرض هنا)\n\nفي انتظار زيارتكم.\nللاستفسار: {الهاتف}',
+  invoiceFooter:'شكراً لتعاملكم معنا',
+};
+
+// The placeholders a user can drop into a template, with human labels.
+export const WA_TPL_VARS = [
+  { key:'{الاسم}', desc:'اسم العميل' },
+  { key:'{المبلغ}', desc:'المبلغ المستحق' },
+  { key:'{المحل}', desc:'اسم المحل' },
+  { key:'{الهاتف}', desc:'هاتف المحل' },
+];
+
+// Fill a template with a recipient's values. amount is pre-formatted text.
+export const renderWaTpl = (tpl, { name ='', amount ='', shop ='', phone ='' } = {}) =>
+  String(tpl ||'')
+    .split('{الاسم}').join(name)
+    .split('{المبلغ}').join(amount)
+    .split('{المحل}').join(shop)
+    .split('{الهاتف}').join(phone);
+
 // Generate a unique 13-digit numeric barcode (valid EAN-13 checksum;'2' = in-store).
 export const genBarcode = () => {
   let d ='2' + Date.now().toString().slice(-9);

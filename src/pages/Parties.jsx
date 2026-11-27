@@ -2,7 +2,7 @@ import { useMemo, useState } from'react';
 import { NavLink } from'react-router-dom';
 import { useLiveQuery } from'dexie-react-hooks';
 import { db, nowISO, recordPayment, queueSync, getSetting, getCustomFields } from'../db';
-import { money, fmt, fmtDate, waLink } from'../utils';
+import { money, fmt, fmtDate, waLink, renderWaTpl, WA_TPL_DEFAULTS } from'../utils';
 import { useAuth } from'../auth';
 import { Modal } from'../components/UI';
 import { CustomFieldInputs } from'./CustomFields';
@@ -16,8 +16,11 @@ export default function Parties({ kind ='customer' }) {
   const priceLists = useLiveQuery(() => db.priceLists.toArray(), [], []);
   const customFields = useLiveQuery(() => getCustomFields(kind), [kind], []);
   const bizName = useLiveQuery(() => getSetting('bizName','نظام المبيعات والمخزون'), [],'نظام المبيعات والمخزون');
-  const waMsg = (c) =>`السلام عليكم أ/ ${c.name} \n` +
-    ((c.balance || 0) > 0 ?`تذكير ودّي: إجمالي المستحق ${money(c.balance)}.\nنرجو التكرم بالسداد في أقرب وقت.\n` :'') +`مع تحيات ${bizName}`;
+  const bizPhone = useLiveQuery(() => getSetting('bizPhone',''), [],'');
+  const tplDebt = useLiveQuery(() => getSetting('waTplDebt', WA_TPL_DEFAULTS.debt), [], WA_TPL_DEFAULTS.debt);
+  const waMsg = (c) => renderWaTpl(tplDebt || WA_TPL_DEFAULTS.debt, {
+    name: c.name ||'', amount: money(c.balance || 0), shop: bizName, phone: bizPhone,
+  });
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
