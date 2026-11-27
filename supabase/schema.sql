@@ -100,6 +100,42 @@ WHERE COALESCE((i.data->>'showOnline')::boolean, false) = true
 REVOKE ALL ON public.public_catalog FROM PUBLIC;
 GRANT SELECT ON public.public_catalog TO anon, authenticated;
 
+-- ------------------------------------------------------------
+-- 2b) Public repair-status lookup — the customer's tracking link.
+--     A SECURITY DEFINER function returns ONE order's SAFE fields and
+--     ONLY when the caller already knows its random token, so the public
+--     can never enumerate orders or read names/phones/issues/costs.
+--     Exposes: number, status, device TYPE, stage timestamps, created.
+-- ------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.repair_status(text);
+CREATE FUNCTION public.repair_status(p_token text)
+RETURNS TABLE (
+  number  text,
+  status  text,
+  device  text,
+  stamps  jsonb,
+  created text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    w.data->>'number'     AS number,
+    w.data->>'status'     AS status,
+    w.data->>'deviceType' AS device,
+    w.data->'stamps'      AS stamps,
+    w.data->>'createdAt'  AS created
+  FROM public."workOrders" w
+  WHERE COALESCE(p_token, '') <> ''
+    AND w.data->>'trackToken' = p_token
+  LIMIT 1;
+$$;
+
+REVOKE ALL ON FUNCTION public.repair_status(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.repair_status(text) TO anon, authenticated;
+
 -- ============================================================
 -- 3) ONE-TIME: create the shop owner account (do this once per shop)
 -- ============================================================

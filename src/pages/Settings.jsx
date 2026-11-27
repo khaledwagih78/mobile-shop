@@ -12,7 +12,7 @@ export default function Settings() {
   const [usdRate, setUsdRate] = useState('');
   const [margin, setMargin] = useState('');
   const [opPassword, setOpPassword] = useState('');
-  const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '' });
+  const [shop, setShop] = useState({ logo: '', address: '', phone: '', returnPolicy: '', warranty: '', repairTrackUrl: '' });
   const [waAuto, setWaAuto] = useState(false);
   const [waTpl, setWaTpl] = useState({ debt: WA_TPL_DEFAULTS.debt, promo: WA_TPL_DEFAULTS.promo, invoiceFooter: WA_TPL_DEFAULTS.invoiceFooter });
   const [preventOversell, setPreventOversell] = useState(true);
@@ -72,6 +72,7 @@ export default function Settings() {
         phone: (await getSetting('bizPhone', '')) || '',
         returnPolicy: (await getSetting('returnPolicy', '')) || '',
         warranty: (await getSetting('warranty', '')) || '',
+        repairTrackUrl: (await getSetting('repairTrackUrl', '')) || '',
       });
       setWaAuto((await getSetting('waAutoSend', false)) === true);
       setWaTpl({
@@ -101,6 +102,7 @@ export default function Settings() {
     await setSetting('bizPhone', shop.phone.trim());
     await setSetting('returnPolicy', shop.returnPolicy.trim());
     await setSetting('warranty', shop.warranty.trim());
+    await setSetting('repairTrackUrl', (shop.repairTrackUrl || '').trim());
     notify('تم حفظ بيانات المنشأة بنجاح');
   };
 
@@ -483,6 +485,17 @@ export default function Settings() {
             onChange={(e) => setShop({ ...shop, warranty: e.target.value })}
             placeholder="مثال: ضمان لمدة عام ضد عيوب الصناعة"
           />
+        </div>
+        <div className="field">
+          <label>رابط متابعة الصيانة (صفحة track.html على موقعك)</label>
+          <input
+            className="input"
+            dir="ltr"
+            value={shop.repairTrackUrl}
+            onChange={(e) => setShop({ ...shop, repairTrackUrl: e.target.value })}
+            placeholder="https://yourshop.example/track.html"
+          />
+          <small className="muted">يُستخدم في زرار «لينك المتابعة» بصفحة الصيانة ليتابع العميل حالة جهازه.</small>
         </div>
         <button className="btn" onClick={saveShop}>
           حفظ بيانات الفاتورة

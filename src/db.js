@@ -1,4 +1,5 @@
 import Dexie from'dexie';
+import { genToken } from'./utils';
 
 export const db = new Dexie('khaled_erp');
 
@@ -1136,10 +1137,13 @@ export async function createWorkOrder(wo) {
     let cur = 0; try { cur = Number(localStorage.getItem(key)) || 0; } catch { /* ignore */ }
     cur += 1; try { localStorage.setItem(key, String(cur)); } catch { /* ignore */ }
     const number =`WO${dev}-${String(cur).padStart(5,'0')}`;
+    const ts = nowISO();
     const doc = {
       ...wo, number, status: wo.status ||'received', parts: wo.parts || [],
-      laborCost: Number(wo.laborCost) || 0, createdAt: nowISO(), day: today(),
+      laborCost: Number(wo.laborCost) || 0, createdAt: ts, day: today(),
       branchId: wo.branchId || DEFAULT_BRANCH_ID,
+      trackToken: wo.trackToken || genToken(),
+      stamps: { [wo.status ||'received']: ts },
     };
     const id = await db.workOrders.add(doc);
     await queueSync('workOrders','add', { ...doc, id });

@@ -32,6 +32,19 @@ export const waLink = (phone, text) => {
 };
 export const marginPct = (cost, sale) => (cost > 0 ? Math.round(((sale - cost) / cost) * 100) : 0);
 
+// Unguessable public token (e.g. repair tracking links): 12 chars of [a-z0-9] ≈ 36^12.
+export const genToken = (len = 12) => {
+  const cs ='abcdefghijklmnopqrstuvwxyz0123456789';
+  let out ='';
+  try {
+    const a = new Uint32Array(len); crypto.getRandomValues(a);
+    for (let i = 0; i < len; i++) out += cs[a[i] % cs.length];
+  } catch {
+    for (let i = 0; i < len; i++) out += cs[Math.floor(Math.random() * cs.length)];
+  }
+  return out;
+};
+
 // ---------- WhatsApp message templates (editable in Settings) ----------
 // Stored as plain-text settings; {الاسم}/{المبلغ}/{المحل}/{الهاتف} are filled per recipient.
 export const WA_TPL_DEFAULTS = {

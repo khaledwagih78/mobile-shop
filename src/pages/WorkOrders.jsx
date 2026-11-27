@@ -2,8 +2,8 @@ import { Icon } from'../components/Icon';
 import { useMemo, useState } from'react';
 import { useLiveQuery } from'dexie-react-hooks';
 import { useNavigate } from'react-router-dom';
-import { db, today, queueSync, createWorkOrder, invoiceWorkOrder, stockOf, getSetting } from'../db';
-import { money, fmt, normAr, waLink } from'../utils';
+import { db, today, queueSync, createWorkOrder, invoiceWorkOrder, stockOf, getSetting, nowISO } from'../db';
+import { money, fmt, normAr, waLink, genToken } from'../utils';
 import { Modal, Toast } from'../components/UI';
 import BarcodeScanner from'../components/BarcodeScanner';
 import { useAuth } from'../auth';
@@ -26,6 +26,7 @@ export default function WorkOrders() {
   const bizAddress = useLiveQuery(() => getSetting('bizAddress',''), [],'');
   const bizPhone = useLiveQuery(() => getSetting('bizPhone',''), [],'');
   const defWarranty = useLiveQuery(() => getSetting('warranty',''), [],'');
+  const trackUrl = useLiveQuery(() => getSetting('repairTrackUrl',''), [],'');
   const employees = useLiveQuery(() => db.employees.where('status').equals('active').toArray(), [], []);
   const items = useLiveQuery(() => db.items.toArray(), [], []);
   const [form, setForm] = useState(null);
@@ -70,8 +71,29 @@ export default function WorkOrders() {
   };
 
   const setStatus = async (o, status) => {
-    await db.workOrders.update(o.id, { status });
-    await queueSync('workOrders','update', { id: o.id, status });
+    // stamp the first time each stage is reached — powers the public tracking timeline
+    const stamps = { ...(o.stamps || {}) };
+    if (!stamps[status]) stamps[status] = nowISO();
+    await db.workOrders.update(o.id, { status, stamps });
+    await queueSync('workOrders','update', { id: o.id, status, stamps });
+  };
+
+  // Ensure the order has an unguessable public token (older orders may lack one).
+  const ensureToken = async (o) => {
+    if (o.trackToken) return o.trackToken;
+    const t = genToken();
+    await db.workOrders.update(o.id, { trackToken: t });
+    await queueSync('workOrders','update', { id: o.id, trackToken: t });
+    return t;
+  };
+
+  const sendTrackLink = async (o) => {
+    if (!trackUrl) { notify('حدّد أولاً «رابط متابعة الصيانة» من الإعدادات'); return; }
+    const token = await ensureToken(o);
+    const link =`${trackUrl}${trackUrl.includes('?') ?'&' :'?'}t=${token}`;
+    const msg =`مرحباً${o.customerName ?' أ/ ' + o.customerName :''} 👋\nتابع حالة صيانة جهازك رقم ${o.number} من هنا:\n${link}\n\n${bizName}`;
+    window.open(waLink(o.customerPhone, msg),'_blank');
+    if (!o.customerPhone) notify('لا يوجد رقم للعميل — اختر جهة الاتصال في واتساب');
   };
 
   const doInvoice = async (paid) => {
@@ -211,6 +233,7 @@ export default function WorkOrders() {
                     {o.status !=='delivered' && o.status !=='cancelled' && <button className="btn ghost sm" onClick={() => setForm({ ...o, laborCost: String(o.laborCost ||''), customerId: o.customerId ||'' })}>تعديل</button>}
                     <button className="btn ghost sm" title="طباعة الإيصال" onClick={() => printWorkOrder(o)}>🖨️ إيصال</button>
                     <button className="btn ghost sm" title="إرسال الإيصال على واتساب" onClick={() => sendWhatsApp(o)}>📱 واتساب</button>
+                    {o.status !=='cancelled' && <button className="btn ghost sm" title="إرسال لينك متابعة الحالة للعميل" onClick={() => sendTrackLink(o)}>🔗 لينك المتابعة</button>}
                     {o.status ==='done' && !o.invoiceId && <button className="btn accent sm" onClick={() => setPayFor(o)}>فاتورة وتسليم</button>}
                     {o.invoiceId && <button className="btn ghost sm" onClick={() => nav(`/invoices/${o.invoiceId}`)}>الفاتورة</button>}
                   </td>
