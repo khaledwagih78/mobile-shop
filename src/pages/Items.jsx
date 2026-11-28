@@ -8,8 +8,9 @@ import { Modal } from'../components/UI';
 import { Barcode, barcodeSVG } from'../components/Barcode';
 import { CustomFieldInputs } from'./CustomFields';
 import { Tags, Percent, RefreshCw, Plus, Boxes, FileSpreadsheet, ArrowLeftRight, ClipboardCheck } from'lucide-react';
+import { ETA_UNITS, ETA_ITEM_TYPES } from'../eta';
 
-const EMPTY = { code:'', barcode:'', name:'', brand:'', category:'', costUSD:'', costPrice:'', salePrice:'', wholesalePrice:'', wholesaleMinQty:'', minStock:'', stock:'', baseUnit:'قطعة', units: [], taxable: true, showOnline: false, expiry:'', batch:'' };
+const EMPTY = { code:'', barcode:'', name:'', brand:'', category:'', costUSD:'', costPrice:'', salePrice:'', wholesalePrice:'', wholesaleMinQty:'', minStock:'', stock:'', baseUnit:'قطعة', units: [], taxable: true, showOnline: false, expiry:'', batch:'', etaItemType:'EGS', etaItemCode:'', etaUnit:'EA' };
 
 export default function Items() {
   const { user, activeBranch, branches } = useAuth();
@@ -34,6 +35,7 @@ export default function Items() {
   const usdRate = useLiveQuery(() => getSetting('usdRate', 0), [], 0);
   const defMargin = useLiveQuery(() => getSetting('defaultMargin', 0), [], 0);
   const customFields = useLiveQuery(() => getCustomFields('item'), [], []);
+  const etaOn = useLiveQuery(async () => ((await getSetting('eta', {})) || {}).enabled === true, [], false);
 
   const brands = useMemo(() => [...new Set(items.map((it) => it.brand).filter(Boolean))].sort(), [items]);
   const categories = useMemo(() => [...new Set(items.map((it) => it.category).filter(Boolean))].sort(), [items]);
@@ -332,6 +334,21 @@ export default function Items() {
               </label>
             </div>
           </div>
+          {etaOn && (
+            <div className="row">
+              <div className="field"><label>نوع الكود الضريبي (ETA)</label>
+                <select className="input" value={form.etaItemType || 'EGS'} onChange={(e) => setForm({ ...form, etaItemType: e.target.value })}>
+                  {ETA_ITEM_TYPES.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+                </select></div>
+              <div className="field"><label>الكود الضريبي{form.etaItemType === 'GS1' ? ' (فارغ = الباركود)' : ''}</label>
+                <input className="input" dir="ltr" value={form.etaItemCode || ''} onChange={(e) => setForm({ ...form, etaItemCode: e.target.value })}
+                  placeholder={form.etaItemType === 'GS1' ? form.barcode || 'باركود GS1' : 'كود EGS'} /></div>
+              <div className="field"><label>وحدة القياس (ETA)</label>
+                <select className="input" value={form.etaUnit || 'EA'} onChange={(e) => setForm({ ...form, etaUnit: e.target.value })}>
+                  {ETA_UNITS.map((u) => <option key={u.code} value={u.code}>{u.label}</option>)}
+                </select></div>
+            </div>
+          )}
           <div className="field">
             <label> وحدات أكبر (اختياري) — مثال: كرتونة تحتوي 24 قطعة</label>
             {(form.units || []).map((u, i) => (

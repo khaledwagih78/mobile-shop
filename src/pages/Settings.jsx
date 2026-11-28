@@ -17,6 +17,7 @@ export default function Settings() {
   const [waTpl, setWaTpl] = useState({ debt: WA_TPL_DEFAULTS.debt, promo: WA_TPL_DEFAULTS.promo, invoiceFooter: WA_TPL_DEFAULTS.invoiceFooter });
   const [preventOversell, setPreventOversell] = useState(true);
   const [aiKey, setAiKey] = useState('');
+  const [eta, setEta] = useState({ enabled: false, trn: '', name: '', activityCode: '', taxSubType: 'V009', branchID: '0', governate: '', regionCity: '', street: '', buildingNumber: '' });
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
   const [alerts, setAlerts] = useState({
     nearExpiryDays: '60',
@@ -83,6 +84,7 @@ export default function Settings() {
       });
       setPreventOversell((await getSetting('preventOversell', true)) !== false);
       setAiKey((await getSetting('aiKey', '')) || '');
+      setEta({ ...{ enabled: false, trn: '', name: '', activityCode: '', taxSubType: 'V009', branchID: '0', governate: '', regionCity: '', street: '', buildingNumber: '' }, ...((await getSetting('eta', {})) || {}) });
       setTax({
         enabled: (await getSetting('taxEnabled', false)) === true,
         name: (await getSetting('taxName', 'ضريبة القيمة المضافة')) || 'ضريبة القيمة المضافة',
@@ -125,6 +127,28 @@ export default function Settings() {
     setWaAuto(next);
     await setSetting('waAutoSend', next);
     notify(next ? 'تم تفعيل فتح واتساب التلقائي' : 'تم تعطيل فتح واتساب التلقائي');
+  };
+
+  const saveEta = async () => {
+    // issuer address is nested the way the ETA builder expects it
+    const payload = {
+      enabled: !!eta.enabled,
+      trn: (eta.trn || '').trim(),
+      name: (eta.name || '').trim() || bizName.trim(),
+      activityCode: (eta.activityCode || '').trim(),
+      taxSubType: (eta.taxSubType || 'V009').trim() || 'V009',
+      issuerType: 'B',
+      address: {
+        branchID: (eta.branchID || '0').trim() || '0',
+        country: 'EG',
+        governate: (eta.governate || '').trim(),
+        regionCity: (eta.regionCity || '').trim(),
+        street: (eta.street || '').trim(),
+        buildingNumber: (eta.buildingNumber || '').trim(),
+      },
+    };
+    await setSetting('eta', payload);
+    notify('تم حفظ إعدادات الفاتورة الإلكترونية');
   };
 
   const saveAiKey = async () => {
@@ -604,6 +628,47 @@ export default function Settings() {
           />
         </div>
         <button className="btn" onClick={saveAiKey}>حفظ المفتاح</button>
+      </div>
+
+      {/* ETA — Egyptian e-invoice */}
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <h2 style={{ fontSize: 17, marginTop: 0 }}>الفاتورة الإلكترونية (مصلحة الضرائب - ETA)</h2>
+        <p className="muted" style={{ marginTop: 4 }}>
+          بيانات المنشأة المطلوبة لتوليد مستند الفاتورة الإلكترونية. التوقيع بالتوكن والرفع يتمّان خارج البرنامج —
+          راجع <NavLink to="/guide">الدليل</NavLink>.
+        </p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', margin: '6px 0 10px' }}>
+          <input type="checkbox" checked={!!eta.enabled} onChange={(e) => setEta({ ...eta, enabled: e.target.checked })}
+            style={{ width: 20, height: 20, accentColor: 'var(--primary)' }} />
+          <b>{eta.enabled ? 'مفعّلة — يظهر زر تصدير ETA في الفاتورة' : 'غير مفعّلة'}</b>
+        </label>
+        <div className="row">
+          <div className="field"><label>الرقم الضريبي (TRN) *</label>
+            <input className="input" dir="ltr" value={eta.trn} onChange={(e) => setEta({ ...eta, trn: e.target.value })} placeholder="123456789" /></div>
+          <div className="field"><label>كود النشاط الضريبي *</label>
+            <input className="input" dir="ltr" value={eta.activityCode} onChange={(e) => setEta({ ...eta, activityCode: e.target.value })} placeholder="4651" /></div>
+        </div>
+        <div className="row">
+          <div className="field"><label>اسم المنشأة في المصلحة (افتراضي: اسم المحل)</label>
+            <input className="input" value={eta.name} onChange={(e) => setEta({ ...eta, name: e.target.value })} placeholder={bizName} /></div>
+          <div className="field"><label>كود الضريبة الفرعي (VAT)</label>
+            <input className="input" dir="ltr" value={eta.taxSubType} onChange={(e) => setEta({ ...eta, taxSubType: e.target.value })} placeholder="V009" /></div>
+        </div>
+        <div className="row">
+          <div className="field"><label>كود الفرع (branchID)</label>
+            <input className="input" dir="ltr" value={eta.branchID} onChange={(e) => setEta({ ...eta, branchID: e.target.value })} placeholder="0" /></div>
+          <div className="field"><label>المحافظة</label>
+            <input className="input" value={eta.governate} onChange={(e) => setEta({ ...eta, governate: e.target.value })} placeholder="القاهرة" /></div>
+        </div>
+        <div className="row">
+          <div className="field"><label>المدينة / المنطقة</label>
+            <input className="input" value={eta.regionCity} onChange={(e) => setEta({ ...eta, regionCity: e.target.value })} placeholder="مدينة نصر" /></div>
+          <div className="field"><label>الشارع</label>
+            <input className="input" value={eta.street} onChange={(e) => setEta({ ...eta, street: e.target.value })} placeholder="شارع ..." /></div>
+        </div>
+        <div className="field"><label>رقم المبنى</label>
+          <input className="input" dir="ltr" value={eta.buildingNumber} onChange={(e) => setEta({ ...eta, buildingNumber: e.target.value })} placeholder="12" /></div>
+        <button className="btn" onClick={saveEta}>حفظ إعدادات الفاتورة الإلكترونية</button>
       </div>
 
       {/* VAT / Tax Settings */}

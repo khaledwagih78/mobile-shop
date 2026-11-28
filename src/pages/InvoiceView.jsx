@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from'react-router-dom';
 import { useLiveQuery } from'dexie-react-hooks';
 import { db, cancelInvoice, restoreInvoice, convertQuote, convertPurchaseOrder, getSetting } from'../db';
 import { money, fmt, fmtDate, fmtDay, can, canUser, waLink, WA_TPL_DEFAULTS } from'../utils';
+import { buildEtaDocument, etaValidate, etaApplies } from'../eta';
 import { useAuth } from'../auth';
 import PasswordGate from'../components/PasswordGate';
 import { Modal } from'../components/UI';
@@ -46,6 +47,8 @@ export default function InvoiceView() {
   const shopPhone = useLiveQuery(() => getSetting('bizPhone',''), [],'');
   const returnPolicy = useLiveQuery(() => getSetting('returnPolicy',''), [],'');
   const waFooter = useLiveQuery(() => getSetting('waTplInvoiceFooter', WA_TPL_DEFAULTS.invoiceFooter), [], WA_TPL_DEFAULTS.invoiceFooter);
+  const etaCfg = useLiveQuery(() => getSetting('eta', {}), [], {});
+  const allItems = useLiveQuery(() => db.items.toArray(), [], []);
   const warranty = useLiveQuery(() => getSetting('warranty',''), [],'');
   const party = useLiveQuery(
     () => (inv?.partyId ? (inv.type ==='sale' || inv.type ==='quote' ? db.customers : db.suppliers).get(inv.partyId) : undefined),
@@ -72,6 +75,22 @@ export default function InvoiceView() {
   const isSale = inv.type ==='sale';
 
   const waText = () => buildWaText(inv, bizName, waFooter);
+
+  // Build + download the ETA e-invoice document (unsigned JSON) for signing & upload.
+  const exportEta = () => {
+    const missing = etaValidate(inv, { settings: etaCfg, items: allItems });
+    if (missing.length) {
+      alert('يتعذّر توليد ملف الفاتورة الإلكترونية — أكمل الناقص:\n\n• ' + missing.join('\n• '));
+      return;
+    }
+    const doc = buildEtaDocument(inv, { settings: etaCfg, customer: party, items: allItems });
+    const blob = new Blob([JSON.stringify({ documents: [doc] }, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download =`eta-${inv.number}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  };
 
   const doCancel = () => {
     setGate({
@@ -234,6 +253,9 @@ export default function InvoiceView() {
             <MessageSquare size={15} />
             واتساب{party?.phone ?' العميل' :''}
           </a>
+          {etaCfg?.enabled && etaApplies(inv.type) && (
+            <button className="btn ghost" onClick={exportEta} title="توليد ملف الفاتورة الإلكترونية (JSON) للتوقيع والرفع"> <FileText size={15} /> ملف ETA </button>
+          )}
           {inv.type ==='quote' && inv.status ==='quote' && (
             <button className="btn accent" onClick={doConvert}> <Check size={15} /> تحويل لفاتورة بيع </button>
           )}
