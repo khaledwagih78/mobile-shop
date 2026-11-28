@@ -110,6 +110,46 @@
       .grid{grid-template-columns:repeat(auto-fill,minmax(44%,1fr))}
       .shopname{font-size:18px}
     }
+
+    /* ---------- cart ---------- */
+    .add-btn{margin-top:4px;border:0;border-radius:10px;padding:9px 10px;cursor:pointer;
+      background:var(--brand);color:#fff;font-family:inherit;font-weight:700;font-size:13.5px;
+      display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s}
+    .add-btn:hover{background:var(--brand-2)}
+    .add-btn:active{transform:scale(.98)}
+    .add-btn.in{background:#E6F6EE;color:var(--brand)}
+    .cartbar{position:fixed;inset-inline:0;bottom:0;z-index:40;transform:translateY(130%);
+      transition:transform .25s;padding:10px 16px;background:#fff;border-top:1px solid var(--line);
+      box-shadow:0 -4px 16px rgba(15,76,92,.14)}
+    .cartbar.show{transform:none}
+    .cartbar .inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:12px}
+    .cartbar .sum{flex:1;font-weight:800}
+    .cartbar .sum small{display:block;color:var(--muted);font-weight:600;font-size:12px}
+    .cartbar .go{border:0;border-radius:10px;padding:11px 16px;cursor:pointer;background:#25D366;
+      color:#fff;font-family:inherit;font-weight:800;font-size:14px;white-space:nowrap}
+    .overlay{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.42);display:none}
+    .overlay.show{display:block}
+    .drawer{position:fixed;inset-inline:0;bottom:0;z-index:51;max-height:82vh;background:var(--bg);
+      border-radius:18px 18px 0 0;transform:translateY(100%);transition:transform .25s;
+      display:flex;flex-direction:column}
+    .drawer.show{transform:none}
+    .drawer .hd{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;
+      border-bottom:1px solid var(--line)}
+    .drawer .hd b{font-size:17px}
+    .xbtn{background:none;border:0;font-size:24px;cursor:pointer;color:var(--muted);line-height:1}
+    .ditems{overflow-y:auto;padding:4px 16px;flex:1}
+    .drow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+    .drow .nm{flex:1}
+    .drow .nm small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+    .step{display:flex;align-items:center;gap:8px}
+    .step button{width:30px;height:30px;border:1px solid var(--line);background:#fff;border-radius:8px;
+      font-size:18px;cursor:pointer;color:var(--brand);line-height:1}
+    .step b{min-width:22px;text-align:center}
+    .dfoot{padding:14px 16px;border-top:1px solid var(--line);background:#fff}
+    .dfoot .total{display:flex;justify-content:space-between;font-size:18px;font-weight:800;margin-bottom:10px}
+    .dfoot .checkout{width:100%;border:0;border-radius:12px;padding:14px;background:#25D366;color:#fff;
+      font-family:inherit;font-weight:800;font-size:15px;cursor:pointer}
+    .clear{background:none;border:0;color:#C0392B;cursor:pointer;font-family:inherit;font-size:13px}
   </style>
 </head>
 <body>
@@ -168,6 +208,26 @@
   <footer>
     <div id="foot">—</div>
   </footer>
+
+  <!-- شريط السلة العائم -->
+  <div class="cartbar" id="cartbar">
+    <div class="inner">
+      <div class="sum"><span id="barTotal">0</span><small id="barCount">0 منتج في السلة</small></div>
+      <button class="go" id="barOpen">عرض السلة ومتابعة الطلب</button>
+    </div>
+  </div>
+
+  <!-- درج السلة -->
+  <div class="overlay" id="overlay"></div>
+  <div class="drawer" id="drawer" role="dialog" aria-label="سلة الطلب">
+    <div class="hd"><b>سلة الطلب</b><button class="xbtn" id="drawerClose" aria-label="إغلاق">×</button></div>
+    <div class="ditems" id="ditems"></div>
+    <div class="dfoot">
+      <div class="total"><span>الإجمالي</span><span id="drawerTotal">0</span></div>
+      <button class="checkout" id="checkout">إتمام الطلب على واتساب</button>
+      <div style="text-align:center;margin-top:8px"><button class="clear" id="clearCart">تفريغ السلة</button></div>
+    </div>
+  </div>
 
   <script>
     // ---------- demo data (يظهر فقط لو Supabase مش متظبّط) ----------
@@ -241,16 +301,17 @@
       countEl.textContent = list.length ? (list.length + ' منتج') : '';
       if (!list.length){ showState('🔍','لا توجد نتائج','جرّب كلمة بحث أو تصنيف تاني'); return; }
       gridEl.hidden = false; stateEl.hidden = true; gridEl.classList.remove('skeleton');
-      const waIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.82 9.82 0 001.59 5.325l-.999 3.648 3.908-1.022z"/></svg>';
-      gridEl.innerHTML = list.map(x=>(
-        '<div class="card">'+
+      gridEl.innerHTML = list.map(x=>{
+        const q = cart[x.id] || 0;
+        const label = q ? ('✓ في السلة ('+q+')') : '＋ أضف للسلة';
+        return '<div class="card">'+
           (x.category?'<span class="cat">'+esc(x.category)+'</span>':'')+
           '<div class="name">'+esc(x.name)+'</div>'+
           (x.brand?'<div class="brand">'+esc(x.brand)+'</div>':'')+
           '<div class="price">'+money(x.price)+'</div>'+
-          '<button class="order-btn" data-id="'+esc(x.id)+'">'+waIcon+'اطلب على واتساب</button>'+
-        '</div>'
-      )).join('');
+          '<button class="add-btn'+(q?' in':'')+'" data-id="'+esc(x.id)+'">'+label+'</button>'+
+        '</div>';
+      }).join('');
     }
 
     async function loadReal(){
@@ -286,30 +347,95 @@
       }
     }
 
-    // ---------- طلب عبر واتساب ----------
-    function orderOnWhatsApp(item){
-      if (!item) return;
-      const lines = [
-        'السلام عليكم 👋',
-        'حابب أطلب المنتج ده من «' + (CFG.SHOP_NAME || 'المحل') + '»:',
-        '',
-        '🛍️ ' + item.name,
-        '💰 السعر: ' + (Number(item.price)||0).toLocaleString('ar-EG') + ' ' + CFG.CURRENCY,
-      ];
-      const num = String(CFG.WHATSAPP || '').replace(/[^0-9]/g,'');
-      const url = 'https://wa.me/' + num + '?text=' + encodeURIComponent(lines.join('\n'));
-      window.open(url, '_blank');
+    // ---------- السلة ----------
+    let cart = {};
+    try { cart = JSON.parse(localStorage.getItem('shop_cart') || '{}') || {}; } catch{ cart = {}; }
+    const saveCart = () => { try { localStorage.setItem('shop_cart', JSON.stringify(cart)); } catch{} };
+    const findItem = (id) => ALL.find(x => String(x.id) === String(id));
+    const cartCount = () => Object.values(cart).reduce((s,q)=>s+q,0);
+    const cartTotal = () => Object.entries(cart).reduce((s,[id,q])=>{ const it=findItem(id); return s+(it?(Number(it.price)||0):0)*q; },0);
+    const fmtMoney = (n) => (Number(n)||0).toLocaleString('ar-EG') + ' ' + CFG.CURRENCY;
+
+    const barEl = $('#cartbar'), overlayEl = $('#overlay'), drawerEl = $('#drawer');
+
+    function updateBar(){
+      const n = cartCount();
+      $('#barCount').textContent = n ? (n + ' منتج في السلة') : 'السلة فارغة';
+      $('#barTotal').innerHTML = fmtMoney(cartTotal());
+      barEl.classList.toggle('show', n > 0);
+      document.body.style.paddingBottom = n > 0 ? '70px' : '';
+      if (n === 0) closeDrawer();
     }
 
+    function addToCart(id){
+      // drop stale ids no longer in the catalog
+      if (!findItem(id)) return;
+      cart[id] = (cart[id] || 0) + 1; saveCart(); updateBar();
+    }
+    function setQty(id, q){
+      if (q <= 0) delete cart[id]; else cart[id] = q;
+      saveCart(); updateBar(); renderDrawer(); render();
+    }
+
+    function renderDrawer(){
+      const entries = Object.entries(cart).map(([id,q])=>({it:findItem(id),q})).filter(r=>r.it);
+      $('#ditems').innerHTML = entries.length ? entries.map(({it,q})=>(
+        '<div class="drow" data-id="'+esc(it.id)+'">'+
+          '<div class="nm">'+esc(it.name)+'<small>'+fmtMoney(it.price)+' × '+q+' = <b>'+fmtMoney((Number(it.price)||0)*q)+'</b></small></div>'+
+          '<div class="step">'+
+            '<button data-act="dec" aria-label="إنقاص">−</button>'+
+            '<b>'+q+'</b>'+
+            '<button data-act="inc" aria-label="زيادة">＋</button>'+
+          '</div>'+
+        '</div>'
+      )).join('') : '<div style="text-align:center;color:var(--muted);padding:24px">السلة فارغة</div>';
+      $('#drawerTotal').innerHTML = fmtMoney(cartTotal());
+    }
+
+    function openDrawer(){ renderDrawer(); overlayEl.classList.add('show'); drawerEl.classList.add('show'); }
+    function closeDrawer(){ overlayEl.classList.remove('show'); drawerEl.classList.remove('show'); }
+
+    function checkout(){
+      const entries = Object.entries(cart).map(([id,q])=>({it:findItem(id),q})).filter(r=>r.it && r.q>0);
+      if (!entries.length) return;
+      const L = ['السلام عليكم 👋', 'حابب أطلب من «' + (CFG.SHOP_NAME || 'المحل') + '»:', ''];
+      let total = 0;
+      entries.forEach(({it,q})=>{ const line=(Number(it.price)||0)*q; total+=line;
+        L.push('🛍️ ' + it.name + ' × ' + q + ' = ' + line.toLocaleString('ar-EG') + ' ' + CFG.CURRENCY); });
+      L.push(''); L.push('💰 الإجمالي: ' + total.toLocaleString('ar-EG') + ' ' + CFG.CURRENCY);
+      const num = String(CFG.WHATSAPP || '').replace(/[^0-9]/g,'');
+      window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(L.join('\n')), '_blank');
+    }
+
+    // أزرار البطاقات: أضف للسلة (تحديث الزرار نفسه بدون إعادة رسم الشبكة)
     gridEl.addEventListener('click', (e)=>{
-      const btn = e.target.closest('.order-btn');
+      const btn = e.target.closest('.add-btn');
       if (!btn) return;
-      const item = ALL.find(x => String(x.id) === btn.dataset.id);
-      orderOnWhatsApp(item);
+      const id = btn.dataset.id;
+      addToCart(id);
+      const q = cart[id] || 0;
+      btn.classList.toggle('in', q>0);
+      btn.textContent = q ? ('✓ في السلة ('+q+')') : '＋ أضف للسلة';
     });
 
+    // خطوات الكمية داخل الدرج
+    $('#ditems').addEventListener('click', (e)=>{
+      const b = e.target.closest('button[data-act]'); if (!b) return;
+      const id = b.closest('.drow').dataset.id;
+      setQty(id, (cart[id]||0) + (b.dataset.act==='inc' ? 1 : -1));
+    });
+
+    $('#barOpen').addEventListener('click', openDrawer);
+    $('#drawerClose').addEventListener('click', closeDrawer);
+    overlayEl.addEventListener('click', closeDrawer);
+    $('#checkout').addEventListener('click', checkout);
+    $('#clearCart').addEventListener('click', ()=>{ cart = {}; saveCart(); updateBar(); renderDrawer(); render(); });
+
     qEl.addEventListener('input', ()=>{ term = qEl.value; render(); });
-    init();
+    init().then(() => { // prune ids not in the loaded catalog, then refresh bar
+      Object.keys(cart).forEach((id)=>{ if (!findItem(id)) delete cart[id]; });
+      saveCart(); updateBar();
+    });
   </script>
 </body>
 </html>
