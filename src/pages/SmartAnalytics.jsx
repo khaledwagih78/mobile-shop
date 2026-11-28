@@ -1,8 +1,8 @@
 import { useMemo, useState } from'react';
 import { useLiveQuery } from'dexie-react-hooks';
 import { useNavigate } from'react-router-dom';
-import { db, stockOf, savePurchaseOrder } from'../db';
-import { money, fmt } from'../utils';
+import { db, stockOf, savePurchaseOrder, getSetting } from'../db';
+import { money, fmt, waLink } from'../utils';
 import { useAuth } from'../auth';
 import { Toast } from'../components/UI';
 
@@ -15,6 +15,7 @@ export default function SmartAnalytics({ embedded = false }) {
   const items = useLiveQuery(() => db.items.toArray(), [], []);
   const expenses = useLiveQuery(() => db.expenses.toArray(), [], []);
   const suppliers = useLiveQuery(() => db.suppliers.orderBy('name').toArray(), [], []);
+  const bizName = useLiveQuery(() => getSetting('bizName','نظام المبيعات والمخزون'), [],'نظام المبيعات والمخزون');
 
   // reorder → purchase order
   const [picks, setPicks] = useState({}); // { [itemId]: qtyString }
@@ -27,10 +28,27 @@ export default function SmartAnalytics({ embedded = false }) {
     if (n[it.id] != null) delete n[it.id]; else n[it.id] = String(suggest);
     return n;
   });
+  const chosenRows = () => Object.entries(picks)
+    .map(([id, q]) => ({ it: items.find((x) => x.id === Number(id)), qty: Number(q) || 0 }))
+    .filter((r) => r.it && r.qty > 0);
+
+  // تنبيه واتساب للمورد بقائمة النواقص المطلوبة (طلب توريد)
+  const sendSupplierWhatsApp = () => {
+    const chosen = chosenRows();
+    if (!chosen.length) { notify('اختر صنف واحد على الأقل بكمية صحيحة'); return; }
+    const sup = suppliers.find((s) => s.id === Number(supplierId));
+    const lines = chosen.map(({ it, qty }) =>`• ${it.name}${it.code ?' (' + it.code + ')' :''} × ${fmt(qty)}`);
+    const msg =`*طلب توريد — ${bizName}*\n`
+      + (sup ?`المورد: ${sup.name}\n` :'')
+      +`السلام عليكم، نرجو توفير الأصناف التالية:\n`
+      +`------------------\n${lines.join('\n')}\n------------------\n`
+      +`وجزاكم الله خيراً.`;
+    window.open(waLink(sup?.phone, msg),'_blank');
+    if (!sup || !(sup.phone ||'').trim()) notify('لا يوجد رقم للمورد — اختر جهة الاتصال في واتساب');
+  };
+
   const createPO = async () => {
-    const chosen = Object.entries(picks)
-      .map(([id, q]) => ({ it: items.find((x) => x.id === Number(id)), qty: Number(q) || 0 }))
-      .filter((r) => r.it && r.qty > 0);
+    const chosen = chosenRows();
     if (!chosen.length) { notify('اختر صنف واحد على الأقل بكمية صحيحة'); return; }
     setPoBusy(true);
     try {
@@ -180,6 +198,7 @@ export default function SmartAnalytics({ embedded = false }) {
               </select>
             </div>
             <button className="btn accent" disabled={poBusy || Object.keys(picks).length === 0} onClick={createPO}> إنشاء أمر شراء ({Object.keys(picks).length}) </button>
+            <button className="btn ghost" style={{ color:'var(--green)' }} disabled={Object.keys(picks).length === 0} onClick={sendSupplierWhatsApp} title="إرسال قائمة النواقص للمورد على واتساب"> 📱 طلب للمورد (واتساب) </button>
           </div>
         </>
       )}
