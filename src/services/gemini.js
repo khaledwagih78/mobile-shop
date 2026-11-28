@@ -2,7 +2,9 @@
 // Architecture: Strict Analyze-Only (Read-Only)
 // The AI receives aggregated business summaries for analysis and advisory only.
 // It has ZERO access or capability to mutate, create, edit, or delete any records in the database.
-// The API key is securely loaded from environment variables and cannot be altered by the user from the UI.
+// The API key is loaded from an environment variable (VITE_GEMINI_API_KEY) when present,
+// otherwise from the shop owner's local `aiKey` setting (entered in Settings, stored on this
+// device only and not synced to the cloud). It is never exposed to the AI or to other users.
 
 import { getSetting } from '../db';
 

@@ -16,6 +16,7 @@ export default function Settings() {
   const [waAuto, setWaAuto] = useState(false);
   const [waTpl, setWaTpl] = useState({ debt: WA_TPL_DEFAULTS.debt, promo: WA_TPL_DEFAULTS.promo, invoiceFooter: WA_TPL_DEFAULTS.invoiceFooter });
   const [preventOversell, setPreventOversell] = useState(true);
+  const [aiKey, setAiKey] = useState('');
   const [tax, setTax] = useState({ enabled: false, name: 'ضريبة القيمة المضافة', rate: '' });
   const [alerts, setAlerts] = useState({
     nearExpiryDays: '60',
@@ -81,6 +82,7 @@ export default function Settings() {
         invoiceFooter: (await getSetting('waTplInvoiceFooter', WA_TPL_DEFAULTS.invoiceFooter)) || WA_TPL_DEFAULTS.invoiceFooter,
       });
       setPreventOversell((await getSetting('preventOversell', true)) !== false);
+      setAiKey((await getSetting('aiKey', '')) || '');
       setTax({
         enabled: (await getSetting('taxEnabled', false)) === true,
         name: (await getSetting('taxName', 'ضريبة القيمة المضافة')) || 'ضريبة القيمة المضافة',
@@ -123,6 +125,11 @@ export default function Settings() {
     setWaAuto(next);
     await setSetting('waAutoSend', next);
     notify(next ? 'تم تفعيل فتح واتساب التلقائي' : 'تم تعطيل فتح واتساب التلقائي');
+  };
+
+  const saveAiKey = async () => {
+    await setSetting('aiKey', (aiKey || '').trim());
+    notify((aiKey || '').trim() ? 'تم حفظ مفتاح الذكاء الاصطناعي' : 'تم مسح مفتاح الذكاء الاصطناعي');
   };
 
   const saveWaTpl = async () => {
@@ -572,6 +579,31 @@ export default function Settings() {
             استعادة الافتراضي
           </button>
         </div>
+      </div>
+
+      {/* AI (Gemini) API key */}
+      <div className="card" style={{ maxWidth: 640, marginTop: 16 }}>
+        <h2 style={{ fontSize: 17, marginTop: 0 }}>مفتاح الذكاء الاصطناعي (Google Gemini)</h2>
+        <p className="muted" style={{ marginTop: 4 }}>
+          لازم مفتاح Gemini عشان تشتغل <b>قراءة فواتير الموردين بالصورة</b> و<b>المساعد الذكي</b>.
+          احصل على مفتاح مجاني من{' '}
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Google AI Studio</a>
+          {' '}والصقه هنا. يُحفظ على هذا الجهاز فقط ولا يُرفع للسحابة.
+          {!isAiAllowed(plan) && <> <b style={{ color: 'var(--amber)' }}>(متاح في باقة Pro)</b></>}
+        </p>
+        <div className="field">
+          <label>مفتاح API</label>
+          <input
+            className="input"
+            dir="ltr"
+            type="password"
+            autoComplete="off"
+            value={aiKey}
+            onChange={(e) => setAiKey(e.target.value)}
+            placeholder="AIza..."
+          />
+        </div>
+        <button className="btn" onClick={saveAiKey}>حفظ المفتاح</button>
       </div>
 
       {/* VAT / Tax Settings */}
